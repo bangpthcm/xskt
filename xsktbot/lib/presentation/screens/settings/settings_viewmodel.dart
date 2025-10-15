@@ -4,19 +4,24 @@ import '../../../data/models/app_config.dart';
 import '../../../data/services/storage_service.dart';
 import '../../../data/services/google_sheets_service.dart';
 import '../../../data/services/telegram_service.dart';
+import '../../../data/services/backfill_service.dart';  // ✅ ADD
+import '../../../data/services/rss_parser_service.dart';
 
 class SettingsViewModel extends ChangeNotifier {
   final StorageService _storageService;
   final GoogleSheetsService _sheetsService;
   final TelegramService _telegramService;
+  final RssParserService _rssService;  // ✅ PHẢI CÓ DÒNG NÀY
 
   SettingsViewModel({
     required StorageService storageService,
     required GoogleSheetsService sheetsService,
     required TelegramService telegramService,
+    required RssParserService rssService,  // ✅ PHẢI CÓ DÒNG NÀY
   })  : _storageService = storageService,
         _sheetsService = sheetsService,
-        _telegramService = telegramService;
+        _telegramService = telegramService,
+        _rssService = rssService;  // ✅ PHẢI CÓ DÒNG NÀY
 
   AppConfig _config = AppConfig.defaultConfig();
   bool _isLoading = false;
@@ -125,4 +130,30 @@ class SettingsViewModel extends ChangeNotifier {
     _isTelegramConnected = false;
     notifyListeners();
   }
+
+  // ✅ THÊM METHOD NÀY vào cuối class SettingsViewModel
+  Future<String> syncRSSData() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final backfillService = BackfillService(
+        sheetsService: _sheetsService,
+        rssService: _rssService,
+      );
+
+      final result = await backfillService.syncAllFromRSS();
+
+      _isLoading = false;
+      notifyListeners();
+
+      return result.message;
+    } catch (e) {
+      _errorMessage = 'Lỗi đồng bộ RSS: $e';
+      _isLoading = false;
+      notifyListeners();
+      return 'Lỗi đồng bộ RSS: $e';
+    }
+  }
+
 }

@@ -25,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Budget Controllers
   late TextEditingController _budgetMinController;
   late TextEditingController _budgetMaxController;
+  late TextEditingController _xienBudgetController;  // ✅ ADD THIS
 
   @override
   void initState() {
@@ -45,6 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _chatIdsController = TextEditingController();
     _budgetMinController = TextEditingController();
     _budgetMaxController = TextEditingController();
+    _xienBudgetController = TextEditingController();
   }
 
   void _updateControllersFromConfig() {
@@ -56,6 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _chatIdsController.text = config.telegram.chatIds.join(', ');
     _budgetMinController.text = config.budget.budgetMin.toString();
     _budgetMaxController.text = config.budget.budgetMax.toString();
+    _xienBudgetController.text = config.budget.xienBudget.toString();
   }
 
   @override
@@ -66,6 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _chatIdsController.dispose();
     _budgetMinController.dispose();
     _budgetMaxController.dispose();
+    _xienBudgetController.dispose();
     super.dispose();
   }
 
@@ -239,6 +243,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const Divider(),
+            
+            // ✅ THÊM LABEL CHU KỲ
+            const Text(
+              'Chu kỳ 00-99:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 8),
+            
             TextFormField(
               controller: _budgetMinController,
               decoration: const InputDecoration(
@@ -280,6 +296,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final minBudget = double.tryParse(_budgetMinController.text);
                 if (minBudget != null && number < minBudget) {
                   return 'Phải lớn hơn ngân sách tối thiểu';
+                }
+                return null;
+              },
+            ),
+            
+            // ✅ THÊM PHẦN XIÊN
+            const SizedBox(height: 24),
+            const Text(
+              'Cặp số (Xiên):',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _xienBudgetController,
+              decoration: const InputDecoration(
+                labelText: 'Ngân sách mục tiêu',
+                hintText: '19000',
+                suffixText: 'VNĐ',
+                helperText: 'Ngân sách cho mỗi cặp số xiên',
+                prefixIcon: Icon(Icons.favorite_border),
+              ),
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Vui lòng nhập ngân sách xiên';
+                }
+                final number = double.tryParse(value);
+                if (number == null || number <= 0) {
+                  return 'Số tiền không hợp lệ';
                 }
                 return null;
               },
@@ -334,6 +383,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             label: const Text('Lưu và kiểm tra kết nối'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        
+        // ✅ THÊM NÚT ĐỒNG BỘ RSS
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: viewModel.isLoading ? null : () => _syncRSSData(viewModel),
+            icon: viewModel.isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+            label: const Text('Đồng bộ dữ liệu RSS'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              backgroundColor: Colors.blue,
             ),
           ),
         ),
@@ -417,6 +487,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       budget: BudgetConfig(
         budgetMin: double.parse(_budgetMinController.text),
         budgetMax: double.parse(_budgetMaxController.text),
+        xienBudget: double.parse(_xienBudgetController.text),
       ),
     );
 
@@ -463,6 +534,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                            viewModel.isTelegramConnected)
               ? Colors.green
               : Colors.orange,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+  
+  // ✅ THÊM METHOD NÀY
+  Future<void> _syncRSSData(SettingsViewModel viewModel) async {
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận'),
+        content: const Text(
+          'Đồng bộ dữ liệu mới từ RSS vào Google Sheet?\n\n'
+          'Quá trình này có thể mất vài phút.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Đồng bộ'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Perform sync
+    final message = await viewModel.syncRSSData();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: viewModel.errorMessage != null
+              ? Colors.red
+              : Colors.green,
           duration: const Duration(seconds: 4),
         ),
       );

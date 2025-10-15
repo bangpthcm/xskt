@@ -43,6 +43,51 @@ class BettingViewModel extends ChangeNotifier {
   Map<String, dynamic>? get xienMetadata => _xienMetadata;
   Map<String, dynamic>? get cycleMetadata => _cycleMetadata;
 
+  // ✅ HELPER FUNCTION GLOBAL
+  static double _parseSheetNumber(dynamic value) {
+    String str = value.toString().trim();
+    
+    int dotCount = str.split('.').length - 1;
+    int commaCount = str.split(',').length - 1;
+    
+    // Case 1: Có cả dấu chấm và dấu phẩy
+    if (dotCount > 0 && commaCount > 0) {
+      // Format EU: 1.339,20 (dấu chấm trước dấu phẩy)
+      if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
+        str = str.replaceAll('.', '').replaceAll(',', '.');
+      } 
+      // Format US: 1,339.20 (dấu phẩy trước dấu chấm)
+      else {
+        str = str.replaceAll(',', '');
+      }
+    } 
+    // Case 2: Chỉ có dấu phẩy
+    else if (commaCount > 0) {
+      // Nhiều dấu phẩy hoặc dấu phẩy không ở cuối → phân cách nghìn
+      if (commaCount > 1 || (commaCount == 1 && str.indexOf(',') < str.length - 3)) {
+        str = str.replaceAll(',', '');
+      } 
+      // 1 dấu phẩy ở gần cuối → thập phân
+      else {
+        str = str.replaceAll(',', '.');
+      }
+    } 
+    // Case 3: Chỉ có dấu chấm
+    else if (dotCount > 1) {
+      // Nhiều dấu chấm → phân cách nghìn (1.339.20)
+      int lastDotIndex = str.lastIndexOf('.');
+      str = str.substring(0, lastDotIndex).replaceAll('.', '') + 
+            '.' + str.substring(lastDotIndex + 1);
+    }
+    
+    str = str.replaceAll(' ', '');
+    return double.parse(str);
+  }
+  
+  static int _parseSheetInt(dynamic value) {
+    return _parseSheetNumber(value).round();
+  }
+
   Future<void> loadBettingTables() async {
     _isLoading = true;
     _errorMessage = null;
@@ -63,42 +108,61 @@ class BettingViewModel extends ChangeNotifier {
 
   Future<void> _loadXienTable() async {
     try {
+      print('🔍 Loading xien table from xienBot...');
       final values = await _sheetsService.getAllValues('xienBot');
       
+      print('📊 Got ${values.length} rows from xienBot');
+      
       if (values.isEmpty || values.length < 4) {
+        print('⚠️ Not enough rows for xien table');
         _xienTable = null;
         _xienMetadata = null;
         return;
       }
 
+      print('📋 Row 0: ${values[0]}');
       _xienMetadata = {
-        'so_ngay_gan': values[0][0],
-        'lan_cuoi_ve': values[0][1],
-        'nhom_cap_so': values[0][2],
-        'cap_so_muc_tieu': values[0][3],
+        'so_ngay_gan': values[0].isNotEmpty ? values[0][0] : '',
+        'lan_cuoi_ve': values[0].length > 1 ? values[0][1] : '',
+        'nhom_cap_so': values[0].length > 2 ? values[0][2] : '',
+        'cap_so_muc_tieu': values[0].length > 3 ? values[0][3] : '',
       };
+      print('✅ Metadata: $_xienMetadata');
 
       _xienTable = [];
       for (int i = 3; i < values.length; i++) {
         final row = values[i];
-        if (row.isEmpty || row[0].isEmpty) continue;
+        
+        if (row.isEmpty || row[0].toString().trim().isEmpty) {
+          print('⏭️ Skip empty row $i');
+          continue;
+        }
+
+        if (row.length < 7) {
+          print('⚠️ Row $i only has ${row.length} columns, expected 7');
+          continue;
+        }
 
         try {
-          _xienTable!.add(BettingRow.forXien(
-            stt: int.parse(row[0]),
-            ngay: row[1],
-            mien: row[2],
-            so: row[3],
-            cuocMien: double.parse(row[4].replaceAll(',', '')),
-            tongTien: double.parse(row[5].replaceAll(',', '')),
-            loi: double.parse(row[6].replaceAll(',', '')),
-          ));
+          final bettingRow = BettingRow.forXien(
+            stt: int.parse(row[0].toString().trim()),
+            ngay: row[1].toString().trim(),
+            mien: row[2].toString().trim(),
+            so: row[3].toString().trim(),
+            cuocMien: _parseSheetNumber(row[4]),
+            tongTien: _parseSheetNumber(row[5]),
+            loi: _parseSheetNumber(row[6]),
+          );
+          _xienTable!.add(bettingRow);
         } catch (e) {
-          print('Error parsing xien row $i: $e');
+          print('❌ Error parsing xien row $i: $e');
+          print('   Row data: $row');
         }
       }
+      
+      print('✅ Loaded ${_xienTable!.length} xien betting rows');
     } catch (e) {
-      print('Error loading xien table: $e');
+      print('❌ Error loading xien table: $e');
       _xienTable = null;
       _xienMetadata = null;
     }
@@ -106,45 +170,64 @@ class BettingViewModel extends ChangeNotifier {
 
   Future<void> _loadCycleTable() async {
     try {
+      print('🔍 Loading cycle table from xsktBot1...');
       final values = await _sheetsService.getAllValues('xsktBot1');
       
+      print('📊 Got ${values.length} rows from xsktBot1');
+      
       if (values.isEmpty || values.length < 4) {
+        print('⚠️ Not enough rows for cycle table');
         _cycleTable = null;
         _cycleMetadata = null;
         return;
       }
 
+      print('📋 Row 0: ${values[0]}');
       _cycleMetadata = {
-        'so_ngay_gan': values[0][0],
-        'lan_cuoi_ve': values[0][1],
-        'nhom_so_gan': values[0][2],
-        'so_muc_tieu': values[0][3],
+        'so_ngay_gan': values[0].isNotEmpty ? values[0][0] : '',
+        'lan_cuoi_ve': values[0].length > 1 ? values[0][1] : '',
+        'nhom_so_gan': values[0].length > 2 ? values[0][2] : '',
+        'so_muc_tieu': values[0].length > 3 ? values[0][3] : '',
       };
+      print('✅ Metadata: $_cycleMetadata');
 
       _cycleTable = [];
       for (int i = 3; i < values.length; i++) {
         final row = values[i];
-        if (row.isEmpty || row[0].isEmpty) continue;
+        
+        if (row.isEmpty || row[0].toString().trim().isEmpty) {
+          print('⏭️ Skip empty row $i');
+          continue;
+        }
+
+        if (row.length < 10) {
+          print('⚠️ Row $i only has ${row.length} columns, expected 10');
+          continue;
+        }
 
         try {
-          _cycleTable!.add(BettingRow.forCycle(
-            stt: int.parse(row[0]),
-            ngay: row[1],
-            mien: row[2],
-            so: row[3],
-            soLo: int.parse(row[4]),
-            cuocSo: double.parse(row[5].replaceAll(',', '')),
-            cuocMien: double.parse(row[6].replaceAll(',', '')),
-            tongTien: double.parse(row[7].replaceAll(',', '')),
-            loi1So: double.parse(row[8].replaceAll(',', '')),
-            loi2So: double.parse(row[9].replaceAll(',', '')),
-          ));
+          final bettingRow = BettingRow.forCycle(
+            stt: int.parse(row[0].toString().trim()),
+            ngay: row[1].toString().trim(),
+            mien: row[2].toString().trim(),
+            so: row[3].toString().trim(),
+            soLo: _parseSheetInt(row[4]),
+            cuocSo: _parseSheetNumber(row[5]),
+            cuocMien: _parseSheetNumber(row[6]),
+            tongTien: _parseSheetNumber(row[7]),
+            loi1So: _parseSheetNumber(row[8]),
+            loi2So: _parseSheetNumber(row[9]),
+          );
+          _cycleTable!.add(bettingRow);
         } catch (e) {
-          print('Error parsing cycle row $i: $e');
+          print('❌ Error parsing cycle row $i: $e');
+          print('   Row data: $row');
         }
       }
+      
+      print('✅ Loaded ${_cycleTable!.length} cycle betting rows');
     } catch (e) {
-      print('Error loading cycle table: $e');
+      print('❌ Error loading cycle table: $e');
       _cycleTable = null;
       _cycleMetadata = null;
     }
@@ -160,7 +243,7 @@ class BettingViewModel extends ChangeNotifier {
 
     try {
       if (type == BettingTableType.xien) {
-        await _regenerateXienTable();
+        await _regenerateXienTable(config);
       } else {
         await _regenerateCycleTable(config);
       }
@@ -176,7 +259,7 @@ class BettingViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> _regenerateXienTable() async {
+  Future<void> _regenerateXienTable(AppConfig config) async {
     final allValues = await _sheetsService.getAllValues('KQXS');
     final results = <LotteryResult>[];
     
@@ -204,6 +287,7 @@ class BettingViewModel extends ChangeNotifier {
     final newTable = await _bettingService.generateXienTable(
       ganInfo: ganInfo,
       startDate: startDate,
+      xienBudget: config.budget.xienBudget,
     );
 
     await _saveXienTableToSheet(newTable, ganInfo);

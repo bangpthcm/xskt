@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'analysis_viewmodel.dart';
 import '../settings/settings_viewmodel.dart';
+import '../betting/betting_viewmodel.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../app.dart';
 
@@ -30,6 +31,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
+            tooltip: 'Đồng bộ RSS và phân tích lại',
             onPressed: () {
               context.read<AnalysisViewModel>().loadAnalysis(useCache: false);
             },
@@ -39,7 +41,19 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       body: Consumer<AnalysisViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Đang đồng bộ dữ liệu và phân tích...',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            );
           }
 
           if (viewModel.errorMessage != null) {
@@ -112,7 +126,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 IconButton(
                   icon: const Icon(Icons.table_chart, color: Colors.orange),
                   tooltip: 'Tạo bảng cược',
-                  // ✅ FIX: Bỏ điều kiện maxGanDays > 3
                   onPressed: cycleResult != null
                       ? () => _createCycleBettingTable(context, viewModel)
                       : null,
@@ -143,12 +156,17 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 spacing: 6,
                 runSpacing: 6,
                 children: cycleResult.ganNumbers.map((number) {
-                  return Chip(
-                    label: Text(
-                      number,
-                      style: const TextStyle(fontSize: 14),
+                  return InkWell(
+                    onTap: viewModel.selectedMien == 'Tất cả'
+                        ? () => _showNumberDetail(context, viewModel, number)
+                        : null,
+                    child: Chip(
+                      label: Text(
+                        number,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      backgroundColor: Colors.green.shade100,
                     ),
-                    backgroundColor: Colors.green.shade100,
                   );
                 }).toList(),
               ),
@@ -158,7 +176,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              
+
+              // ✅ THAY ĐỔI GIAO DIỆN - BỎ KHUNG
               ...['Nam', 'Trung', 'Bắc'].map((mien) {
                 if (!cycleResult.mienGroups.containsKey(mien) || 
                     cycleResult.mienGroups[mien]!.isEmpty) {
@@ -166,24 +185,25 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 }
                 
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Column(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Miền $mien:',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          'Miền $mien:',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
-                        children: cycleResult.mienGroups[mien]!.map((number) {
-                          return Chip(
-                            label: Text(number),
-                            backgroundColor: _getMienColor(mien),
-                          );
-                        }).toList(),
+                      Expanded(
+                        child: Text(
+                          cycleResult.mienGroups[mien]!.join(', '),
+                          style: const TextStyle(fontSize: 14),
+                        ),
                       ),
                     ],
                   ),
@@ -225,7 +245,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 IconButton(
                   icon: const Icon(Icons.table_chart, color: Colors.orange),
                   tooltip: 'Tạo bảng cược',
-                  // ✅ FIX: Bỏ điều kiện daysGan > 155
                   onPressed: ganInfo != null
                       ? () => _createXienBettingTable(context, viewModel)
                       : null,
@@ -250,20 +269,20 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: ganInfo.pairs.map((pairWithDays) {  // ✅ pairWithDays là PairWithDays
+                children: ganInfo.pairs.map((pairWithDays) {
                   return Chip(
                     label: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          pairWithDays.pair.display,  // ✅ Đúng
+                          pairWithDays.pair.display,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
                         ),
                         Text(
-                          '(${pairWithDays.daysGan} ngày)',  // ✅ Đúng
+                          '(${pairWithDays.daysGan} ngày)',
                           style: const TextStyle(fontSize: 12),
                         ),
                       ],
@@ -332,7 +351,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     }
   }
 
-  // ✅ DIALOG TẠO BẢNG CƯỢC CHU KỲ
   void _createCycleBettingTable(BuildContext context, AnalysisViewModel viewModel) {
     showDialog(
       context: context,
@@ -356,7 +374,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
-                  // ✅ RELOAD bảng cược SAU KHI tạo thành công
                   await context.read<BettingViewModel>().loadBettingTables();
                   
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -367,7 +384,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     ),
                   );
                   
-                  // Delay một chút trước khi chuyển tab
                   await Future.delayed(const Duration(milliseconds: 300));
                   
                   if (context.mounted) {
@@ -412,7 +428,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
-                  // ✅ RELOAD bảng cược SAU KHI tạo thành công
                   await context.read<BettingViewModel>().loadBettingTables();
                   
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -423,7 +438,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     ),
                   );
                   
-                  // Delay một chút trước khi chuyển tab
                   await Future.delayed(const Duration(milliseconds: 300));
                   
                   if (context.mounted) {
@@ -516,5 +530,214 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         ],
       ),
     );
+  }
+
+  // ✅ HIỂN THỊ CHI TIẾT SỐ
+  Future<void> _showNumberDetail(
+    BuildContext context,
+    AnalysisViewModel viewModel,
+    String number,
+  ) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    final numberDetail = await viewModel.analyzeNumberDetail(number);
+
+    if (!context.mounted) return;
+    
+    Navigator.pop(context);
+
+    if (numberDetail == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không tìm thấy dữ liệu')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Chi tiết số $number'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Thông tin theo từng miền:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              if (numberDetail.mienDetails.containsKey('Nam'))
+                _buildMienDetailRow(
+                  'Miền Nam',
+                  numberDetail.mienDetails['Nam']!,
+                  Colors.orange,
+                ),
+              
+              if (numberDetail.mienDetails.containsKey('Trung'))
+                _buildMienDetailRow(
+                  'Miền Trung',
+                  numberDetail.mienDetails['Trung']!,
+                  Colors.purple,
+                ),
+              
+              if (numberDetail.mienDetails.containsKey('Bắc'))
+                _buildMienDetailRow(
+                  'Miền Bắc',
+                  numberDetail.mienDetails['Bắc']!,
+                  Colors.blue,
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _sendNumberDetailToTelegram(context, viewModel, numberDetail);
+            },
+            icon: const Icon(Icons.send),
+            label: const Text('Gửi Telegram'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _createTableForNumber(context, viewModel, number);
+            },
+            icon: const Icon(Icons.table_chart),
+            label: const Text('Tạo bảng'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMienDetailRow(String label, dynamic detail, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text('Gan: ${detail.daysGan} ngày'),
+            Text('Lần cuối: ${detail.lastSeenDateStr}'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendNumberDetailToTelegram(
+    BuildContext context,
+    AnalysisViewModel viewModel,
+    dynamic numberDetail,
+  ) async {
+    await viewModel.sendNumberDetailToTelegram(numberDetail);
+    
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            viewModel.errorMessage ?? 'Gửi thành công!',
+          ),
+          backgroundColor: viewModel.errorMessage != null
+              ? Colors.red
+              : Colors.green,
+        ),
+      );
+    }
+  }
+
+  Future<void> _createTableForNumber(
+    BuildContext context,
+    AnalysisViewModel viewModel,
+    String number,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận'),
+        content: Text(
+          'Tạo bảng cược cho số $number?\n\n'
+          'Bảng cược chu kỳ hiện tại sẽ bị xóa và thay thế.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Tạo'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !context.mounted) return;
+
+    final config = context.read<SettingsViewModel>().config;
+    await viewModel.createCycleBettingTableForNumber(number, config);
+
+    if (context.mounted) {
+      if (viewModel.errorMessage == null) {
+        await context.read<BettingViewModel>().loadBettingTables();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tạo bảng cược thành công!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        if (context.mounted) {
+          mainNavigationKey.currentState?.switchToTab(2);
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(viewModel.errorMessage!),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

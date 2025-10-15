@@ -1,7 +1,7 @@
 // lib/data/services/telegram_service.dart
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../models/app_config.dart';  // ✅ ADD
+import '../models/app_config.dart';
 import '../models/betting_row.dart';
 
 class TelegramService {
@@ -101,10 +101,8 @@ class TelegramService {
     return buffer.toString();
   }
 
+  // ✅ FIX: Hiển thị số đầy đủ với 2 chữ số thập phân, KHÔNG viết tắt
   String _formatNumber(double value) {
-    if (value >= 1000) {
-      return '${(value / 1000).toStringAsFixed(1)}k';
-    }
-    return value.toStringAsFixed(0);
+    return value.toStringAsFixed(2);
   }
 }

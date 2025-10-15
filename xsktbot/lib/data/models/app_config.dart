@@ -1,4 +1,4 @@
-// lib/data/models/app_config.dart
+//lib/data/models/app_config.dart
 
 class AppConfig {
   final GoogleSheetsConfig googleSheets;
@@ -185,16 +185,19 @@ class TelegramConfig {
 class BudgetConfig {
   final double budgetMin;
   final double budgetMax;
+  final double xienBudget;  // ✅ ADD
 
   BudgetConfig({
     required this.budgetMin,
     required this.budgetMax,
+    required this.xienBudget,  // ✅ ADD
   });
 
   Map<String, dynamic> toJson() {
     return {
       'budgetMin': budgetMin,
       'budgetMax': budgetMax,
+      'xienBudget': xienBudget,  // ✅ ADD
     };
   }
 
@@ -202,6 +205,7 @@ class BudgetConfig {
     return BudgetConfig(
       budgetMin: (json['budgetMin'] ?? 330000.0).toDouble(),
       budgetMax: (json['budgetMax'] ?? 350000.0).toDouble(),
+      xienBudget: (json['xienBudget'] ?? 19000.0).toDouble(),  // ✅ ADD
     );
   }
 
@@ -209,6 +213,7 @@ class BudgetConfig {
     return BudgetConfig(
       budgetMin: 330000.0,
       budgetMax: 350000.0,
+      xienBudget: 19000.0,  // ✅ ADD
     );
   }
 }

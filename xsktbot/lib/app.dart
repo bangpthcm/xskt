@@ -14,6 +14,7 @@ import 'data/services/google_sheets_service.dart';
 import 'data/services/analysis_service.dart';
 import 'data/services/betting_table_service.dart';
 import 'data/services/telegram_service.dart';
+import 'data/services/rss_parser_service.dart';  // ✅ THÊM DÒNG NÀY
 
 // ✅ QUAN TRỌNG: Phải có dòng này
 final GlobalKey<_MainNavigationScreenState> mainNavigationKey = 
@@ -34,6 +35,7 @@ class MyApp extends StatelessWidget {
             storageService: context.read<StorageService>(),
             telegramService: context.read<TelegramService>(),
             bettingService: context.read<BettingTableService>(),
+            rssService: context.read<RssParserService>(),  // ✅ ADD
           ),
         ),
         ChangeNotifierProvider(
@@ -49,6 +51,7 @@ class MyApp extends StatelessWidget {
             storageService: context.read<StorageService>(),
             sheetsService: context.read<GoogleSheetsService>(),
             telegramService: context.read<TelegramService>(),
+            rssService: context.read<RssParserService>(),  // ✅ ADD
           ),
         ),
       ],

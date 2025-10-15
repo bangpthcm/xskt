@@ -30,18 +30,20 @@ class LotteryResult {
   }
 
   // Chuyển đổi từ sheet row
-  factory LotteryResult.fromSheetRow(List<String> row) {
+  factory LotteryResult.fromSheetRow(List<dynamic> row) {
     if (row.length < 3) throw Exception('Invalid row data');
     
-    // DEBUG: In ra số lượng cột
-    //print("DEBUG fromSheetRow: Tổng cột = ${row.length}, Số từ cột 3 = ${row.sublist(3).length}");
-    //print("DEBUG 3 số cuối: ${row.sublist(row.length - 3)}");
-    
     return LotteryResult(
-      ngay: row[0],
-      mien: row[1],
-      tinh: row[2],
-      numbers: row.sublist(3).where((n) => n.isNotEmpty).toList(),
+      ngay: row[0].toString(),
+      mien: row[1].toString(),
+      tinh: row[2].toString(),
+      numbers: row.sublist(3).map((e) => e.toString()).where((n) => n.isNotEmpty).toList(),
     );
+  }
+
+  // ✅ THÊM: Chuyển đổi sang sheet row
+  List<String> toSheetRow() {
+    // Format: [ngay, mien, tinh, ...numbers]
+    return [ngay, mien, tinh, ...numbers];
   }
 }

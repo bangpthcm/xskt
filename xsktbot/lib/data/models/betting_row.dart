@@ -74,6 +74,29 @@ class BettingRow {
     );
   }
 
+  // ✅ Helper để format số với dấu phẩy phân cách hàng nghìn
+  static String _formatNumberWithCommas(double value) {
+    // Format với 2 chữ số thập phân
+    final str = value.toStringAsFixed(2);
+    final parts = str.split('.');
+    final intPart = parts[0];
+    final decimalPart = parts.length > 1 ? parts[1] : '00';
+    
+    // Thêm dấu chấm phân cách hàng nghìn (format EU/VN)
+    String formatted = '';
+    int count = 0;
+    for (int i = intPart.length - 1; i >= 0; i--) {
+      if (count == 3) {
+        formatted = '.$formatted';
+        count = 0;
+      }
+      formatted = intPart[i] + formatted;
+      count++;
+    }
+    
+    return '$formatted,$decimalPart';
+  }
+
   List<String> toSheetRow() {
     if (soLo != null && loi2So != null) {
       // Chu kỳ
@@ -82,12 +105,12 @@ class BettingRow {
         ngay,
         mien,
         so,
-        soLo.toString(),
-        cuocSo.toStringAsFixed(2),
-        cuocMien.toStringAsFixed(2),
-        tongTien.toStringAsFixed(2),
-        loi1So.toStringAsFixed(2),
-        loi2So!.toStringAsFixed(2),
+        _formatNumberWithCommas(soLo!.toDouble()),  // ✅ Format
+        _formatNumberWithCommas(cuocSo),            // ✅ Format
+        _formatNumberWithCommas(cuocMien),          // ✅ Format
+        _formatNumberWithCommas(tongTien),          // ✅ Format
+        _formatNumberWithCommas(loi1So),            // ✅ Format
+        _formatNumberWithCommas(loi2So!),           // ✅ Format
       ];
     } else {
       // Xiên
@@ -96,10 +119,10 @@ class BettingRow {
         ngay,
         mien,
         so,
-        cuocMien.toStringAsFixed(2),
-        tongTien.toStringAsFixed(2),
-        loi1So.toStringAsFixed(2),
+        _formatNumberWithCommas(cuocMien),          // ✅ Format
+        _formatNumberWithCommas(tongTien),          // ✅ Format
+        _formatNumberWithCommas(loi1So),            // ✅ Format
       ];
     }
   }
-}
+} 

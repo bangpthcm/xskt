@@ -4,6 +4,7 @@ import '../models/gan_pair_info.dart';
 import '../models/cycle_analysis_result.dart';
 import '../models/lottery_result.dart';
 import '../../core/utils/date_utils.dart' as date_utils;
+import '../models/number_detail.dart';
 
 class AnalysisService {
   Future<GanPairInfo?> findGanPairsMienBac(
@@ -186,4 +187,55 @@ class AnalysisService {
     const mienPriority = {'Bắc': 3, 'Trung': 2, 'Nam': 1};
     return (mienPriority[newMien] ?? 0) > (mienPriority[oldMien] ?? 0);
   }
+
+  Future<NumberDetail?> analyzeNumberDetail(
+    List<LotteryResult> allResults,
+    String targetNumber,
+  ) async {
+    if (allResults.isEmpty) return null;
+
+    final mienDetails = <String, MienDetail>{};
+    final now = DateTime.now();
+
+    // Phân tích theo từng miền
+    for (final mien in ['Nam', 'Trung', 'Bắc']) {
+      DateTime? lastSeenDate;
+      String? lastSeenDateStr;
+
+      // Lọc kết quả theo miền
+      final mienResults = allResults.where((r) => r.mien == mien).toList();
+
+      // Tìm lần xuất hiện cuối cùng của số này trong miền
+      for (final result in mienResults) {
+        if (result.numbers.contains(targetNumber)) {
+          final date = date_utils.DateUtils.parseDate(result.ngay);
+          if (date != null) {
+            if (lastSeenDate == null || date.isAfter(lastSeenDate)) {
+              lastSeenDate = date;
+              lastSeenDateStr = result.ngay;
+            }
+          }
+        }
+      }
+
+      if (lastSeenDate != null && lastSeenDateStr != null) {
+        final daysGan = now.difference(lastSeenDate).inDays;
+        
+        mienDetails[mien] = MienDetail(
+          mien: mien,
+          daysGan: daysGan,
+          lastSeenDate: lastSeenDate,
+          lastSeenDateStr: lastSeenDateStr,
+        );
+      }
+    }
+
+    if (mienDetails.isEmpty) return null;
+
+    return NumberDetail(
+      number: targetNumber,
+      mienDetails: mienDetails,
+    );
+  }
+
 }

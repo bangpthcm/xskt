@@ -25,41 +25,43 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _initializeWebView() {
-    final viewModel = context.read<HomeViewModel>();
-    final initialUrl = viewModel.getUrlForCurrentTime();
+      final viewModel = context.read<HomeViewModel>();
+      final initialUrl = viewModel.getUrlForCurrentTime();
 
-    // ✅ FIX: Khởi tạo WebViewController đơn giản hơn
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0x00000000))
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (String url) {
-            setState(() {
-              _isLoading = true;
-            });
-          },
-          onPageFinished: (String url) {
-            setState(() {
-              _isLoading = false;
-            });
-          },
-          onWebResourceError: (WebResourceError error) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Lỗi tải trang: ${error.description}'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            // Allow all navigation
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(initialUrl));
-  }
+      // ✅ FIX: Khởi tạo WebViewController với error handling tốt hơn
+      _webViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0x00000000))
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (String url) {
+              setState(() {
+                _isLoading = true;
+              });
+            },
+            onPageFinished: (String url) {
+              setState(() {
+                _isLoading = false;
+              });
+            },
+            onWebResourceError: (WebResourceError error) {
+              setState(() {
+                _isLoading = false;
+              });
+              
+              // ✅ Chỉ show error message, không dùng SnackBar
+              print('⚠️ WebView Error: ${error.description}');
+              print('   Error code: ${error.errorCode}');
+              print('   URL: ${error.url}');
+            },
+            onNavigationRequest: (NavigationRequest request) {
+              // Allow all navigation
+              return NavigationDecision.navigate;
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse(initialUrl));
+    }
 
   void _startUrlCheckTimer() {
     // Kiểm tra URL mỗi phút

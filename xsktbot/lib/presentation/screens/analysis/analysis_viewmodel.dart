@@ -4,11 +4,16 @@ import '../../../data/models/gan_pair_info.dart';
 import '../../../data/models/cycle_analysis_result.dart';
 import '../../../data/models/lottery_result.dart';
 import '../../../data/models/app_config.dart';
+import '../../../data/models/analysis_history.dart';
+import '../../../data/models/xien_analysis_history.dart';
+import '../../../data/models/number_detail.dart';
 import '../../../data/services/google_sheets_service.dart';
 import '../../../data/services/analysis_service.dart';
 import '../../../data/services/storage_service.dart';
 import '../../../data/services/telegram_service.dart';
 import '../../../data/services/betting_table_service.dart';
+import '../../../data/services/rss_parser_service.dart';
+import '../../../data/services/backfill_service.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 
 class AnalysisViewModel extends ChangeNotifier {
@@ -17,6 +22,7 @@ class AnalysisViewModel extends ChangeNotifier {
   final StorageService _storageService;
   final TelegramService _telegramService;
   final BettingTableService _bettingService;
+  final RssParserService _rssService;
 
   AnalysisViewModel({
     required GoogleSheetsService sheetsService,
@@ -24,11 +30,13 @@ class AnalysisViewModel extends ChangeNotifier {
     required StorageService storageService,
     required TelegramService telegramService,
     required BettingTableService bettingService,
+    required RssParserService rssService,
   })  : _sheetsService = sheetsService,
         _analysisService = analysisService,
         _storageService = storageService,
         _telegramService = telegramService,
-        _bettingService = bettingService;
+        _bettingService = bettingService,
+        _rssService = rssService;
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -49,11 +57,32 @@ class AnalysisViewModel extends ChangeNotifier {
   }
 
   Future<void> loadAnalysis({bool useCache = true}) async {
+    print('🔍 loadAnalysis called with useCache: $useCache');
+    
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      // ✅ BƯỚC 1: ĐỒNG BỘ RSS TRƯỚC KHI PHÂN TÍCH
+      if (!useCache) {
+        print('🔄 Starting RSS sync...');
+        final backfillService = BackfillService(
+          sheetsService: _sheetsService,
+          rssService: _rssService,
+        );
+        
+        final syncResult = await backfillService.syncAllFromRSS();
+        print('📊 RSS sync result: ${syncResult.message}');
+        
+        if (syncResult.hasError) {
+          print('⚠️ RSS sync had errors but continuing with analysis...');
+        }
+      } else {
+        print('⏭️ Skipping RSS sync (using cache)');
+      }
+
+      // ✅ BƯỚC 2: LẤY DỮ LIỆU TỪ SHEET
       final allValues = await _sheetsService.getAllValues('KQXS');
       
       if (allValues.length < 2) {
@@ -69,6 +98,7 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
+      // ✅ BƯỚC 3: PHÂN TÍCH
       _ganPairInfo = await _analysisService.findGanPairsMienBac(_allResults);
 
       if (_selectedMien == 'Tất cả') {
@@ -78,6 +108,16 @@ class AnalysisViewModel extends ChangeNotifier {
             .where((r) => r.mien == _selectedMien)
             .toList();
         _cycleResult = await _analysisService.analyzeCycle(filteredResults);
+      }
+
+      // ✅ BƯỚC 4: LƯU LỊCH SỬ PHÂN TÍCH
+      if (_cycleResult != null && _allResults.isNotEmpty) {
+        await _saveAnalysisHistory();
+      }
+      
+      // ✅ THÊM: LƯU LỊCH SỬ XIÊN
+      if (_ganPairInfo != null && _allResults.isNotEmpty) {
+        await _saveXienAnalysisHistory();
       }
 
       _isLoading = false;
@@ -95,8 +135,6 @@ class AnalysisViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
-
-    // ✅ BỎ điều kiện kiểm tra maxGanDays > 3
     
     _isLoading = true;
     _errorMessage = null;
@@ -145,8 +183,6 @@ class AnalysisViewModel extends ChangeNotifier {
       return;
     }
 
-    // ✅ BỎ điều kiện kiểm tra daysGan > 155
-
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -159,9 +195,12 @@ class AnalysisViewModel extends ChangeNotifier {
 
       final startDate = latestDate!.add(const Duration(days: 1));
       
+      final config = await _storageService.loadConfig();
+      
       final newTable = await _bettingService.generateXienTable(
         ganInfo: _ganPairInfo!,
         startDate: startDate,
+        xienBudget: config?.budget.xienBudget ?? 19000.0,
       );
 
       await _saveXienTableToSheet(newTable);
@@ -176,8 +215,8 @@ class AnalysisViewModel extends ChangeNotifier {
   }
 
   Future<void> _saveCycleTableToSheet(List<dynamic> table) async {
-    print('📝 Saving cycle table to sheet...'); // ✅ ADD
-    print('📊 Table rows: ${table.length}'); // ✅ ADD
+    print('📝 Saving cycle table to sheet...');
+    print('📊 Table rows: ${table.length}');
     
     await _sheetsService.clearSheet('xsktBot1');
 
@@ -205,12 +244,12 @@ class AnalysisViewModel extends ChangeNotifier {
     final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
     await _sheetsService.updateRange('xsktBot1', 'A4', dataRows);
     
-    print('✅ Cycle table saved successfully!'); // ✅ ADD
+    print('✅ Cycle table saved successfully!');
   }
 
   Future<void> _saveXienTableToSheet(List<dynamic> table) async {
-    print('📝 Saving xien table to sheet...'); // ✅ ADD
-    print('📊 Table rows: ${table.length}'); // ✅ ADD
+    print('📝 Saving xien table to sheet...');
+    print('📊 Table rows: ${table.length}');
     
     await _sheetsService.clearSheet('xienBot');
 
@@ -238,7 +277,7 @@ class AnalysisViewModel extends ChangeNotifier {
     final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
     await _sheetsService.updateRange('xienBot', 'A4', dataRows);
     
-    print('✅ Xien table saved successfully!'); // ✅ ADD
+    print('✅ Xien table saved successfully!');
   }
 
   Future<void> sendCycleAnalysisToTelegram() async {
@@ -318,9 +357,336 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ THÊM METHOD NÀY
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+  
+  // ✅ LƯU LỊCH SỬ CHO TẤT CẢ 4 FILTER (Tất cả, Nam, Trung, Bắc)
+  Future<void> _saveAnalysisHistory() async {
+    try {
+      final existingData = await _sheetsService.getAllValues('xsktGan');
+      
+      final lastResult = _allResults.last;
+      final ngayCuoiKQXS = lastResult.ngay;
+      final mienCuoiKQXS = lastResult.mien;
+      
+      // ✅ LƯU CHO TẤT CẢ 4 FILTERS
+      final filtersToSave = ['Tất cả', 'Nam', 'Trung', 'Bắc'];
+      final historiesToAdd = <AnalysisHistory>[];
+      
+      for (final filterMien in filtersToSave) {
+        // Phân tích cho từng filter
+        CycleAnalysisResult? cycleResult;
+        
+        if (filterMien == 'Tất cả') {
+          cycleResult = await _analysisService.analyzeCycle(_allResults);
+        } else {
+          final filteredResults = _allResults
+              .where((r) => r.mien == filterMien)
+              .toList();
+          cycleResult = await _analysisService.analyzeCycle(filteredResults);
+        }
+        
+        if (cycleResult == null) continue;
+        
+        final newHistory = AnalysisHistory.fromCycleResult(
+          stt: existingData.length + historiesToAdd.length,
+          ngayCuoiKQXS: ngayCuoiKQXS,
+          mienCuoiKQXS: mienCuoiKQXS,
+          soNgayGan: cycleResult.maxGanDays,
+          ngayLanCuoiVe: date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
+          nhomGan: cycleResult.ganNumbersDisplay,
+          mienGroups: cycleResult.mienGroups,
+          filter: filterMien,  // ✅ ADD
+        );
+        
+        // Kiểm tra trùng lặp
+        bool isDuplicate = false;
+        if (existingData.length > 1) {
+          for (int i = 1; i < existingData.length; i++) {
+            try {
+              final existing = AnalysisHistory.fromSheetRow(existingData[i]);
+              if (existing.isDuplicate(newHistory)) {
+                isDuplicate = true;
+                print('⚠️ Duplicate analysis history for filter $filterMien, skipping...');
+                break;
+              }
+            } catch (e) {
+              // Skip invalid rows
+            }
+          }
+        }
+        
+        if (!isDuplicate) {
+          historiesToAdd.add(newHistory);
+        }
+      }
+      
+      if (historiesToAdd.isNotEmpty) {
+        if (existingData.isEmpty) {
+          await _sheetsService.updateRange(
+            'xsktGan',
+            'A1:J1',  // ✅ THAY ĐỔI: Thêm cột J
+            [
+              [
+                'STT',
+                'Ngày cuối KQXS',
+                'Miền cuối KQXS',
+                'Số ngày GAN',
+                'Lần cuối về',
+                'Nhóm GAN',
+                'Nam',
+                'Trung',
+                'Bắc',
+                'Filter',  // ✅ ADD
+              ]
+            ],
+          );
+        }
+        
+        // Cập nhật STT
+        int startSTT = existingData.isEmpty ? 1 : existingData.length;
+        for (int i = 0; i < historiesToAdd.length; i++) {
+          final history = historiesToAdd[i];
+          historiesToAdd[i] = AnalysisHistory(
+            stt: startSTT + i,
+            ngayCuoiKQXS: history.ngayCuoiKQXS,
+            mienCuoiKQXS: history.mienCuoiKQXS,
+            soNgayGan: history.soNgayGan,
+            ngayLanCuoiVe: history.ngayLanCuoiVe,
+            nhomGan: history.nhomGan,
+            mienNam: history.mienNam,
+            mienTrung: history.mienTrung,
+            mienBac: history.mienBac,
+            filter: history.filter,
+          );
+        }
+        
+        final rowNumber = existingData.length + 1;
+        final rows = historiesToAdd.map((h) => h.toSheetRow()).toList();
+        await _sheetsService.updateRange(
+          'xsktGan',
+          'A$rowNumber',
+          rows,
+        );
+        
+        print('✅ Analysis history saved: ${historiesToAdd.length} records');
+      }
+    } catch (e) {
+      print('❌ Error saving analysis history: $e');
+    }
+  }
+
+  // ✅ LƯU LỊCH SỬ PHÂN TÍCH XIÊN
+  Future<void> _saveXienAnalysisHistory() async {
+    try {
+      final existingData = await _sheetsService.getAllValues('xienGan');
+      
+      final lastResult = _allResults.last;
+      final ngayCuoiKQXS = lastResult.ngay;
+      final mienCuoiKQXS = lastResult.mien;
+      
+      final newHistories = <XienAnalysisHistory>[];
+      
+      for (int i = 0; i < _ganPairInfo!.pairs.length && i < 2; i++) {
+        final pairWithDays = _ganPairInfo!.pairs[i];
+        
+        final newHistory = XienAnalysisHistory(
+          stt: existingData.length + i,
+          ngayCuoiKQXS: ngayCuoiKQXS,
+          mienCuoiKQXS: mienCuoiKQXS,
+          soNgayGan: pairWithDays.daysGan,
+          ngayLanCuoiVe: date_utils.DateUtils.formatDate(pairWithDays.lastSeen),
+          capSo: pairWithDays.display,
+        );
+        
+        newHistories.add(newHistory);
+      }
+      
+      final historiesToAdd = <XienAnalysisHistory>[];
+      
+      for (final newHistory in newHistories) {
+        bool isDuplicate = false;
+        
+        if (existingData.length > 1) {
+          for (int i = 1; i < existingData.length; i++) {
+            try {
+              final existing = XienAnalysisHistory.fromSheetRow(existingData[i]);
+              if (existing.isDuplicate(newHistory)) {
+                isDuplicate = true;
+                print('⚠️ Duplicate xien history: ${newHistory.capSo}, skipping...');
+                break;
+              }
+            } catch (e) {
+              // Skip invalid rows
+            }
+          }
+        }
+        
+        if (!isDuplicate) {
+          historiesToAdd.add(newHistory);
+        }
+      }
+      
+      if (historiesToAdd.isNotEmpty) {
+        if (existingData.isEmpty) {
+          await _sheetsService.updateRange(
+            'xienGan',
+            'A1:F1',
+            [
+              [
+                'STT',
+                'Ngày cuối KQXS',
+                'Miền cuối KQXS',
+                'Số ngày GAN',
+                'Lần cuối về',
+                'Nhóm GAN',
+              ]
+            ],
+          );
+        }
+        
+        int startSTT = existingData.isEmpty ? 1 : existingData.length;
+        for (int i = 0; i < historiesToAdd.length; i++) {
+          final history = historiesToAdd[i];
+          historiesToAdd[i] = XienAnalysisHistory(
+            stt: startSTT + i,
+            ngayCuoiKQXS: history.ngayCuoiKQXS,
+            mienCuoiKQXS: history.mienCuoiKQXS,
+            soNgayGan: history.soNgayGan,
+            ngayLanCuoiVe: history.ngayLanCuoiVe,
+            capSo: history.capSo,
+          );
+        }
+        
+        final startRow = existingData.length + 1;
+        final rows = historiesToAdd.map((h) => h.toSheetRow()).toList();
+        
+        await _sheetsService.updateRange(
+          'xienGan',
+          'A$startRow',
+          rows,
+        );
+        
+        print('✅ Xien analysis history saved: ${historiesToAdd.length} records');
+      }
+    } catch (e) {
+      print('❌ Error saving xien analysis history: $e');
+    }
+  }
+
+  // ✅ PHÂN TÍCH CHI TIẾT SỐ THEO MIỀN
+  Future<NumberDetail?> analyzeNumberDetail(String number) async {
+    return await _analysisService.analyzeNumberDetail(_allResults, number);
+  }
+
+  // ✅ GỬI CHI TIẾT SỐ LÊN TELEGRAM
+  Future<void> sendNumberDetailToTelegram(NumberDetail numberDetail) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln('<b>📊 CHI TIẾT SỐ ${numberDetail.number} 📊</b>\n');
+      
+      for (final mien in ['Nam', 'Trung', 'Bắc']) {
+        if (numberDetail.mienDetails.containsKey(mien)) {
+          final detail = numberDetail.mienDetails[mien]!;
+          buffer.writeln(
+            '<b>Miền $mien:</b> ${detail.daysGan} ngày - '
+            'Lần cuối: ${detail.lastSeenDateStr}'
+          );
+        }
+      }
+
+      await _telegramService.sendMessage(buffer.toString());
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Lỗi gửi Telegram: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ✅ TẠO BẢNG CƯỢC CHO SỐ CỤ THỂ
+  Future<void> createCycleBettingTableForNumber(
+    String targetNumber,
+    AppConfig config,
+  ) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final numberDetail = await _analysisService.analyzeNumberDetail(
+        _allResults,
+        targetNumber,
+      );
+
+      if (numberDetail == null) {
+        throw Exception('Không tìm thấy thông tin số $targetNumber');
+      }
+
+      int maxDaysGan = 0;
+      DateTime? lastSeenDate;
+      String? selectedMien;
+
+      for (final entry in numberDetail.mienDetails.entries) {
+        if (entry.value.daysGan > maxDaysGan) {
+          maxDaysGan = entry.value.daysGan;
+          lastSeenDate = entry.value.lastSeenDate;
+          selectedMien = entry.key;
+        }
+      }
+
+      if (lastSeenDate == null) {
+        throw Exception('Không tìm thấy ngày xuất hiện cuối');
+      }
+
+      final customCycleResult = CycleAnalysisResult(
+        ganNumbers: {targetNumber},
+        maxGanDays: maxDaysGan,
+        lastSeenDate: lastSeenDate,
+        mienGroups: {selectedMien!: [targetNumber]},
+        targetNumber: targetNumber,
+      );
+
+      final latestDate = _allResults
+          .map((r) => date_utils.DateUtils.parseDate(r.ngay))
+          .where((d) => d != null)
+          .reduce((a, b) => a!.isAfter(b!) ? a : b);
+
+      final startDate = latestDate!.add(const Duration(days: 1));
+      var endDate = lastSeenDate.add(const Duration(days: 8));
+      
+      double budgetMax = config.budget.budgetMax;
+      
+      if (date_utils.DateUtils.getWeekday(endDate) == 1) {
+        endDate = endDate.add(const Duration(days: 1));
+        budgetMax += 200000.0;
+      }
+
+      final newTable = await _bettingService.generateCycleTable(
+        cycleResult: customCycleResult,
+        startDate: startDate,
+        endDate: endDate,
+        startMienIndex: 0,
+        budgetMin: config.budget.budgetMin,
+        budgetMax: budgetMax,
+      );
+
+      await _saveCycleTableToSheet(newTable);
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Lỗi tạo bảng: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 }

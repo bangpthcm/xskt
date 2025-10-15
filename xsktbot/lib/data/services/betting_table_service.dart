@@ -2,20 +2,23 @@ import 'dart:math';
 import '../models/betting_row.dart';
 import '../models/gan_pair_info.dart';
 import '../models/cycle_analysis_result.dart';
-import '../../core/utils/date_utils.dart' as date_utils;  // ← Đảm bảo đúng
-import '../../core/utils/number_utils.dart';  // ← Đảm bảo đúng
+import '../../core/utils/date_utils.dart' as date_utils;
+import '../../core/utils/number_utils.dart';
 
 class BettingTableService {
-  static const double _targetBudgetXien = 19000.0;
+  // ✅ BỎ hard-coded constant
+  // static const double _targetBudgetXien = 19000.0;
+  
   static const double _winMultiplierXien = 17.0;
   static const int _durationBase = 185;
   static const double _startingProfit = 50.0;
   static const double _finalProfit = 800.0;
 
-  // Tạo bảng cược Xiên (Miền Bắc)
+  // ✅ THÊM parameter xienBudget
   Future<List<BettingRow>> generateXienTable({
     required GanPairInfo ganInfo,
     required DateTime startDate,
+    required double xienBudget,  // ✅ ADD
   }) async {
     final soNgayGan = ganInfo.daysGan;
     final durationDays = _durationBase - soNgayGan;
@@ -55,13 +58,13 @@ class BettingTableService {
       });
     }
 
-    // Chuẩn hóa theo ngân sách
+    // ✅ Chuẩn hóa theo ngân sách từ config
     final rawTotalCost = rawTable.last['tong_tien'] as double;
     if (rawTotalCost <= 0) {
       throw Exception('Tổng tiền bằng 0');
     }
 
-    final scalingFactor = _targetBudgetXien / rawTotalCost;
+    final scalingFactor = xienBudget / rawTotalCost;  // ✅ DÙNG parameter
 
     final finalTable = <BettingRow>[];
     for (int i = 0; i < rawTable.length; i++) {

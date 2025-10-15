@@ -1,8 +1,8 @@
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart';
 import '../models/lottery_result.dart';
-import '../../core/utils/date_utils.dart' as date_utils;  // ← Đảm bảo đúng
-import '../../core/utils/number_utils.dart';  // ← Đảm bảo đúng
+import '../../core/utils/date_utils.dart' as date_utils;
+import '../../core/utils/number_utils.dart';
 
 class RssParserService {
   static const Map<String, String> _rssSources = {
@@ -35,13 +35,70 @@ class RssParserService {
     return results;
   }
 
+  // ✅ METHOD parseRSS cho BackfillService
+  Future<List<LotteryResult>> parseRSS(String url, String mien) async {
+    try {
+      print('📡 Fetching RSS from: $url');
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Accept': 'application/xml'},
+      ).timeout(const Duration(seconds: 15));
+      
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+
+      final xml = XmlDocument.parse(response.body);
+      final results = <LotteryResult>[];
+      final items = xml.findAllElements('item');
+      
+      print('   Found ${items.length} items in RSS');
+
+      for (final item in items) {
+        final linkElement = item.findElements('link').firstOrNull;
+        final descriptionElement = item.findElements('description').firstOrNull;
+        
+        if (linkElement == null || descriptionElement == null) continue;
+        
+        final linkText = linkElement.innerText;
+        final description = descriptionElement.innerText;
+        
+        final dateStr = date_utils.DateUtils.getDateFromRssLink(linkText);
+        if (dateStr == null) continue;  // ✅ Skip if null
+        
+        final provincesData = _parseProvincesData(description, mien);
+        
+        for (final entry in provincesData.entries) {
+          final tinh = entry.key;
+          final numbers = NumberUtils.processResultString(entry.value);
+          
+          if (numbers.isNotEmpty) {
+            results.add(LotteryResult(
+              ngay: dateStr,  // ✅ Safe: already checked null
+              mien: mien,
+              tinh: tinh,
+              numbers: numbers,
+            ));
+          }
+        }
+      }
+
+      print('   Parsed ${results.length} results');
+      return results;
+
+    } catch (e) {
+      print('❌ Error parsing RSS: $e');
+      return [];
+    }
+  }
+
   List<LotteryResult> parseRssToResults(
     XmlDocument xml,
     String mien,
     String targetDate,
   ) {
     final results = <LotteryResult>[];
-    
     final items = xml.findAllElements('item');
     
     for (final item in items) {
@@ -50,14 +107,12 @@ class RssParserService {
       
       if (linkElement == null || descriptionElement == null) continue;
       
-      final linkText = linkElement.text;
-      final description = descriptionElement.text;
+      final linkText = linkElement.innerText;
+      final description = descriptionElement.innerText;
       
       final dateStr = date_utils.DateUtils.getDateFromRssLink(linkText);
+      if (dateStr == null || dateStr != targetDate) continue;
       
-      if (dateStr != targetDate) continue;
-      
-      // Parse provinces data
       final provincesData = _parseProvincesData(description, mien);
       
       for (final entry in provincesData.entries) {
@@ -66,7 +121,7 @@ class RssParserService {
         
         if (numbers.isNotEmpty) {
           results.add(LotteryResult(
-            ngay: dateStr!,
+            ngay: dateStr,
             mien: mien,
             tinh: tinh,
             numbers: numbers,
@@ -82,10 +137,8 @@ class RssParserService {
     final data = <String, String>{};
     
     if (mien == "Bắc") {
-      // Miền Bắc không có phân tỉnh
       data["Miền Bắc"] = description;
     } else {
-      // Miền Nam và Trung có format [Tỉnh] Kết quả
       final regex = RegExp(r'\[([^\]]+)\]\s*([^\[]+)');
       final matches = regex.allMatches(description);
       
