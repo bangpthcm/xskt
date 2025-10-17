@@ -110,14 +110,20 @@ class AnalysisViewModel extends ChangeNotifier {
         _cycleResult = await _analysisService.analyzeCycle(filteredResults);
       }
 
-      // ✅ BƯỚC 4: LƯU LỊCH SỬ PHÂN TÍCH
-      if (_cycleResult != null && _allResults.isNotEmpty) {
-        await _saveAnalysisHistory();
-      }
-      
-      // ✅ THÊM: LƯU LỊCH SỬ XIÊN
-      if (_ganPairInfo != null && _allResults.isNotEmpty) {
-        await _saveXienAnalysisHistory();
+      // ✅ BƯỚC 4: CHỈ LƯU LỊCH SỬ KHI REFRESH (!useCache)
+      // Không lưu lịch sử khi chỉ đổi filter
+      if (!useCache) {
+        print('💾 Saving analysis history (because useCache=false)...');
+        
+        if (_cycleResult != null && _allResults.isNotEmpty) {
+          await _saveAnalysisHistory();
+        }
+        
+        if (_ganPairInfo != null && _allResults.isNotEmpty) {
+          await _saveXienAnalysisHistory();
+        }
+      } else {
+        print('⏭️ Skipping history save (useCache=true, just filter change)');
       }
 
       _isLoading = false;
@@ -362,7 +368,6 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
   }
   
-  // ✅ LƯU LỊCH SỬ CHO TẤT CẢ 4 FILTER (Tất cả, Nam, Trung, Bắc)
   Future<void> _saveAnalysisHistory() async {
     try {
       final existingData = await _sheetsService.getAllValues('xsktGan');
@@ -371,11 +376,17 @@ class AnalysisViewModel extends ChangeNotifier {
       final ngayCuoiKQXS = lastResult.ngay;
       final mienCuoiKQXS = lastResult.mien;
       
+      print('📊 [SAVE] Ngày cuối KQXS: $ngayCuoiKQXS');
+      print('📊 [SAVE] Miền cuối KQXS: $mienCuoiKQXS');
+      print('📊 [SAVE] Existing rows in sheet: ${existingData.length}');
+      
       // ✅ LƯU CHO TẤT CẢ 4 FILTERS
       final filtersToSave = ['Tất cả', 'Nam', 'Trung', 'Bắc'];
       final historiesToAdd = <AnalysisHistory>[];
       
       for (final filterMien in filtersToSave) {
+        print('\n🔍 [SAVE] Processing filter: $filterMien');
+        
         // Phân tích cho từng filter
         CycleAnalysisResult? cycleResult;
         
@@ -385,10 +396,17 @@ class AnalysisViewModel extends ChangeNotifier {
           final filteredResults = _allResults
               .where((r) => r.mien == filterMien)
               .toList();
+          print('   📋 Filtered results count: ${filteredResults.length}');
           cycleResult = await _analysisService.analyzeCycle(filteredResults);
         }
         
-        if (cycleResult == null) continue;
+        if (cycleResult == null) {
+          print('   ⚠️ No cycle result for $filterMien');
+          continue;
+        }
+        
+        print('   ✓ Cycle result: ${cycleResult.maxGanDays} days');
+        print('   ✓ Nhóm gan: ${cycleResult.ganNumbersDisplay}');
         
         final newHistory = AnalysisHistory.fromCycleResult(
           stt: existingData.length + historiesToAdd.length,
@@ -398,8 +416,10 @@ class AnalysisViewModel extends ChangeNotifier {
           ngayLanCuoiVe: date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
           nhomGan: cycleResult.ganNumbersDisplay,
           mienGroups: cycleResult.mienGroups,
-          filter: filterMien,  // ✅ ADD
+          filter: filterMien,
         );
+        
+        print('   🆕 NEW: Filter=$filterMien, Days=${newHistory.soNgayGan}, Nhom=${newHistory.nhomGan}');
         
         // Kiểm tra trùng lặp
         bool isDuplicate = false;
@@ -407,27 +427,44 @@ class AnalysisViewModel extends ChangeNotifier {
           for (int i = 1; i < existingData.length; i++) {
             try {
               final existing = AnalysisHistory.fromSheetRow(existingData[i]);
+              
+              // ✅ THÊM LOGGING CHI TIẾT
+              if (existing.ngayCuoiKQXS == newHistory.ngayCuoiKQXS && 
+                  existing.filter == newHistory.filter) {
+                print('   🔎 Comparing with row $i:');
+                print('      OLD: Filter=${existing.filter}, Days=${existing.soNgayGan}, Nhom=${existing.nhomGan}');
+                print('      Date match: ${existing.ngayCuoiKQXS == newHistory.ngayCuoiKQXS}');
+                print('      Filter match: ${existing.filter == newHistory.filter}');
+                print('      Days match: ${existing.soNgayGan == newHistory.soNgayGan}');
+                print('      Nhom match: ${existing.nhomGan == newHistory.nhomGan}');
+              }
+              
               if (existing.isDuplicate(newHistory)) {
                 isDuplicate = true;
-                print('⚠️ Duplicate analysis history for filter $filterMien, skipping...');
+                print('   ⚠️ DUPLICATE detected at row $i');
                 break;
               }
             } catch (e) {
-              // Skip invalid rows
+              print('   ⚠️ Error parsing existing row $i: $e');
             }
           }
         }
         
         if (!isDuplicate) {
+          print('   ✅ Adding to save queue');
           historiesToAdd.add(newHistory);
+        } else {
+          print('   ❌ Skipped (duplicate)');
         }
       }
+      
+      print('\n📝 [SAVE] Total to save: ${historiesToAdd.length} records');
       
       if (historiesToAdd.isNotEmpty) {
         if (existingData.isEmpty) {
           await _sheetsService.updateRange(
             'xsktGan',
-            'A1:J1',  // ✅ THAY ĐỔI: Thêm cột J
+            'A1:J1',
             [
               [
                 'STT',
@@ -439,7 +476,7 @@ class AnalysisViewModel extends ChangeNotifier {
                 'Nam',
                 'Trung',
                 'Bắc',
-                'Filter',  // ✅ ADD
+                'Filter',
               ]
             ],
           );
@@ -472,6 +509,8 @@ class AnalysisViewModel extends ChangeNotifier {
         );
         
         print('✅ Analysis history saved: ${historiesToAdd.length} records');
+      } else {
+        print('⏭️ No new records to save');
       }
     } catch (e) {
       print('❌ Error saving analysis history: $e');

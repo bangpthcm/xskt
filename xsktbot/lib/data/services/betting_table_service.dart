@@ -84,6 +84,7 @@ class BettingTableService {
   }
 
   // Tạo bảng cược Chu kỳ
+
   Future<List<BettingRow>> generateCycleTable({
     required CycleAnalysisResult cycleResult,
     required DateTime startDate,
@@ -93,6 +94,20 @@ class BettingTableService {
     required double budgetMax,
   }) async {
     final targetNumber = cycleResult.targetNumber;
+    
+    // ✅ XÁC ĐỊNH MIỀN CẦN THEO DÕI
+    // Lấy miền của số gan nhất
+    String targetMien = 'Nam'; // default
+    for (final entry in cycleResult.mienGroups.entries) {
+      if (entry.value.contains(targetNumber)) {
+        targetMien = entry.key;
+        break;
+      }
+    }
+    
+    print('🎯 Target number: $targetNumber');
+    print('🌍 Target mien: $targetMien');
+    print('📊 Current gan days (by mien): ${cycleResult.maxGanDays}');
 
     // Tối ưu lợi nhuận
     double lowProfit = 100.0;
@@ -106,6 +121,7 @@ class BettingTableService {
       
       final foundTable = await _optimizeStartBet(
         targetNumber: targetNumber,
+        targetMien: targetMien,  // ✅ THÊM
         startDate: startDate,
         endDate: endDate,
         startMienIndex: startMienIndex,
@@ -118,6 +134,7 @@ class BettingTableService {
         final adjustedProfit = midProfit * 3 / 4.2;
         bestTable = await _optimizeStartBet(
           targetNumber: targetNumber,
+          targetMien: targetMien,  // ✅ THÊM
           startDate: startDate,
           endDate: endDate,
           startMienIndex: startMienIndex,
@@ -140,6 +157,7 @@ class BettingTableService {
 
   Future<List<BettingRow>?> _optimizeStartBet({
     required String targetNumber,
+    required String targetMien,  // ✅ THÊM
     required DateTime startDate,
     required DateTime endDate,
     required int startMienIndex,
@@ -159,6 +177,7 @@ class BettingTableService {
 
       final result = await _calculateTable(
         targetNumber: targetNumber,
+        targetMien: targetMien,  // ✅ THÊM
         startDate: startDate,
         endDate: endDate,
         startMienIndex: startMienIndex,
@@ -184,6 +203,7 @@ class BettingTableService {
 
   Future<Map<String, dynamic>> _calculateTable({
     required String targetNumber,
+    required String targetMien,  // ✅ THÊM
     required DateTime startDate,
     required DateTime endDate,
     required int startMienIndex,
@@ -194,11 +214,14 @@ class BettingTableService {
     double tongTien = 0.0;
     bool isFirstDay = true;
 
-    final durationDays = endDate.difference(startDate).inDays + 1;
+    // ✅ TÍNH SỐ NGÀY THEO MIỀN (không phải ngày lịch)
+    int mienCount = 0;
+    final maxMienCount = 9;  // Tính đến lượt thứ 9 của targetMien
+    
     int stt = 1;
+    DateTime currentDate = startDate;
 
-    for (int dayOffset = 0; dayOffset < durationDays; dayOffset++) {
-      final currentDate = startDate.add(Duration(days: dayOffset));
+    while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(Duration(days: 1)))) {
       final ngayStr = date_utils.DateUtils.formatDate(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
@@ -207,6 +230,8 @@ class BettingTableService {
 
       for (int i = initialMienIdx; i < mienOrder.length; i++) {
         final mien = mienOrder[i];
+        
+        // ✅ CHỈ TÍNH KHI LÀ MIỀN MỤC TIÊU
         final soLo = NumberUtils.calculateSoLo(mien, weekday);
 
         if (98 - soLo <= 0) continue;
@@ -239,9 +264,24 @@ class BettingTableService {
           loi1So: tienLoi1So,
           loi2So: tienLoi2So,
         ));
+        
+        // ✅ CHỈ TĂNG COUNT KHI LÀ MIỀN MỤC TIÊU
+        if (mien == targetMien) {
+          mienCount++;
+          if (mienCount >= maxMienCount) {
+            break;
+          }
+        }
       }
 
       isFirstDay = false;
+      currentDate = currentDate.add(Duration(days: 1));
+    }
+    
+    // ✅ XỬ LÝ TRƯỜNG HỢP NGÀY KẾT THÚC LÀ THỨ 3
+    if (date_utils.DateUtils.getWeekday(currentDate) == 1) {
+      print('⚠️ End date is Tuesday, adding +1 day');
+      // TODO: Thêm logic xử lý nếu cần
     }
 
     return {

@@ -309,7 +309,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           onSelected: (selected) {
             if (selected) {
               viewModel.setSelectedMien(mien);
-              viewModel.loadAnalysis(useCache: false);
+              viewModel.loadAnalysis(useCache: true);
             }
           },
         );
@@ -533,6 +533,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   }
 
   // ✅ HIỂN THỊ CHI TIẾT SỐ
+  // Thay thế method _showNumberDetail trong analysis_screen.dart
   Future<void> _showNumberDetail(
     BuildContext context,
     AnalysisViewModel viewModel,
@@ -561,103 +562,211 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Chi tiết số $number'),
-        content: SingleChildScrollView(
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          constraints: const BoxConstraints(maxWidth: 500),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Thông tin theo từng miền:',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+              // ✅ Header với nút X góc phải trên
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 16, 16, 16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Chi tiết số $number',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    // ✅ 2. NÚT X THAY VÌ NÚT "ĐÓNG"
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Đóng',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              
-              if (numberDetail.mienDetails.containsKey('Nam'))
-                _buildMienDetailRow(
-                  'Miền Nam',
-                  numberDetail.mienDetails['Nam']!,
-                  Colors.orange,
+
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Thông tin theo từng miền:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ✅ 1. CÁC Ô MIỀN CÂN ĐỐI VỚI POPUP
+                    if (numberDetail.mienDetails.containsKey('Nam'))
+                      _buildMienCard(
+                        'Miền Nam',
+                        numberDetail.mienDetails['Nam']!,
+                        Colors.orange,
+                      ),
+
+                    const SizedBox(height: 12),
+
+                    if (numberDetail.mienDetails.containsKey('Trung'))
+                      _buildMienCard(
+                        'Miền Trung',
+                        numberDetail.mienDetails['Trung']!,
+                        Colors.purple,
+                      ),
+
+                    const SizedBox(height: 12),
+
+                    if (numberDetail.mienDetails.containsKey('Bắc'))
+                      _buildMienCard(
+                        'Miền Bắc',
+                        numberDetail.mienDetails['Bắc']!,
+                        Colors.blue,
+                      ),
+                  ],
                 ),
-              
-              if (numberDetail.mienDetails.containsKey('Trung'))
-                _buildMienDetailRow(
-                  'Miền Trung',
-                  numberDetail.mienDetails['Trung']!,
-                  Colors.purple,
+              ),
+
+              // ✅ 3. ACTION BUTTONS: GỬI TELEGRAM BÊN TRÁI, TẠO BẢNG BÊN PHẢI
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Row(
+                  children: [
+                    // Gửi Telegram (bên trái)
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _sendNumberDetailToTelegram(context, viewModel, numberDetail);
+                        },
+                        icon: const Icon(Icons.send, size: 20),
+                        label: const Text('Gửi Telegram'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Tạo bảng (bên phải)
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _createTableForNumber(context, viewModel, number);
+                        },
+                        icon: const Icon(Icons.table_chart, size: 20),
+                        label: const Text('Tạo bảng'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              
-              if (numberDetail.mienDetails.containsKey('Bắc'))
-                _buildMienDetailRow(
-                  'Miền Bắc',
-                  numberDetail.mienDetails['Bắc']!,
-                  Colors.blue,
-                ),
+              ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              _sendNumberDetailToTelegram(context, viewModel, numberDetail);
-            },
-            icon: const Icon(Icons.send),
-            label: const Text('Gửi Telegram'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  // ✅ HELPER METHOD ĐỂ BUILD CARD MIỀN
+  Widget _buildMienCard(String title, dynamic detail, Color color) {
+    return Container(
+      width: double.infinity,  // ✅ Full width để cân đối
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
           ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              _createTableForNumber(context, viewModel, number);
-            },
-            icon: const Icon(Icons.table_chart),
-            label: const Text('Tạo bảng'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-            ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoRowInCard('Gan:', '${detail.daysGan} ngày'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoRowInCard('Lần cuối:', detail.lastSeenDateStr),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMienDetailRow(String label, dynamic detail, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3)),
+  Widget _buildInfoRowInCard(String label, String value) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
             ),
-            const SizedBox(height: 4),
-            Text('Gan: ${detail.daysGan} ngày'),
-            Text('Lần cuối: ${detail.lastSeenDateStr}'),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 

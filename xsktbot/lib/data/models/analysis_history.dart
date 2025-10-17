@@ -1,4 +1,4 @@
-// lib/data/models/analysis_history.dart
+// Thay thế model AnalysisHistory trong file analysis_history.dart
 
 class AnalysisHistory {
   final int stt;
@@ -10,7 +10,7 @@ class AnalysisHistory {
   final String mienNam;
   final String mienTrung;
   final String mienBac;
-  final String filter;  // ✅ ADD
+  final String filter;
 
   AnalysisHistory({
     required this.stt,
@@ -22,7 +22,7 @@ class AnalysisHistory {
     required this.mienNam,
     required this.mienTrung,
     required this.mienBac,
-    required this.filter,  // ✅ ADD
+    required this.filter,
   });
 
   List<String> toSheetRow() {
@@ -36,7 +36,7 @@ class AnalysisHistory {
       mienNam,
       mienTrung,
       mienBac,
-      filter,  // ✅ ADD
+      filter,
     ];
   }
 
@@ -48,7 +48,7 @@ class AnalysisHistory {
     required String ngayLanCuoiVe,
     required String nhomGan,
     required Map<String, List<String>> mienGroups,
-    required String filter,  // ✅ ADD
+    required String filter,
   }) {
     return AnalysisHistory(
       stt: stt,
@@ -60,7 +60,7 @@ class AnalysisHistory {
       mienNam: mienGroups['Nam']?.join(', ') ?? '',
       mienTrung: mienGroups['Trung']?.join(', ') ?? '',
       mienBac: mienGroups['Bắc']?.join(', ') ?? '',
-      filter: filter,  // ✅ ADD
+      filter: filter,
     );
   }
 
@@ -75,14 +75,27 @@ class AnalysisHistory {
       mienNam: row.length > 6 ? row[6].toString() : '',
       mienTrung: row.length > 7 ? row[7].toString() : '',
       mienBac: row.length > 8 ? row[8].toString() : '',
-      filter: row.length > 9 ? row[9].toString() : 'Tất cả',  // ✅ ADD
+      filter: row.length > 9 ? row[9].toString() : 'Tất cả',
     );
   }
 
+  // ✅ FIX: LOGIC KIỂM TRA DUPLICATE CHẶT CHẼ HỚN
   bool isDuplicate(AnalysisHistory other) {
-    return ngayCuoiKQXS == other.ngayCuoiKQXS &&
-           soNgayGan == other.soNgayGan &&
-           nhomGan == other.nhomGan &&
-           filter == other.filter;  // ✅ ADD filter check
+    // So sánh ngày cuối KQXS
+    if (ngayCuoiKQXS != other.ngayCuoiKQXS) {
+      return false;
+    }
+    
+    // So sánh filter
+    if (filter != other.filter) {
+      return false;
+    }
+    
+    // ✅ THÊM: So sánh số ngày gan
+    if (soNgayGan != other.soNgayGan) {
+      return false;
+    }
+    
+    return true;
   }
 }

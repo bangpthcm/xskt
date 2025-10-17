@@ -91,6 +91,7 @@ class AnalysisService {
   ) async {
     if (allResults.isEmpty) return null;
 
+    // ✅ BƯỚC 1: Tìm lần xuất hiện cuối cùng của mỗi số (theo miền)
     final lastSeenMap = <String, Map<String, dynamic>>{};
 
     for (final result in allResults) {
@@ -103,7 +104,7 @@ class AnalysisService {
         if (!lastSeenMap.containsKey(key) ||
             date.isAfter(lastSeenMap[key]!['date'] as DateTime) ||
             (date.isAtSameMomentAs(lastSeenMap[key]!['date'] as DateTime) && 
-             _isMienCloser(result.mien, lastSeenMap[key]!['mien'] as String))) {
+            _isMienCloser(result.mien, lastSeenMap[key]!['mien'] as String))) {
           lastSeenMap[key] = {
             'date': date,
             'mien': result.mien,
@@ -118,21 +119,31 @@ class AnalysisService {
       return null;
     }
 
+    // ✅ BƯỚC 2: Tìm ngày hoàn thành chu kỳ
     final completionDate = lastSeenMap.values
         .map((v) => v['date'] as DateTime)
         .reduce((a, b) => a.isAfter(b) ? a : b);
 
+    // ✅ BƯỚC 3: Tính số ngày gan theo MIỀN (không phải ngày lịch)
     final ganStats = <Map<String, dynamic>>[];
     
     for (final entry in lastSeenMap.entries) {
       final lastDate = entry.value['date'] as DateTime;
+      final lastMien = entry.value['mien'] as String;
       
       if (lastDate.isBefore(completionDate)) {
-        final daysGan = completionDate.difference(lastDate).inDays;
+        // ✅ ĐẾM SỐ LƯỢT QUAY CỦA MIỀN ĐÓ TỪ lastDate ĐẾN completionDate
+        final daysGan = _countMienOccurrences(
+          allResults,
+          lastDate,
+          completionDate,
+          lastMien,
+        );
+        
         ganStats.add({
           'so': entry.key,
           'days_gan': daysGan,
-          'mien': entry.value['mien'],
+          'mien': lastMien,
           'last_seen': lastDate,
         });
       }
@@ -183,6 +194,33 @@ class AnalysisService {
     );
   }
 
+  // ✅ HÀM MỚI: Đếm số NGÀY (không phải số dòng) của một miền
+  int _countMienOccurrences(
+    List<LotteryResult> allResults,
+    DateTime startDate,
+    DateTime endDate,
+    String targetMien,
+  ) {
+    // ✅ SỬ DỤNG SET ĐỂ TRÁNH TRÙNG LẶP NGÀY
+    final uniqueDates = <String>{};
+    
+    for (final result in allResults) {
+      final date = date_utils.DateUtils.parseDate(result.ngay);
+      if (date == null) continue;
+      
+      // Chỉ đếm từ SAU startDate đến endDate
+      if (date.isAfter(startDate) && 
+          (date.isBefore(endDate) || date.isAtSameMomentAs(endDate)) &&
+          result.mien == targetMien) {
+        // ✅ THÊM VÀO SET (tự động loại trùng)
+        uniqueDates.add(result.ngay);
+      }
+    }
+    
+    // ✅ TRẢ VỀ SỐ NGÀY DUY NHẤT
+    return uniqueDates.length;
+  }
+
   bool _isMienCloser(String newMien, String oldMien) {
     const mienPriority = {'Bắc': 3, 'Trung': 2, 'Nam': 1};
     return (mienPriority[newMien] ?? 0) > (mienPriority[oldMien] ?? 0);
@@ -219,7 +257,13 @@ class AnalysisService {
       }
 
       if (lastSeenDate != null && lastSeenDateStr != null) {
-        final daysGan = now.difference(lastSeenDate).inDays;
+        // ✅ TÍNH SỐ NGÀY GAN THEO MIỀN (không phải theo ngày lịch)
+        final daysGan = _countMienOccurrences(
+          allResults,
+          lastSeenDate,
+          now,
+          mien,
+        );
         
         mienDetails[mien] = MienDetail(
           mien: mien,
@@ -237,5 +281,4 @@ class AnalysisService {
       mienDetails: mienDetails,
     );
   }
-
 }
