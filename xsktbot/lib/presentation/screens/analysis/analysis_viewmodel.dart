@@ -67,16 +67,27 @@ class AnalysisViewModel extends ChangeNotifier {
       // ✅ BƯỚC 1: ĐỒNG BỘ RSS TRƯỚC KHI PHÂN TÍCH
       if (!useCache) {
         print('🔄 Starting RSS sync...');
-        final backfillService = BackfillService(
-          sheetsService: _sheetsService,
-          rssService: _rssService,
-        );
         
-        final syncResult = await backfillService.syncAllFromRSS();
-        print('📊 RSS sync result: ${syncResult.message}');
-        
-        if (syncResult.hasError) {
-          print('⚠️ RSS sync had errors but continuing with analysis...');
+        try {
+          final backfillService = BackfillService(
+            sheetsService: _sheetsService,
+            rssService: _rssService,
+          );
+          
+          final syncResult = await backfillService.syncAllFromRSS();
+          print('📊 RSS sync result: ${syncResult.message}');
+          
+          if (syncResult.hasError) {
+            print('⚠️ RSS sync had errors: ${syncResult.message}');
+            // Hiển thị warning nhưng vẫn tiếp tục phân tích
+            _errorMessage = 'Cảnh báo: ${syncResult.message}';
+            notifyListeners();
+          }
+        } catch (syncError) {
+          print('❌ RSS sync failed: $syncError');
+          // Vẫn tiếp tục phân tích với dữ liệu hiện có
+          _errorMessage = 'Cảnh báo: Không thể đồng bộ RSS - $syncError';
+          notifyListeners();
         }
       } else {
         print('⏭️ Skipping RSS sync (using cache)');

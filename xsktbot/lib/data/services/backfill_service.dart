@@ -97,11 +97,11 @@ class BackfillService {
 
       // 6. Thêm dữ liệu mới vào sheet
       final startRow = existingData.length + 1;
+      // ✅ FIX: Dùng appendRows thay vì updateRange để tự động mở rộng sheet
       final newRows = newResults.map((r) => r.toSheetRow()).toList();
       
-      await _sheetsService.updateRange(
+      await _sheetsService.appendRows(
         'KQXS',
-        'A$startRow',
         newRows,
       );
 

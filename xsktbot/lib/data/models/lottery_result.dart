@@ -37,7 +37,12 @@ class LotteryResult {
       ngay: row[0].toString(),
       mien: row[1].toString(),
       tinh: row[2].toString(),
-      numbers: row.sublist(3).map((e) => e.toString()).where((n) => n.isNotEmpty).toList(),
+      // ✅ FIX: Chỉ loại bỏ empty, KHÔNG loại bỏ số 0
+      numbers: row.sublist(3)
+          .map((e) => e.toString().trim())
+          .where((n) => n.isNotEmpty)  // ✅ CHỈ CHECK EMPTY
+          .map((n) => n.padLeft(2, '0'))  // ✅ Format: 0 → "00", 5 → "05"
+          .toList(),
     );
   }
 
