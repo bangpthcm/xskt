@@ -10,6 +10,9 @@ class WinTrackingService {
   WinTrackingService({required GoogleSheetsService sheetsService})
       : _sheetsService = sheetsService;
 
+  // ✅ ADD: Public getter để các service khác có thể access
+  GoogleSheetsService get sheetsService => _sheetsService;
+
   /// Lưu lịch sử trúng số chu kỳ
   Future<void> saveCycleWinHistory(CycleWinHistory history) async {
     print('💾 Saving cycle win history...');

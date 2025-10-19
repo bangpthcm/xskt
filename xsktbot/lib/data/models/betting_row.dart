@@ -74,27 +74,26 @@ class BettingRow {
     );
   }
 
-  // ✅ Helper để format số với dấu phẩy phân cách hàng nghìn
+  // ✅ FIXED: Format số nguyên, không có phần thập phân
   static String _formatNumberWithCommas(double value) {
-    // Format với 2 chữ số thập phân
-    final str = value.toStringAsFixed(2);
-    final parts = str.split('.');
-    final intPart = parts[0];
-    final decimalPart = parts.length > 1 ? parts[1] : '00';
+    // Làm tròn về số nguyên
+    final intValue = value.round();
     
-    // Thêm dấu chấm phân cách hàng nghìn (format EU/VN)
+    // Format với dấu chấm phân cách hàng nghìn (format VN)
     String formatted = '';
+    String intStr = intValue.toString();
     int count = 0;
-    for (int i = intPart.length - 1; i >= 0; i--) {
+    
+    for (int i = intStr.length - 1; i >= 0; i--) {
       if (count == 3) {
         formatted = '.$formatted';
         count = 0;
       }
-      formatted = intPart[i] + formatted;
+      formatted = intStr[i] + formatted;
       count++;
     }
     
-    return '$formatted,$decimalPart';
+    return formatted;
   }
 
   List<String> toSheetRow() {
@@ -105,12 +104,12 @@ class BettingRow {
         ngay,
         mien,
         so,
-        _formatNumberWithCommas(soLo!.toDouble()),  // ✅ Format
-        _formatNumberWithCommas(cuocSo),            // ✅ Format
-        _formatNumberWithCommas(cuocMien),          // ✅ Format
-        _formatNumberWithCommas(tongTien),          // ✅ Format
-        _formatNumberWithCommas(loi1So),            // ✅ Format
-        _formatNumberWithCommas(loi2So!),           // ✅ Format
+        _formatNumberWithCommas(soLo!.toDouble()),
+        _formatNumberWithCommas(cuocSo),
+        _formatNumberWithCommas(cuocMien),
+        _formatNumberWithCommas(tongTien),
+        _formatNumberWithCommas(loi1So),
+        _formatNumberWithCommas(loi2So!),
       ];
     } else {
       // Xiên
@@ -119,10 +118,10 @@ class BettingRow {
         ngay,
         mien,
         so,
-        _formatNumberWithCommas(cuocMien),          // ✅ Format
-        _formatNumberWithCommas(tongTien),          // ✅ Format
-        _formatNumberWithCommas(loi1So),            // ✅ Format
+        _formatNumberWithCommas(cuocMien),
+        _formatNumberWithCommas(tongTien),
+        _formatNumberWithCommas(loi1So),
       ];
     }
   }
-} 
+}

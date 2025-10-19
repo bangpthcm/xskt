@@ -46,7 +46,8 @@ class NumberUtils {
   }
 
   static String formatCurrency(double amount) {
-    final formatter = NumberFormat('#,##0.00', 'vi_VN');  // ✅ Giờ có thể dùng NumberFormat
-    return formatter.format(amount);
+    // Làm tròn về số nguyên và format không có phần thập phân
+    final formatter = NumberFormat('#,##0', 'vi_VN');
+    return formatter.format(amount.round());
   }
 }

@@ -222,33 +222,41 @@ class BettingTableService {
     required String targetMien,
     required DateTime startDate,
     required DateTime endDate,
-    required int startMienIndex,
+    required int startMienIndex,  // ✅ Sử dụng parameter này
     required double startBetValue,
     required double profitTarget,
   }) async {
     final tableData = <BettingRow>[];
     double tongTien = 0.0;
-    bool isFirstDay = true;
-
+    
     int mienCount = 0;
     final maxMienCount = 9;
     
     int stt = 1;
     DateTime currentDate = startDate;
+    
+    // ✅ QUAN TRỌNG: Biến để track xem đã qua ngày đầu tiên chưa
+    bool isFirstDay = true;
 
     while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(Duration(days: 1)))) {
       final ngayStr = date_utils.DateUtils.formatDate(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
+      // ✅ LOGIC MỚI: Ngày đầu tiên bắt đầu từ startMienIndex, các ngày sau từ đầu
       final initialMienIdx = isFirstDay ? startMienIndex : 0;
       final mienOrder = ['Nam', 'Trung', 'Bắc'];
+
+      print('📅 Date: $ngayStr, weekday: $weekday, startMienIdx: $initialMienIdx, isFirstDay: $isFirstDay');
 
       for (int i = initialMienIdx; i < mienOrder.length; i++) {
         final mien = mienOrder[i];
         
         final soLo = NumberUtils.calculateSoLo(mien, weekday);
 
-        if (98 - soLo <= 0) continue;
+        if (98 - soLo <= 0) {
+          print('   ⚠️ Skip $mien (invalid soLo)');
+          continue;
+        }
 
         final requiredBet = (tongTien + profitTarget) / (98 - soLo);
 
@@ -258,7 +266,6 @@ class BettingTableService {
           tienCuoc1So = max(lastBet, requiredBet);
         }
 
-        // ✅ OPTION 4: Làm tròn lên số nguyên
         tienCuoc1So = tienCuoc1So.ceilToDouble();
 
         final tienCuocMien = tienCuoc1So * soLo;
@@ -266,6 +273,8 @@ class BettingTableService {
 
         final tienLoi1So = (tienCuoc1So * 98) - tongTien;
         final tienLoi2So = (tienCuoc1So * 98 * 2) - tongTien;
+
+        print('   ✅ Add row: STT=$stt, Mien=$mien, So=$targetNumber, SoLo=$soLo, Cuoc=$tienCuoc1So, Tong=$tongTien');
 
         tableData.add(BettingRow.forCycle(
           stt: stt++,
@@ -280,9 +289,13 @@ class BettingTableService {
           loi2So: tienLoi2So,
         ));
         
+        // ✅ CHỈ ĐẾM khi cược vào targetMien
         if (mien == targetMien) {
           mienCount++;
+          print('   🎯 Target mien count: $mienCount/$maxMienCount');
+          
           if (mienCount >= maxMienCount) {
+            print('   ✅ Reached max mien count, stopping...');
             break;
           }
         }
@@ -291,16 +304,15 @@ class BettingTableService {
       isFirstDay = false;
       currentDate = currentDate.add(Duration(days: 1));
     }
-    
-    if (date_utils.DateUtils.getWeekday(currentDate) == 1) {
-      print('⚠️ End date is Tuesday, adding +1 day');
-    }
+
+    print('✅ Table generation completed: ${tableData.length} rows, total: $tongTien');
 
     return {
       'table': tableData,
       'tong_tien': tongTien,
     };
   }
+
 
   /// ✅ NEW: Generate Bắc Gan Table (chỉ cược Miền Bắc, multiplier 99)
   Future<List<BettingRow>> generateBacGanTable({

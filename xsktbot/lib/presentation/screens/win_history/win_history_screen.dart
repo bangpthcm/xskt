@@ -22,7 +22,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);  // ✅ 2 → 4 tabs
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<WinHistoryViewModel>().loadHistory();
@@ -42,9 +42,12 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
         title: const Text('Lịch sử trúng số'),
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,  // ✅ Enable scroll for 4 tabs
           tabs: const [
             Tab(text: 'Chu kỳ'),
             Tab(text: 'Xiên'),
+            Tab(text: 'Trung'),  // ✅ ADD
+            Tab(text: 'Bắc'),    // ✅ ADD
           ],
         ),
         actions: [
@@ -97,6 +100,8 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
             children: [
               _buildCycleTab(viewModel),
               _buildXienTab(viewModel),
+              _buildTrungTab(viewModel),  // ✅ ADD
+              _buildBacTab(viewModel),    // ✅ ADD
             ],
           );
         },
@@ -106,55 +111,74 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
 
   Widget _buildCycleTab(WinHistoryViewModel viewModel) {
     if (viewModel.cycleHistory.isEmpty) {
-      return const Center(
-        child: Text('Chưa có lịch sử trúng số chu kỳ'),
-      );
+      return const Center(child: Text('Chưa có lịch sử trúng số chu kỳ'));
     }
 
-    // Tính thống kê
-    final wins = viewModel.cycleHistory.where((h) => h.isWin).toList();
-    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
-        : 0.0;
-
+    final stats = viewModel.getCycleStats();
     return Column(
       children: [
         _buildStatsCard(
-          wins: wins.length,
-          totalProfit: totalProfit,
-          avgROI: avgROI,
+          wins: stats.totalWins,
+          totalProfit: stats.totalProfit,
+          avgROI: stats.avgROI,
         ),
-        Expanded(
-          child: _buildCycleDataTable(viewModel.cycleHistory),
-        ),
+        Expanded(child: _buildCycleDataTable(viewModel.cycleHistory)),
       ],
     );
   }
 
   Widget _buildXienTab(WinHistoryViewModel viewModel) {
     if (viewModel.xienHistory.isEmpty) {
-      return const Center(
-        child: Text('Chưa có lịch sử trúng số xiên'),
-      );
+      return const Center(child: Text('Chưa có lịch sử trúng số xiên'));
     }
 
-    final wins = viewModel.xienHistory.where((h) => h.isWin).toList();
-    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
-        : 0.0;
-
+    final stats = viewModel.getXienStats();
     return Column(
       children: [
         _buildStatsCard(
-          wins: wins.length,
-          totalProfit: totalProfit,
-          avgROI: avgROI,
+          wins: stats.totalWins,
+          totalProfit: stats.totalProfit,
+          avgROI: stats.avgROI,
         ),
-        Expanded(
-          child: _buildXienDataTable(viewModel.xienHistory),
+        Expanded(child: _buildXienDataTable(viewModel.xienHistory)),
+      ],
+    );
+  }
+
+  // ✅ ADD: Trung tab
+  Widget _buildTrungTab(WinHistoryViewModel viewModel) {
+    if (viewModel.trungHistory.isEmpty) {
+      return const Center(child: Text('Chưa có lịch sử trúng số Miền Trung'));
+    }
+
+    final stats = viewModel.getTrungStats();
+    return Column(
+      children: [
+        _buildStatsCard(
+          wins: stats.totalWins,
+          totalProfit: stats.totalProfit,
+          avgROI: stats.avgROI,
         ),
+        Expanded(child: _buildCycleDataTable(viewModel.trungHistory)),
+      ],
+    );
+  }
+
+  // ✅ ADD: Bac tab
+  Widget _buildBacTab(WinHistoryViewModel viewModel) {
+    if (viewModel.bacHistory.isEmpty) {
+      return const Center(child: Text('Chưa có lịch sử trúng số Miền Bắc'));
+    }
+
+    final stats = viewModel.getBacStats();
+    return Column(
+      children: [
+        _buildStatsCard(
+          wins: stats.totalWins,
+          totalProfit: stats.totalProfit,
+          avgROI: stats.avgROI,
+        ),
+        Expanded(child: _buildCycleDataTable(viewModel.bacHistory)),
       ],
     );
   }
@@ -205,21 +229,11 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
       children: [
         Icon(icon, color: color, size: 32),
         const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         const SizedBox(height: 4),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
         ),
       ],
     );
@@ -302,12 +316,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
               DataCell(Text(h.ngayTrung)),
               DataCell(Text(h.capSoMucTieu)),
               DataCell(Text(h.soLanTrungCap.toString())),
-              DataCell(
-                Text(
-                  h.chiTietTrung,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
+              DataCell(Text(h.chiTietTrung, overflow: TextOverflow.ellipsis)),
               DataCell(Text(NumberUtils.formatCurrency(h.tongTienCuoc))),
               DataCell(
                 Text(
@@ -337,7 +346,6 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
   void _showCheckDialog(BuildContext context) {
     final dateController = TextEditingController();
     
-    // Default to yesterday
     final yesterday = DateTime.now().subtract(const Duration(days: 1));
     final yesterdayStr = '${yesterday.day.toString().padLeft(2, '0')}/'
         '${yesterday.month.toString().padLeft(2, '0')}/'

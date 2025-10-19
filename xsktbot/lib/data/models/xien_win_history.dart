@@ -105,26 +105,10 @@ class XienWinHistory {
   static double _parseNumber(dynamic value) {
     String str = value.toString().trim();
     
-    int dotCount = str.split('.').length - 1;
-    int commaCount = str.split(',').length - 1;
-    
-    if (dotCount > 0 && commaCount > 0) {
-      if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
-        str = str.replaceAll('.', '').replaceAll(',', '.');
-      } else {
-        str = str.replaceAll(',', '');
-      }
-    } else if (commaCount > 0) {
-      if (commaCount > 1 || str.indexOf(',') < str.length - 3) {
-        str = str.replaceAll(',', '');
-      } else {
-        str = str.replaceAll(',', '.');
-      }
-    } else if (dotCount > 1) {
-      int lastDotIndex = str.lastIndexOf('.');
-      str = str.substring(0, lastDotIndex).replaceAll('.', '') + 
-            '.' + str.substring(lastDotIndex + 1);
-    }
+    // Chỉ cần xóa dấu chấm (phân cách nghìn VN)
+    str = str.replaceAll('.', '');
+    str = str.replaceAll(',', '');
+    str = str.replaceAll(' ', '');
     
     return double.parse(str);
   }

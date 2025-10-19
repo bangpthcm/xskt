@@ -158,26 +158,204 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final latestDate = _allResults
-          .map((r) => date_utils.DateUtils.parseDate(r.ngay))
-          .where((d) => d != null)
-          .reduce((a, b) => a!.isAfter(b!) ? a : b);
-
-      final startDate = latestDate!.add(const Duration(days: 1));
-      var endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 8));
+      // BƯỚC 1: Tìm ngày và miền cuối cùng trong KQXS
+      DateTime? latestDate;
+      String? latestMien;
       
+      for (final result in _allResults) {
+        final date = date_utils.DateUtils.parseDate(result.ngay);
+        if (date != null) {
+          if (latestDate == null || 
+              date.isAfter(latestDate) ||
+              (date.isAtSameMomentAs(latestDate) && _isMienLater(result.mien, latestMien ?? ''))) {
+            latestDate = date;
+            latestMien = result.mien;
+          }
+        }
+      }
+
+      if (latestDate == null || latestMien == null) {
+        throw Exception('Không tìm thấy dữ liệu KQXS');
+      }
+
+      print('📅 Latest KQXS: $latestMien on ${date_utils.DateUtils.formatDate(latestDate)}');
+
+      // BƯỚC 2: Xác định miền bắt đầu
+      final mienOrder = ['Nam', 'Trung', 'Bắc'];
+      final latestMienIndex = mienOrder.indexOf(latestMien);
+      
+      DateTime startDate;
+      int startMienIndex;
+      
+      if (latestMienIndex == 2) {
+        startDate = latestDate.add(const Duration(days: 1));
+        startMienIndex = 0;
+      } else {
+        startDate = latestDate;
+        startMienIndex = latestMienIndex + 1;
+      }
+
+      print('🎯 Start betting: ${mienOrder[startMienIndex]} on ${date_utils.DateUtils.formatDate(startDate)}');
+
+      // BƯỚC 3: Tìm miền xuất hiện lần cuối
+      String targetMien = 'Nam';
+      for (final entry in _cycleResult!.mienGroups.entries) {
+        if (entry.value.contains(_cycleResult!.targetNumber)) {
+          targetMien = entry.key;
+          break;
+        }
+      }
+
+      print('🎯 Target mien: $targetMien');
+
+      // BƯỚC 4: Tính endDate = lastSeenDate + 9 lần quay
+      DateTime endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 9));
+      print('📅 Initial end date: ${date_utils.DateUtils.formatDate(endDate)}');
+
+      // ✅ BƯỚC 5 MỚI: Kiểm tra ngày cuối HOẶC ngày áp cuối có phải thứ 3 không
       double budgetMax = config.budget.budgetMax;
       
-      if (date_utils.DateUtils.getWeekday(endDate) == 1) {
+      final lastDayWeekday = date_utils.DateUtils.getWeekday(endDate);
+      final secondLastDate = endDate.subtract(const Duration(days: 1));
+      final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+      
+      print('📅 Last day weekday: $lastDayWeekday (${_getWeekdayName(lastDayWeekday)})');
+      print('📅 Second last day weekday: $secondLastWeekday (${_getWeekdayName(secondLastWeekday)})');
+      
+      // Thứ 3 = weekday 1 (Mon=0, Tue=1, Wed=2, ...)
+      if (lastDayWeekday == 1 || secondLastWeekday == 1) {
+        print('⚠️ Found Tuesday in last 2 days! Adding +1 day and +200k budget');
+        endDate = endDate.add(const Duration(days: 1));
+        budgetMax += 200000.0;
+        print('📅 New end date: ${date_utils.DateUtils.formatDate(endDate)}');
+      }
+
+      // BƯỚC 6: Generate bảng cược
+      final newTable = await _bettingService.generateCycleTable(
+        cycleResult: _cycleResult!,
+        startDate: startDate,
+        endDate: endDate,
+        startMienIndex: startMienIndex,
+        budgetMin: config.budget.budgetMin,
+        budgetMax: budgetMax,
+      );
+
+      await _saveCycleTableToSheet(newTable);
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Lỗi tạo bảng: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ✅ HELPER: Get weekday name for logging
+  String _getWeekdayName(int weekday) {
+    const names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+    return names[weekday];
+  }
+
+  // HELPER: So sánh thứ tự miền
+  bool _isMienLater(String newMien, String oldMien) {
+    const mienPriority = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
+    return (mienPriority[newMien] ?? 0) > (mienPriority[oldMien] ?? 0);
+  }
+
+  // ✅ Tương tự cho createCycleBettingTableForNumber
+  Future<void> createCycleBettingTableForNumber(
+    String targetNumber,
+    AppConfig config,
+  ) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final numberDetail = await _analysisService.analyzeNumberDetail(
+        _allResults,
+        targetNumber,
+      );
+
+      if (numberDetail == null) {
+        throw Exception('Không tìm thấy thông tin số $targetNumber');
+      }
+
+      int maxDaysGan = 0;
+      DateTime? lastSeenDate;
+      String? selectedMien;
+
+      for (final entry in numberDetail.mienDetails.entries) {
+        if (entry.value.daysGan > maxDaysGan) {
+          maxDaysGan = entry.value.daysGan;
+          lastSeenDate = entry.value.lastSeenDate;
+          selectedMien = entry.key;
+        }
+      }
+
+      if (lastSeenDate == null) {
+        throw Exception('Không tìm thấy ngày xuất hiện cuối');
+      }
+
+      final customCycleResult = CycleAnalysisResult(
+        ganNumbers: {targetNumber},
+        maxGanDays: maxDaysGan,
+        lastSeenDate: lastSeenDate,
+        mienGroups: {selectedMien!: [targetNumber]},
+        targetNumber: targetNumber,
+      );
+
+      // Logic tương tự như trên
+      DateTime? latestDate;
+      String? latestMien;
+      
+      for (final result in _allResults) {
+        final date = date_utils.DateUtils.parseDate(result.ngay);
+        if (date != null) {
+          if (latestDate == null || 
+              date.isAfter(latestDate) ||
+              (date.isAtSameMomentAs(latestDate) && _isMienLater(result.mien, latestMien ?? ''))) {
+            latestDate = date;
+            latestMien = result.mien;
+          }
+        }
+      }
+
+      final mienOrder = ['Nam', 'Trung', 'Bắc'];
+      final latestMienIndex = mienOrder.indexOf(latestMien!);
+      
+      DateTime startDate;
+      int startMienIndex;
+      
+      if (latestMienIndex == 2) {
+        startDate = latestDate!.add(const Duration(days: 1));
+        startMienIndex = 0;
+      } else {
+        startDate = latestDate!;
+        startMienIndex = latestMienIndex + 1;
+      }
+
+      DateTime endDate = lastSeenDate.add(const Duration(days: 9));
+
+      // ✅ Kiểm tra ngày cuối HOẶC ngày áp cuối có phải thứ 3
+      double budgetMax = config.budget.budgetMax;
+      
+      final lastDayWeekday = date_utils.DateUtils.getWeekday(endDate);
+      final secondLastDate = endDate.subtract(const Duration(days: 1));
+      final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+      
+      if (lastDayWeekday == 1 || secondLastWeekday == 1) {
+        print('⚠️ Found Tuesday! Adding +1 day and +200k budget');
         endDate = endDate.add(const Duration(days: 1));
         budgetMax += 200000.0;
       }
 
       final newTable = await _bettingService.generateCycleTable(
-        cycleResult: _cycleResult!,
+        cycleResult: customCycleResult,
         startDate: startDate,
         endDate: endDate,
-        startMienIndex: 0,
+        startMienIndex: startMienIndex,
         budgetMin: config.budget.budgetMin,
         budgetMax: budgetMax,
       );
@@ -662,84 +840,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ TẠO BẢNG CƯỢC CHO SỐ CỤ THỂ
-  Future<void> createCycleBettingTableForNumber(
-    String targetNumber,
-    AppConfig config,
-  ) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final numberDetail = await _analysisService.analyzeNumberDetail(
-        _allResults,
-        targetNumber,
-      );
-
-      if (numberDetail == null) {
-        throw Exception('Không tìm thấy thông tin số $targetNumber');
-      }
-
-      int maxDaysGan = 0;
-      DateTime? lastSeenDate;
-      String? selectedMien;
-
-      for (final entry in numberDetail.mienDetails.entries) {
-        if (entry.value.daysGan > maxDaysGan) {
-          maxDaysGan = entry.value.daysGan;
-          lastSeenDate = entry.value.lastSeenDate;
-          selectedMien = entry.key;
-        }
-      }
-
-      if (lastSeenDate == null) {
-        throw Exception('Không tìm thấy ngày xuất hiện cuối');
-      }
-
-      final customCycleResult = CycleAnalysisResult(
-        ganNumbers: {targetNumber},
-        maxGanDays: maxDaysGan,
-        lastSeenDate: lastSeenDate,
-        mienGroups: {selectedMien!: [targetNumber]},
-        targetNumber: targetNumber,
-      );
-
-      final latestDate = _allResults
-          .map((r) => date_utils.DateUtils.parseDate(r.ngay))
-          .where((d) => d != null)
-          .reduce((a, b) => a!.isAfter(b!) ? a : b);
-
-      final startDate = latestDate!.add(const Duration(days: 1));
-      var endDate = lastSeenDate.add(const Duration(days: 8));
-      
-      double budgetMax = config.budget.budgetMax;
-      
-      if (date_utils.DateUtils.getWeekday(endDate) == 1) {
-        endDate = endDate.add(const Duration(days: 1));
-        budgetMax += 200000.0;
-      }
-
-      final newTable = await _bettingService.generateCycleTable(
-        cycleResult: customCycleResult,
-        startDate: startDate,
-        endDate: endDate,
-        startMienIndex: 0,
-        budgetMin: config.budget.budgetMin,
-        budgetMax: budgetMax,
-      );
-
-      await _saveCycleTableToSheet(newTable);
-
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Lỗi tạo bảng: $e';
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
   /// Tạo bảng cược cho số gan Miền Bắc
   Future<void> createBacGanBettingTable(
     String targetNumber,
@@ -752,7 +852,6 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Phân tích chi tiết số này
       final numberDetail = await _analysisService.analyzeNumberDetail(
         _allResults,
         targetNumber,
@@ -762,15 +861,11 @@ class AnalysisViewModel extends ChangeNotifier {
         throw Exception('Không tìm thấy thông tin số $targetNumber');
       }
 
-      // Lấy thông tin Miền Bắc
       final bacDetail = numberDetail.mienDetails['Bắc'];
       if (bacDetail == null) {
         throw Exception('Số $targetNumber chưa có dữ liệu Miền Bắc');
       }
 
-      print('📊 Bắc detail: ${bacDetail.daysGan} ngày gan, cuối: ${bacDetail.lastSeenDateStr}');
-
-      // Tạo custom cycle result cho Miền Bắc
       final customCycleResult = CycleAnalysisResult(
         ganNumbers: {targetNumber},
         maxGanDays: bacDetail.daysGan,
@@ -779,21 +874,14 @@ class AnalysisViewModel extends ChangeNotifier {
         targetNumber: targetNumber,
       );
 
-      // Tính ngày bắt đầu và kết thúc
       final latestDate = _allResults
           .map((r) => date_utils.DateUtils.parseDate(r.ngay))
           .where((d) => d != null)
           .reduce((a, b) => a!.isAfter(b!) ? a : b);
 
       final startDate = latestDate!.add(const Duration(days: 1));
-      
-      // ✅ KEY: Ngày kết thúc = ngày cuối + 35 ngày
       final endDate = bacDetail.lastSeenDate.add(const Duration(days: 35));
-      
-      print('📅 Start: ${date_utils.DateUtils.formatDate(startDate)}');
-      print('📅 End: ${date_utils.DateUtils.formatDate(endDate)}');
 
-      // ✅ Gọi method mới với multiplier 99
       final newTable = await _bettingService.generateBacGanTable(
         cycleResult: customCycleResult,
         startDate: startDate,
@@ -802,15 +890,12 @@ class AnalysisViewModel extends ChangeNotifier {
         budgetMax: config.budget.budgetMax,
       );
 
-      // Lưu vào sheet xsktBot1 (hoặc tạo sheet riêng nếu muốn)
-      await _saveCycleTableToSheet(newTable);
-
-      print('✅ Bắc gan table created successfully!');
+      // ✅ SAVE TO bacBot SHEET
+      await _saveBacTableToSheet(newTable, customCycleResult);
 
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      print('❌ Error creating Bắc gan table: $e');
       _errorMessage = 'Lỗi tạo bảng: $e';
       _isLoading = false;
       notifyListeners();
@@ -829,7 +914,6 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Phân tích chi tiết số này
       final numberDetail = await _analysisService.analyzeNumberDetail(
         _allResults,
         targetNumber,
@@ -839,15 +923,11 @@ class AnalysisViewModel extends ChangeNotifier {
         throw Exception('Không tìm thấy thông tin số $targetNumber');
       }
 
-      // Lấy thông tin Miền Trung
       final trungDetail = numberDetail.mienDetails['Trung'];
       if (trungDetail == null) {
         throw Exception('Số $targetNumber chưa có dữ liệu Miền Trung');
       }
 
-      print('📊 Trung detail: ${trungDetail.daysGan} ngày gan, cuối: ${trungDetail.lastSeenDateStr}');
-
-      // Tạo custom cycle result cho Miền Trung
       final customCycleResult = CycleAnalysisResult(
         ganNumbers: {targetNumber},
         maxGanDays: trungDetail.daysGan,
@@ -856,21 +936,14 @@ class AnalysisViewModel extends ChangeNotifier {
         targetNumber: targetNumber,
       );
 
-      // Tính ngày bắt đầu và kết thúc
       final latestDate = _allResults
           .map((r) => date_utils.DateUtils.parseDate(r.ngay))
           .where((d) => d != null)
           .reduce((a, b) => a!.isAfter(b!) ? a : b);
 
       final startDate = latestDate!.add(const Duration(days: 1));
-      
-      // ✅ KEY: Ngày kết thúc = ngày cuối + 35 ngày
       final endDate = trungDetail.lastSeenDate.add(const Duration(days: 35));
-      
-      print('📅 Start: ${date_utils.DateUtils.formatDate(startDate)}');
-      print('📅 End: ${date_utils.DateUtils.formatDate(endDate)}');
 
-      // ✅ Gọi method mới với multiplier 98, duration 30
       final newTable = await _bettingService.generateTrungGanTable(
         cycleResult: customCycleResult,
         startDate: startDate,
@@ -879,18 +952,87 @@ class AnalysisViewModel extends ChangeNotifier {
         budgetMax: config.budget.budgetMax,
       );
 
-      // Lưu vào sheet xsktBot1
-      await _saveCycleTableToSheet(newTable);
-
-      print('✅ Trung gan table created successfully!');
+      // ✅ SAVE TO trungBot SHEET
+      await _saveTrungTableToSheet(newTable, customCycleResult);
 
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      print('❌ Error creating Trung gan table: $e');
       _errorMessage = 'Lỗi tạo bảng: $e';
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  // ✅ ADD: New helper methods to save to trungBot and bacBot
+
+  Future<void> _saveTrungTableToSheet(
+    List<dynamic> table,
+    CycleAnalysisResult cycleResult,
+  ) async {
+    print('📝 Saving trung table to trungBot sheet...');
+    
+    await _sheetsService.clearSheet('trungBot');
+
+    await _sheetsService.updateRange(
+      'trungBot',
+      'A1:D1',
+      [
+        [
+          cycleResult.maxGanDays.toString(),
+          date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
+          cycleResult.ganNumbersDisplay,
+          cycleResult.targetNumber,
+        ]
+      ],
+    );
+
+    await _sheetsService.updateRange(
+      'trungBot',
+      'A3:J3',
+      [
+        ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
+      ],
+    );
+
+    final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
+    await _sheetsService.updateRange('trungBot', 'A4', dataRows);
+    
+    print('✅ Trung table saved to trungBot!');
+  }
+
+  Future<void> _saveBacTableToSheet(
+    List<dynamic> table,
+    CycleAnalysisResult cycleResult,
+  ) async {
+    print('📝 Saving bac table to bacBot sheet...');
+    
+    await _sheetsService.clearSheet('bacBot');
+
+    await _sheetsService.updateRange(
+      'bacBot',
+      'A1:D1',
+      [
+        [
+          cycleResult.maxGanDays.toString(),
+          date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
+          cycleResult.ganNumbersDisplay,
+          cycleResult.targetNumber,
+        ]
+      ],
+    );
+
+    await _sheetsService.updateRange(
+      'bacBot',
+      'A3:J3',
+      [
+        ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
+      ],
+    );
+
+    final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
+    await _sheetsService.updateRange('bacBot', 'A4', dataRows);
+    
+    print('✅ Bac table saved to bacBot!');
   }
 }

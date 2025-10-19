@@ -11,7 +11,7 @@ import '../../../data/services/analysis_service.dart';
 import '../../../data/models/app_config.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 
-enum BettingTableType { xien, cycle }
+enum BettingTableType { xien, cycle, trung, bac }  // ✅ ADD trung, bac
 
 class BettingViewModel extends ChangeNotifier {
   final GoogleSheetsService _sheetsService;
@@ -33,53 +33,29 @@ class BettingViewModel extends ChangeNotifier {
   String? _errorMessage;
   List<BettingRow>? _xienTable;
   List<BettingRow>? _cycleTable;
+  List<BettingRow>? _trungTable;  // ✅ ADD
+  List<BettingRow>? _bacTable;     // ✅ ADD
   Map<String, dynamic>? _xienMetadata;
   Map<String, dynamic>? _cycleMetadata;
+  Map<String, dynamic>? _trungMetadata;  // ✅ ADD
+  Map<String, dynamic>? _bacMetadata;     // ✅ ADD
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   List<BettingRow>? get xienTable => _xienTable;
   List<BettingRow>? get cycleTable => _cycleTable;
+  List<BettingRow>? get trungTable => _trungTable;  // ✅ ADD
+  List<BettingRow>? get bacTable => _bacTable;       // ✅ ADD
   Map<String, dynamic>? get xienMetadata => _xienMetadata;
   Map<String, dynamic>? get cycleMetadata => _cycleMetadata;
+  Map<String, dynamic>? get trungMetadata => _trungMetadata;  // ✅ ADD
+  Map<String, dynamic>? get bacMetadata => _bacMetadata;       // ✅ ADD
 
   // ✅ HELPER FUNCTION GLOBAL
   static double _parseSheetNumber(dynamic value) {
     String str = value.toString().trim();
-    
-    int dotCount = str.split('.').length - 1;
-    int commaCount = str.split(',').length - 1;
-    
-    // Case 1: Có cả dấu chấm và dấu phẩy
-    if (dotCount > 0 && commaCount > 0) {
-      // Format EU: 1.339,20 (dấu chấm trước dấu phẩy)
-      if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
-        str = str.replaceAll('.', '').replaceAll(',', '.');
-      } 
-      // Format US: 1,339.20 (dấu phẩy trước dấu chấm)
-      else {
-        str = str.replaceAll(',', '');
-      }
-    } 
-    // Case 2: Chỉ có dấu phẩy
-    else if (commaCount > 0) {
-      // Nhiều dấu phẩy hoặc dấu phẩy không ở cuối → phân cách nghìn
-      if (commaCount > 1 || (commaCount == 1 && str.indexOf(',') < str.length - 3)) {
-        str = str.replaceAll(',', '');
-      } 
-      // 1 dấu phẩy ở gần cuối → thập phân
-      else {
-        str = str.replaceAll(',', '.');
-      }
-    } 
-    // Case 3: Chỉ có dấu chấm
-    else if (dotCount > 1) {
-      // Nhiều dấu chấm → phân cách nghìn (1.339.20)
-      int lastDotIndex = str.lastIndexOf('.');
-      str = str.substring(0, lastDotIndex).replaceAll('.', '') + 
-            '.' + str.substring(lastDotIndex + 1);
-    }
-    
+    str = str.replaceAll('.', '');
+    str = str.replaceAll(',', '');
     str = str.replaceAll(' ', '');
     return double.parse(str);
   }
@@ -96,6 +72,8 @@ class BettingViewModel extends ChangeNotifier {
     try {
       await _loadXienTable();
       await _loadCycleTable();
+      await _loadTrungTable();  // ✅ ADD
+      await _loadBacTable();     // ✅ ADD
 
       _isLoading = false;
       notifyListeners();
@@ -111,40 +89,27 @@ class BettingViewModel extends ChangeNotifier {
       print('🔍 Loading xien table from xienBot...');
       final values = await _sheetsService.getAllValues('xienBot');
       
-      print('📊 Got ${values.length} rows from xienBot');
-      
       if (values.isEmpty || values.length < 4) {
-        print('⚠️ Not enough rows for xien table');
         _xienTable = null;
         _xienMetadata = null;
         return;
       }
 
-      print('📋 Row 0: ${values[0]}');
       _xienMetadata = {
         'so_ngay_gan': values[0].isNotEmpty ? values[0][0] : '',
         'lan_cuoi_ve': values[0].length > 1 ? values[0][1] : '',
         'nhom_cap_so': values[0].length > 2 ? values[0][2] : '',
         'cap_so_muc_tieu': values[0].length > 3 ? values[0][3] : '',
       };
-      print('✅ Metadata: $_xienMetadata');
 
       _xienTable = [];
       for (int i = 3; i < values.length; i++) {
         final row = values[i];
-        
-        if (row.isEmpty || row[0].toString().trim().isEmpty) {
-          print('⏭️ Skip empty row $i');
-          continue;
-        }
-
-        if (row.length < 7) {
-          print('⚠️ Row $i only has ${row.length} columns, expected 7');
-          continue;
-        }
+        if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+        if (row.length < 7) continue;
 
         try {
-          final bettingRow = BettingRow.forXien(
+          _xienTable!.add(BettingRow.forXien(
             stt: int.parse(row[0].toString().trim()),
             ngay: row[1].toString().trim(),
             mien: row[2].toString().trim(),
@@ -152,15 +117,11 @@ class BettingViewModel extends ChangeNotifier {
             cuocMien: _parseSheetNumber(row[4]),
             tongTien: _parseSheetNumber(row[5]),
             loi: _parseSheetNumber(row[6]),
-          );
-          _xienTable!.add(bettingRow);
+          ));
         } catch (e) {
           print('❌ Error parsing xien row $i: $e');
-          print('   Row data: $row');
         }
       }
-      
-      print('✅ Loaded ${_xienTable!.length} xien betting rows');
     } catch (e) {
       print('❌ Error loading xien table: $e');
       _xienTable = null;
@@ -173,40 +134,27 @@ class BettingViewModel extends ChangeNotifier {
       print('🔍 Loading cycle table from xsktBot1...');
       final values = await _sheetsService.getAllValues('xsktBot1');
       
-      print('📊 Got ${values.length} rows from xsktBot1');
-      
       if (values.isEmpty || values.length < 4) {
-        print('⚠️ Not enough rows for cycle table');
         _cycleTable = null;
         _cycleMetadata = null;
         return;
       }
 
-      print('📋 Row 0: ${values[0]}');
       _cycleMetadata = {
         'so_ngay_gan': values[0].isNotEmpty ? values[0][0] : '',
         'lan_cuoi_ve': values[0].length > 1 ? values[0][1] : '',
         'nhom_so_gan': values[0].length > 2 ? values[0][2] : '',
         'so_muc_tieu': values[0].length > 3 ? values[0][3] : '',
       };
-      print('✅ Metadata: $_cycleMetadata');
 
       _cycleTable = [];
       for (int i = 3; i < values.length; i++) {
         final row = values[i];
-        
-        if (row.isEmpty || row[0].toString().trim().isEmpty) {
-          print('⏭️ Skip empty row $i');
-          continue;
-        }
-
-        if (row.length < 10) {
-          print('⚠️ Row $i only has ${row.length} columns, expected 10');
-          continue;
-        }
+        if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+        if (row.length < 10) continue;
 
         try {
-          final bettingRow = BettingRow.forCycle(
+          _cycleTable!.add(BettingRow.forCycle(
             stt: int.parse(row[0].toString().trim()),
             ngay: row[1].toString().trim(),
             mien: row[2].toString().trim(),
@@ -217,15 +165,11 @@ class BettingViewModel extends ChangeNotifier {
             tongTien: _parseSheetNumber(row[7]),
             loi1So: _parseSheetNumber(row[8]),
             loi2So: _parseSheetNumber(row[9]),
-          );
-          _cycleTable!.add(bettingRow);
+          ));
         } catch (e) {
           print('❌ Error parsing cycle row $i: $e');
-          print('   Row data: $row');
         }
       }
-      
-      print('✅ Loaded ${_cycleTable!.length} cycle betting rows');
     } catch (e) {
       print('❌ Error loading cycle table: $e');
       _cycleTable = null;
@@ -233,10 +177,105 @@ class BettingViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> regenerateTable(
-    BettingTableType type,
-    AppConfig config,
-  ) async {
+  // ✅ ADD: Load Trung table
+  Future<void> _loadTrungTable() async {
+    try {
+      print('🔍 Loading trung table from trungBot...');
+      final values = await _sheetsService.getAllValues('trungBot');
+      
+      if (values.isEmpty || values.length < 4) {
+        _trungTable = null;
+        _trungMetadata = null;
+        return;
+      }
+
+      _trungMetadata = {
+        'so_ngay_gan': values[0].isNotEmpty ? values[0][0] : '',
+        'lan_cuoi_ve': values[0].length > 1 ? values[0][1] : '',
+        'nhom_so_gan': values[0].length > 2 ? values[0][2] : '',
+        'so_muc_tieu': values[0].length > 3 ? values[0][3] : '',
+      };
+
+      _trungTable = [];
+      for (int i = 3; i < values.length; i++) {
+        final row = values[i];
+        if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+        if (row.length < 10) continue;
+
+        try {
+          _trungTable!.add(BettingRow.forCycle(
+            stt: int.parse(row[0].toString().trim()),
+            ngay: row[1].toString().trim(),
+            mien: row[2].toString().trim(),
+            so: row[3].toString().trim(),
+            soLo: _parseSheetInt(row[4]),
+            cuocSo: _parseSheetNumber(row[5]),
+            cuocMien: _parseSheetNumber(row[6]),
+            tongTien: _parseSheetNumber(row[7]),
+            loi1So: _parseSheetNumber(row[8]),
+            loi2So: _parseSheetNumber(row[9]),
+          ));
+        } catch (e) {
+          print('❌ Error parsing trung row $i: $e');
+        }
+      }
+    } catch (e) {
+      print('❌ Error loading trung table: $e');
+      _trungTable = null;
+      _trungMetadata = null;
+    }
+  }
+
+  // ✅ ADD: Load Bac table
+  Future<void> _loadBacTable() async {
+    try {
+      print('🔍 Loading bac table from bacBot...');
+      final values = await _sheetsService.getAllValues('bacBot');
+      
+      if (values.isEmpty || values.length < 4) {
+        _bacTable = null;
+        _bacMetadata = null;
+        return;
+      }
+
+      _bacMetadata = {
+        'so_ngay_gan': values[0].isNotEmpty ? values[0][0] : '',
+        'lan_cuoi_ve': values[0].length > 1 ? values[0][1] : '',
+        'nhom_so_gan': values[0].length > 2 ? values[0][2] : '',
+        'so_muc_tieu': values[0].length > 3 ? values[0][3] : '',
+      };
+
+      _bacTable = [];
+      for (int i = 3; i < values.length; i++) {
+        final row = values[i];
+        if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+        if (row.length < 10) continue;
+
+        try {
+          _bacTable!.add(BettingRow.forCycle(
+            stt: int.parse(row[0].toString().trim()),
+            ngay: row[1].toString().trim(),
+            mien: row[2].toString().trim(),
+            so: row[3].toString().trim(),
+            soLo: _parseSheetInt(row[4]),
+            cuocSo: _parseSheetNumber(row[5]),
+            cuocMien: _parseSheetNumber(row[6]),
+            tongTien: _parseSheetNumber(row[7]),
+            loi1So: _parseSheetNumber(row[8]),
+            loi2So: _parseSheetNumber(row[9]),
+          ));
+        } catch (e) {
+          print('❌ Error parsing bac row $i: $e');
+        }
+      }
+    } catch (e) {
+      print('❌ Error loading bac table: $e');
+      _bacTable = null;
+      _bacMetadata = null;
+    }
+  }
+
+  Future<void> regenerateTable(BettingTableType type, AppConfig config) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -244,12 +283,15 @@ class BettingViewModel extends ChangeNotifier {
     try {
       if (type == BettingTableType.xien) {
         await _regenerateXienTable(config);
-      } else {
+      } else if (type == BettingTableType.cycle) {
         await _regenerateCycleTable(config);
+      } else if (type == BettingTableType.trung) {  // ✅ ADD
+        await _regenerateTrungTable(config);
+      } else if (type == BettingTableType.bac) {    // ✅ ADD
+        await _regenerateBacTable(config);
       }
 
       await loadBettingTables();
-
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -259,6 +301,80 @@ class BettingViewModel extends ChangeNotifier {
     }
   }
 
+  // ✅ ADD: Regenerate Trung table
+  Future<void> _regenerateTrungTable(AppConfig config) async {
+    final allValues = await _sheetsService.getAllValues('KQXS');
+    final results = <LotteryResult>[];
+    
+    for (int i = 1; i < allValues.length; i++) {
+      try {
+        results.add(LotteryResult.fromSheetRow(allValues[i]));
+      } catch (e) {}
+    }
+
+    final filteredResults = results.where((r) => r.mien == 'Trung').toList();
+    final cycleResult = await _analysisService.analyzeCycle(filteredResults);
+    
+    if (cycleResult == null) {
+      throw Exception('Không đủ điều kiện tạo bảng Miền Trung');
+    }
+
+    final latestDate = results
+        .map((r) => date_utils.DateUtils.parseDate(r.ngay))
+        .where((d) => d != null)
+        .reduce((a, b) => a!.isAfter(b!) ? a : b);
+
+    final startDate = latestDate!.add(const Duration(days: 1));
+    final endDate = cycleResult.lastSeenDate.add(const Duration(days: 35));
+
+    final newTable = await _bettingService.generateTrungGanTable(
+      cycleResult: cycleResult,
+      startDate: startDate,
+      endDate: endDate,
+      budgetMin: config.budget.budgetMin,
+      budgetMax: config.budget.budgetMax,
+    );
+
+    await _saveTrungTableToSheet(newTable, cycleResult);
+  }
+
+  // ✅ ADD: Regenerate Bac table
+  Future<void> _regenerateBacTable(AppConfig config) async {
+    final allValues = await _sheetsService.getAllValues('KQXS');
+    final results = <LotteryResult>[];
+    
+    for (int i = 1; i < allValues.length; i++) {
+      try {
+        results.add(LotteryResult.fromSheetRow(allValues[i]));
+      } catch (e) {}
+    }
+
+    final filteredResults = results.where((r) => r.mien == 'Bắc').toList();
+    final cycleResult = await _analysisService.analyzeCycle(filteredResults);
+    
+    if (cycleResult == null) {
+      throw Exception('Không đủ điều kiện tạo bảng Miền Bắc');
+    }
+
+    final latestDate = results
+        .map((r) => date_utils.DateUtils.parseDate(r.ngay))
+        .where((d) => d != null)
+        .reduce((a, b) => a!.isAfter(b!) ? a : b);
+
+    final startDate = latestDate!.add(const Duration(days: 1));
+    final endDate = cycleResult.lastSeenDate.add(const Duration(days: 35));
+
+    final newTable = await _bettingService.generateBacGanTable(
+      cycleResult: cycleResult,
+      startDate: startDate,
+      endDate: endDate,
+      budgetMin: config.budget.budgetMin,
+      budgetMax: config.budget.budgetMax,
+    );
+
+    await _saveBacTableToSheet(newTable, cycleResult);
+  }
+
   Future<void> _regenerateXienTable(AppConfig config) async {
     final allValues = await _sheetsService.getAllValues('KQXS');
     final results = <LotteryResult>[];
@@ -266,9 +382,7 @@ class BettingViewModel extends ChangeNotifier {
     for (int i = 1; i < allValues.length; i++) {
       try {
         results.add(LotteryResult.fromSheetRow(allValues[i]));
-      } catch (e) {
-        // Skip invalid rows
-      }
+      } catch (e) {}
     }
 
     final ganInfo = await _analysisService.findGanPairsMienBac(results);
@@ -300,9 +414,7 @@ class BettingViewModel extends ChangeNotifier {
     for (int i = 1; i < allValues.length; i++) {
       try {
         results.add(LotteryResult.fromSheetRow(allValues[i]));
-      } catch (e) {
-        // Skip invalid rows
-      }
+      } catch (e) {}
     }
 
     final cycleResult = await _analysisService.analyzeCycle(results);
@@ -311,12 +423,62 @@ class BettingViewModel extends ChangeNotifier {
       throw Exception('Không đủ điều kiện tạo bảng chu kỳ');
     }
 
-    final startDate = cycleResult.lastSeenDate.add(const Duration(days: 1));
-    var endDate = cycleResult.lastSeenDate.add(const Duration(days: 8));
+    // BƯỚC 1: Tìm ngày và miền cuối cùng trong KQXS
+    DateTime? latestDate;
+    String? latestMien;
     
+    for (final result in results) {
+      final date = date_utils.DateUtils.parseDate(result.ngay);
+      if (date != null) {
+        if (latestDate == null || 
+            date.isAfter(latestDate) ||
+            (date.isAtSameMomentAs(latestDate) && _isMienLater(result.mien, latestMien ?? ''))) {
+          latestDate = date;
+          latestMien = result.mien;
+        }
+      }
+    }
+
+    // BƯỚC 2: Xác định miền bắt đầu
+    final mienOrder = ['Nam', 'Trung', 'Bắc'];
+    final latestMienIndex = mienOrder.indexOf(latestMien!);
+    
+    DateTime startDate;
+    int startMienIndex;
+    
+    if (latestMienIndex == 2) {
+      startDate = latestDate!.add(const Duration(days: 1));
+      startMienIndex = 0;
+    } else {
+      startDate = latestDate!;
+      startMienIndex = latestMienIndex + 1;
+    }
+
+    // BƯỚC 3: Tìm miền xuất hiện lần cuối
+    String targetMien = 'Nam';
+    for (final entry in cycleResult.mienGroups.entries) {
+      if (entry.value.contains(cycleResult.targetNumber)) {
+        targetMien = entry.key;
+        break;
+      }
+    }
+
+    // BƯỚC 4: Tính endDate = lastSeenDate + 9 lần quay
+    DateTime endDate = cycleResult.lastSeenDate.add(const Duration(days: 9));
+
+    // ✅ BƯỚC 5 MỚI: Kiểm tra ngày cuối HOẶC ngày áp cuối có phải thứ 3
     double budgetMax = config.budget.budgetMax;
     
-    if (date_utils.DateUtils.getWeekday(endDate) == 1) {
+    final lastDayWeekday = date_utils.DateUtils.getWeekday(endDate);
+    final secondLastDate = endDate.subtract(const Duration(days: 1));
+    final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+    
+    print('📅 Last day weekday: $lastDayWeekday');
+    print('📅 Second last day weekday: $secondLastWeekday');
+    
+    // Thứ 3 = weekday 1
+    if (lastDayWeekday == 1 || secondLastWeekday == 1) {
+      print('⚠️ Found Tuesday in last 2 days! Adding +1 day and +200k budget');
       endDate = endDate.add(const Duration(days: 1));
       budgetMax += 200000.0;
     }
@@ -325,7 +487,7 @@ class BettingViewModel extends ChangeNotifier {
       cycleResult: cycleResult,
       startDate: startDate,
       endDate: endDate,
-      startMienIndex: 0,
+      startMienIndex: startMienIndex,
       budgetMin: config.budget.budgetMin,
       budgetMax: budgetMax,
     );
@@ -333,74 +495,70 @@ class BettingViewModel extends ChangeNotifier {
     await _saveCycleTableToSheet(newTable, cycleResult);
   }
 
-  Future<void> _saveXienTableToSheet(
-    List<BettingRow> table,
-    GanPairInfo ganInfo,
-  ) async {
-    await _sheetsService.clearSheet('xienBot');
-
-    await _sheetsService.updateRange(
-      'xienBot',
-      'A1:D1',
-      [
-        [
-          ganInfo.daysGan.toString(),
-          date_utils.DateUtils.formatDate(ganInfo.lastSeen),
-          ganInfo.pairsDisplay,
-          table.first.so,
-        ]
-      ],
-    );
-
-    await _sheetsService.updateRange(
-      'xienBot',
-      'A3:G3',
-      [
-        ['STT', 'Ngày', 'Miền', 'Số', 'Cược/miền', 'Tổng tiền', 'Lời']
-      ],
-    );
-
-    final dataRows = table.map((row) => row.toSheetRow()).toList();
-    await _sheetsService.updateRange(
-      'xienBot',
-      'A4',
-      dataRows,
-    );
+  // ✅ HELPER METHODS (thêm vào class BettingViewModel)
+  bool _doesMienDrawOnDay(String mien, int weekday) {
+    if (mien == 'Nam') {
+      return weekday != 4;  // Không quay thứ 6
+    } else if (mien == 'Trung') {
+      return weekday != 4;  // Không quay thứ 6
+    } else {
+      return true;  // Bắc quay mỗi ngày
+    }
   }
 
-  Future<void> _saveCycleTableToSheet(
-    List<BettingRow> table,
-    CycleAnalysisResult cycleResult,
-  ) async {
+  bool _isMienLater(String newMien, String oldMien) {
+    const mienPriority = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
+    return (mienPriority[newMien] ?? 0) > (mienPriority[oldMien] ?? 0);
+  }
+
+  Future<void> _saveXienTableToSheet(List<BettingRow> table, GanPairInfo ganInfo) async {
+    await _sheetsService.clearSheet('xienBot');
+    await _sheetsService.updateRange('xienBot', 'A1:D1', [
+      [ganInfo.daysGan.toString(), date_utils.DateUtils.formatDate(ganInfo.lastSeen), 
+       ganInfo.pairsDisplay, table.first.so]
+    ]);
+    await _sheetsService.updateRange('xienBot', 'A3:G3', [
+      ['STT', 'Ngày', 'Miền', 'Số', 'Cược/miền', 'Tổng tiền', 'Lời']
+    ]);
+    await _sheetsService.updateRange('xienBot', 'A4', table.map((r) => r.toSheetRow()).toList());
+  }
+
+  Future<void> _saveCycleTableToSheet(List<BettingRow> table, CycleAnalysisResult cycleResult) async {
     await _sheetsService.clearSheet('xsktBot1');
+    await _sheetsService.updateRange('xsktBot1', 'A1:D1', [
+      [cycleResult.maxGanDays.toString(), date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
+       cycleResult.ganNumbersDisplay, cycleResult.targetNumber]
+    ]);
+    await _sheetsService.updateRange('xsktBot1', 'A3:J3', [
+      ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
+    ]);
+    await _sheetsService.updateRange('xsktBot1', 'A4', table.map((r) => r.toSheetRow()).toList());
+  }
 
-    await _sheetsService.updateRange(
-      'xsktBot1',
-      'A1:D1',
-      [
-        [
-          cycleResult.maxGanDays.toString(),
-          date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
-          cycleResult.ganNumbersDisplay,
-          cycleResult.targetNumber,
-        ]
-      ],
-    );
+  // ✅ ADD: Save Trung table
+  Future<void> _saveTrungTableToSheet(List<BettingRow> table, CycleAnalysisResult cycleResult) async {
+    await _sheetsService.clearSheet('trungBot');
+    await _sheetsService.updateRange('trungBot', 'A1:D1', [
+      [cycleResult.maxGanDays.toString(), date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
+       cycleResult.ganNumbersDisplay, cycleResult.targetNumber]
+    ]);
+    await _sheetsService.updateRange('trungBot', 'A3:J3', [
+      ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
+    ]);
+    await _sheetsService.updateRange('trungBot', 'A4', table.map((r) => r.toSheetRow()).toList());
+  }
 
-    await _sheetsService.updateRange(
-      'xsktBot1',
-      'A3:J3',
-      [
-        ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
-      ],
-    );
-
-    final dataRows = table.map((row) => row.toSheetRow()).toList();
-    await _sheetsService.updateRange(
-      'xsktBot1',
-      'A4',
-      dataRows,
-    );
+  // ✅ ADD: Save Bac table
+  Future<void> _saveBacTableToSheet(List<BettingRow> table, CycleAnalysisResult cycleResult) async {
+    await _sheetsService.clearSheet('bacBot');
+    await _sheetsService.updateRange('bacBot', 'A1:D1', [
+      [cycleResult.maxGanDays.toString(), date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
+       cycleResult.ganNumbersDisplay, cycleResult.targetNumber]
+    ]);
+    await _sheetsService.updateRange('bacBot', 'A3:J3', [
+      ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
+    ]);
+    await _sheetsService.updateRange('bacBot', 'A4', table.map((r) => r.toSheetRow()).toList());
   }
 
   Future<void> sendToTelegram(BettingTableType type) async {
@@ -413,26 +571,34 @@ class BettingViewModel extends ChangeNotifier {
         if (_xienTable == null || _xienMetadata == null) {
           throw Exception('Chưa có bảng xiên');
         }
-
         final message = _telegramService.formatXienTableMessage(
-          _xienTable!,
-          _xienMetadata!['cap_so_muc_tieu'],
-          int.parse(_xienMetadata!['so_ngay_gan']),
-          _xienMetadata!['lan_cuoi_ve'],
+          _xienTable!, _xienMetadata!['cap_so_muc_tieu'],
+          int.parse(_xienMetadata!['so_ngay_gan']), _xienMetadata!['lan_cuoi_ve'],
         );
-
         await _telegramService.sendMessage(message);
-      } else {
+      } else if (type == BettingTableType.cycle) {
         if (_cycleTable == null || _cycleMetadata == null) {
           throw Exception('Chưa có bảng chu kỳ');
         }
-
         final message = _telegramService.formatCycleTableMessage(
-          _cycleTable!,
-          _cycleMetadata!['nhom_so_gan'],
-          _cycleMetadata!['so_muc_tieu'],
+          _cycleTable!, _cycleMetadata!['nhom_so_gan'], _cycleMetadata!['so_muc_tieu'],
         );
-
+        await _telegramService.sendMessage(message);
+      } else if (type == BettingTableType.trung) {  // ✅ ADD
+        if (_trungTable == null || _trungMetadata == null) {
+          throw Exception('Chưa có bảng Miền Trung');
+        }
+        final message = _telegramService.formatCycleTableMessage(
+          _trungTable!, _trungMetadata!['nhom_so_gan'], _trungMetadata!['so_muc_tieu'],
+        );
+        await _telegramService.sendMessage(message);
+      } else if (type == BettingTableType.bac) {    // ✅ ADD
+        if (_bacTable == null || _bacMetadata == null) {
+          throw Exception('Chưa có bảng Miền Bắc');
+        }
+        final message = _telegramService.formatCycleTableMessage(
+          _bacTable!, _bacMetadata!['nhom_so_gan'], _bacMetadata!['so_muc_tieu'],
+        );
         await _telegramService.sendMessage(message);
       }
 
@@ -455,10 +621,18 @@ class BettingViewModel extends ChangeNotifier {
         await _sheetsService.clearSheet('xienBot');
         _xienTable = null;
         _xienMetadata = null;
-      } else {
+      } else if (type == BettingTableType.cycle) {
         await _sheetsService.clearSheet('xsktBot1');
         _cycleTable = null;
         _cycleMetadata = null;
+      } else if (type == BettingTableType.trung) {  // ✅ ADD
+        await _sheetsService.clearSheet('trungBot');
+        _trungTable = null;
+        _trungMetadata = null;
+      } else if (type == BettingTableType.bac) {    // ✅ ADD
+        await _sheetsService.clearSheet('bacBot');
+        _bacTable = null;
+        _bacMetadata = null;
       }
 
       _isLoading = false;

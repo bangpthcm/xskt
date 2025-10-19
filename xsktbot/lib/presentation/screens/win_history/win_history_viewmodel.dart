@@ -20,12 +20,16 @@ class WinHistoryViewModel extends ChangeNotifier {
   String? _errorMessage;
   List<CycleWinHistory> _cycleHistory = [];
   List<XienWinHistory> _xienHistory = [];
+  List<CycleWinHistory> _trungHistory = [];  // ✅ ADD
+  List<CycleWinHistory> _bacHistory = [];    // ✅ ADD
   CheckDailyResult? _lastCheckResult;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   List<CycleWinHistory> get cycleHistory => _cycleHistory;
   List<XienWinHistory> get xienHistory => _xienHistory;
+  List<CycleWinHistory> get trungHistory => _trungHistory;  // ✅ ADD
+  List<CycleWinHistory> get bacHistory => _bacHistory;      // ✅ ADD
   CheckDailyResult? get lastCheckResult => _lastCheckResult;
 
   /// Load lịch sử từ Google Sheets
@@ -37,20 +41,25 @@ class WinHistoryViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load cả 2 loại lịch sử song song
       final results = await Future.wait([
         _trackingService.getAllCycleWinHistory(),
         _trackingService.getAllXienWinHistory(),
+        _loadTrungHistory(),  // ✅ ADD
+        _loadBacHistory(),    // ✅ ADD
       ]);
 
       _cycleHistory = results[0] as List<CycleWinHistory>;
       _xienHistory = results[1] as List<XienWinHistory>;
+      _trungHistory = results[2] as List<CycleWinHistory>;  // ✅ ADD
+      _bacHistory = results[3] as List<CycleWinHistory>;    // ✅ ADD
 
-      // Sắp xếp theo STT giảm dần (mới nhất lên trước)
       _cycleHistory.sort((a, b) => b.stt.compareTo(a.stt));
       _xienHistory.sort((a, b) => b.stt.compareTo(a.stt));
+      _trungHistory.sort((a, b) => b.stt.compareTo(a.stt));  // ✅ ADD
+      _bacHistory.sort((a, b) => b.stt.compareTo(a.stt));    // ✅ ADD
 
-      print('✅ Loaded ${_cycleHistory.length} cycle wins, ${_xienHistory.length} xien wins');
+      print('✅ Loaded ${_cycleHistory.length} cycle, ${_xienHistory.length} xien, '
+            '${_trungHistory.length} trung, ${_bacHistory.length} bac wins');
 
       _isLoading = false;
       notifyListeners();
@@ -59,6 +68,60 @@ class WinHistoryViewModel extends ChangeNotifier {
       _errorMessage = 'Lỗi tải lịch sử: $e';
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // ✅ ADD: Load Trung history from trungWinHistory sheet
+  Future<List<CycleWinHistory>> _loadTrungHistory() async {
+    try {
+      final values = await _trackingService.sheetsService.getAllValues('trungWinHistory');
+      
+      if (values.length < 2) {
+        print('   ⚠️ No trung win history found');
+        return [];
+      }
+      
+      final histories = <CycleWinHistory>[];
+      for (int i = 1; i < values.length; i++) {
+        try {
+          histories.add(CycleWinHistory.fromSheetRow(values[i]));
+        } catch (e) {
+          print('⚠️ Error parsing trung win history row $i: $e');
+        }
+      }
+      
+      print('   ✅ Loaded ${histories.length} trung win records');
+      return histories;
+    } catch (e) {
+      print('❌ Error loading trung history: $e');
+      return [];
+    }
+  }
+
+  // ✅ ADD: Load Bac history from bacWinHistory sheet
+  Future<List<CycleWinHistory>> _loadBacHistory() async {
+    try {
+      final values = await _trackingService.sheetsService.getAllValues('bacWinHistory');
+      
+      if (values.length < 2) {
+        print('   ⚠️ No bac win history found');
+        return [];
+      }
+      
+      final histories = <CycleWinHistory>[];
+      for (int i = 1; i < values.length; i++) {
+        try {
+          histories.add(CycleWinHistory.fromSheetRow(values[i]));
+        } catch (e) {
+          print('⚠️ Error parsing bac win history row $i: $e');
+        }
+      }
+      
+      print('   ✅ Loaded ${histories.length} bac win records');
+      return histories;
+    } catch (e) {
+      print('❌ Error loading bac history: $e');
+      return [];
     }
   }
 
@@ -77,7 +140,6 @@ class WinHistoryViewModel extends ChangeNotifier {
       );
 
       if (_lastCheckResult!.success) {
-        // Reload history để hiển thị kết quả mới
         await loadHistory();
       } else {
         _errorMessage = 'Kiểm tra không thành công';
@@ -107,8 +169,6 @@ class WinHistoryViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
   }
-
-
 
   /// Tính tổng thống kê chu kỳ
   WinStats getCycleStats() {
@@ -146,156 +206,40 @@ class WinHistoryViewModel extends ChangeNotifier {
     );
   }
 
-  /// Lấy lịch sử theo khoảng thời gian
-  List<CycleWinHistory> getCycleHistoryByDateRange(
-    DateTime startDate,
-    DateTime endDate,
-  ) {
-    return _cycleHistory.where((h) {
-      final dateStr = h.ngayTrung;
-      if (dateStr.isEmpty) return false;
-      
-      try {
-        final parts = dateStr.split('/');
-        if (parts.length != 3) return false;
-        
-        final day = int.parse(parts[0]);
-        final month = int.parse(parts[1]);
-        final year = int.parse(parts[2]);
-        final date = DateTime(year, month, day);
-        
-        return date.isAfter(startDate.subtract(const Duration(days: 1))) &&
-               date.isBefore(endDate.add(const Duration(days: 1)));
-      } catch (e) {
-        return false;
-      }
-    }).toList();
+  // ✅ ADD: Tính thống kê Trung
+  WinStats getTrungStats() {
+    final wins = _trungHistory.where((h) => h.isWin).toList();
+    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
+    final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
+    final avgROI = wins.isNotEmpty
+        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
+        : 0.0;
+
+    return WinStats(
+      totalWins: wins.length,
+      totalProfit: totalProfit,
+      totalBet: totalBet,
+      avgROI: avgROI,
+      overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
+    );
   }
 
-  List<XienWinHistory> getXienHistoryByDateRange(
-    DateTime startDate,
-    DateTime endDate,
-  ) {
-    return _xienHistory.where((h) {
-      final dateStr = h.ngayTrung;
-      if (dateStr.isEmpty) return false;
-      
-      try {
-        final parts = dateStr.split('/');
-        if (parts.length != 3) return false;
-        
-        final day = int.parse(parts[0]);
-        final month = int.parse(parts[1]);
-        final year = int.parse(parts[2]);
-        final date = DateTime(year, month, day);
-        
-        return date.isAfter(startDate.subtract(const Duration(days: 1))) &&
-               date.isBefore(endDate.add(const Duration(days: 1)));
-      } catch (e) {
-        return false;
-      }
-    }).toList();
-  }
+  // ✅ ADD: Tính thống kê Bắc
+  WinStats getBacStats() {
+    final wins = _bacHistory.where((h) => h.isWin).toList();
+    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
+    final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
+    final avgROI = wins.isNotEmpty
+        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
+        : 0.0;
 
-  /// Tìm kiếm theo số
-  List<CycleWinHistory> searchCycleByNumber(String number) {
-    return _cycleHistory.where((h) => h.soMucTieu == number).toList();
-  }
-
-  /// Tìm kiếm theo cặp số
-  List<XienWinHistory> searchXienByPair(String pair) {
-    return _xienHistory.where((h) => h.capSoMucTieu == pair).toList();
-  }
-
-  /// Lấy top N số thắng nhiều nhất
-  List<MapEntry<String, int>> getTopWinningNumbers(int top) {
-    final numberCounts = <String, int>{};
-    
-    for (final h in _cycleHistory.where((h) => h.isWin)) {
-      numberCounts[h.soMucTieu] = (numberCounts[h.soMucTieu] ?? 0) + 1;
-    }
-    
-    final sorted = numberCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
-    return sorted.take(top).toList();
-  }
-
-  /// Lấy top N cặp số thắng nhiều nhất
-  List<MapEntry<String, int>> getTopWinningPairs(int top) {
-    final pairCounts = <String, int>{};
-    
-    for (final h in _xienHistory.where((h) => h.isWin)) {
-      pairCounts[h.capSoMucTieu] = (pairCounts[h.capSoMucTieu] ?? 0) + 1;
-    }
-    
-    final sorted = pairCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
-    return sorted.take(top).toList();
-  }
-
-  /// Tính win rate theo miền
-  Map<String, double> getCycleWinRateByMien() {
-    final mienStats = <String, Map<String, int>>{
-      'Nam': {'wins': 0, 'total': 0},
-      'Trung': {'wins': 0, 'total': 0},
-      'Bắc': {'wins': 0, 'total': 0},
-    };
-    
-    for (final h in _cycleHistory) {
-      if (h.mienTrung != null && mienStats.containsKey(h.mienTrung)) {
-        mienStats[h.mienTrung]!['total'] = 
-            (mienStats[h.mienTrung]!['total'] ?? 0) + 1;
-        
-        if (h.isWin) {
-          mienStats[h.mienTrung]!['wins'] = 
-              (mienStats[h.mienTrung]!['wins'] ?? 0) + 1;
-        }
-      }
-    }
-    
-    final winRates = <String, double>{};
-    for (final entry in mienStats.entries) {
-      final total = entry.value['total'] ?? 0;
-      final wins = entry.value['wins'] ?? 0;
-      winRates[entry.key] = total > 0 ? (wins / total) * 100 : 0;
-    }
-    
-    return winRates;
-  }
-
-  /// Export data to CSV format
-  String exportToCsv({required bool isCycle}) {
-    final buffer = StringBuffer();
-    
-    if (isCycle) {
-      // Header
-      buffer.writeln('STT,Ngày trúng,Số,Miền,Lần,Tỉnh,Tổng cược,Lời/Lỗ,ROI,Số ngày');
-      
-      // Data
-      for (final h in _cycleHistory) {
-        buffer.writeln(
-          '${h.stt},${h.ngayTrung},${h.soMucTieu},${h.mienTrung ?? ""},'
-          '${h.soLanTrung},"${h.cacTinhTrung}",${h.tongTienCuoc},'
-          '${h.loiLo},${h.roi},${h.soNgayCuoc}'
-        );
-      }
-    } else {
-      // Header
-      buffer.writeln('STT,Ngày trúng,Cặp,Lần,Chi tiết,Tổng cược,Lời/Lỗ,ROI,Số ngày');
-      
-      // Data
-      for (final h in _xienHistory) {
-        buffer.writeln(
-          '${h.stt},${h.ngayTrung},${h.capSoMucTieu},${h.soLanTrungCap},'
-          '"${h.chiTietTrung}",${h.tongTienCuoc},${h.loiLo},${h.roi},'
-          '${h.soNgayCuoc}'
-        );
-      }
-    }
-    
-    return buffer.toString();
+    return WinStats(
+      totalWins: wins.length,
+      totalProfit: totalProfit,
+      totalBet: totalBet,
+      avgROI: avgROI,
+      overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
+    );
   }
 }
 

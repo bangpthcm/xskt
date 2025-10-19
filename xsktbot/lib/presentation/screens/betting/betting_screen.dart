@@ -21,7 +21,7 @@ class _BettingScreenState extends State<BettingScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);  // ✅ 2 → 4 tabs
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BettingViewModel>().loadBettingTables();
@@ -41,9 +41,12 @@ class _BettingScreenState extends State<BettingScreen>
         title: const Text('Bảng cược'),
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,  // ✅ Enable scroll for 4 tabs
           tabs: const [
-            Tab(text: 'Cặp số (Xiên)'),
+            Tab(text: 'Xiên'),
             Tab(text: 'Chu kỳ'),
+            Tab(text: 'Trung'),  // ✅ ADD
+            Tab(text: 'Bắc'),    // ✅ ADD
           ],
         ),
         actions: [
@@ -91,6 +94,8 @@ class _BettingScreenState extends State<BettingScreen>
             children: [
               _buildXienTab(viewModel),
               _buildCycleTab(viewModel),
+              _buildTrungTab(viewModel),  // ✅ ADD
+              _buildBacTab(viewModel),    // ✅ ADD
             ],
           );
         },
@@ -100,42 +105,54 @@ class _BettingScreenState extends State<BettingScreen>
 
   Widget _buildXienTab(BettingViewModel viewModel) {
     if (viewModel.xienTable == null) {
-      return const Center(
-        child: Text('Chưa có bảng cược xiên'),
-      );
+      return const Center(child: Text('Chưa có bảng cược xiên'));
     }
-
     return Column(
       children: [
         _buildMetadataCard(viewModel.xienMetadata!),
-        Expanded(
-          child: _buildXienDataTable(viewModel.xienTable!),
-        ),
-        _buildActionButtons(
-          viewModel,
-          BettingTableType.xien,
-        ),
+        Expanded(child: _buildXienDataTable(viewModel.xienTable!)),
+        _buildActionButtons(viewModel, BettingTableType.xien),
       ],
     );
   }
 
   Widget _buildCycleTab(BettingViewModel viewModel) {
     if (viewModel.cycleTable == null) {
-      return const Center(
-        child: Text('Chưa có bảng cược chu kỳ'),
-      );
+      return const Center(child: Text('Chưa có bảng cược chu kỳ'));
     }
-
     return Column(
       children: [
         _buildMetadataCard(viewModel.cycleMetadata!),
-        Expanded(
-          child: _buildCycleDataTable(viewModel.cycleTable!),
-        ),
-        _buildActionButtons(
-          viewModel,
-          BettingTableType.cycle,
-        ),
+        Expanded(child: _buildCycleDataTable(viewModel.cycleTable!)),
+        _buildActionButtons(viewModel, BettingTableType.cycle),
+      ],
+    );
+  }
+
+  // ✅ ADD: Trung tab
+  Widget _buildTrungTab(BettingViewModel viewModel) {
+    if (viewModel.trungTable == null) {
+      return const Center(child: Text('Chưa có bảng cược Miền Trung'));
+    }
+    return Column(
+      children: [
+        _buildMetadataCard(viewModel.trungMetadata!),
+        Expanded(child: _buildCycleDataTable(viewModel.trungTable!)),
+        _buildActionButtons(viewModel, BettingTableType.trung),
+      ],
+    );
+  }
+
+  // ✅ ADD: Bac tab
+  Widget _buildBacTab(BettingViewModel viewModel) {
+    if (viewModel.bacTable == null) {
+      return const Center(child: Text('Chưa có bảng cược Miền Bắc'));
+    }
+    return Column(
+      children: [
+        _buildMetadataCard(viewModel.bacMetadata!),
+        Expanded(child: _buildCycleDataTable(viewModel.bacTable!)),
+        _buildActionButtons(viewModel, BettingTableType.bac),
       ],
     );
   }
@@ -148,34 +165,16 @@ class _BettingScreenState extends State<BettingScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildMetadataRow(
-              'Số ngày gan:',
-              metadata['so_ngay_gan']?.toString() ?? '-',
-            ),
-            _buildMetadataRow(
-              'Lần cuối về:',
-              metadata['lan_cuoi_ve']?.toString() ?? '-',
-            ),
+            _buildMetadataRow('Số ngày gan:', metadata['so_ngay_gan']?.toString() ?? '-'),
+            _buildMetadataRow('Lần cuối về:', metadata['lan_cuoi_ve']?.toString() ?? '-'),
             if (metadata.containsKey('cap_so_muc_tieu'))
-              _buildMetadataRow(
-                'Cặp số:',
-                metadata['cap_so_muc_tieu']?.toString() ?? '-',
-              ),
+              _buildMetadataRow('Cặp số:', metadata['cap_so_muc_tieu']?.toString() ?? '-'),
             if (metadata.containsKey('so_muc_tieu'))
-              _buildMetadataRow(
-                'Số mục tiêu:',
-                metadata['so_muc_tieu']?.toString() ?? '-',
-              ),
+              _buildMetadataRow('Số mục tiêu:', metadata['so_muc_tieu']?.toString() ?? '-'),
             if (metadata.containsKey('nhom_so_gan'))
-              _buildMetadataRow(
-                'Nhóm gan:',
-                metadata['nhom_so_gan']?.toString() ?? '-',
-              ),
+              _buildMetadataRow('Nhóm gan:', metadata['nhom_so_gan']?.toString() ?? '-'),
             if (metadata.containsKey('nhom_cap_so'))
-              _buildMetadataRow(
-                'Nhóm cặp:',
-                metadata['nhom_cap_so']?.toString() ?? '-',
-              ),
+              _buildMetadataRow('Nhóm cặp:', metadata['nhom_cap_so']?.toString() ?? '-'),
           ],
         ),
       ),
@@ -189,17 +188,9 @@ class _BettingScreenState extends State<BettingScreen>
         children: [
           SizedBox(
             width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 16),
-            ),
-          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 16))),
         ],
       ),
     );
@@ -301,10 +292,7 @@ class _BettingScreenState extends State<BettingScreen>
     );
   }
 
-  Widget _buildActionButtons(
-    BettingViewModel viewModel,
-    BettingTableType type,
-  ) {
+  Widget _buildActionButtons(BettingViewModel viewModel, BettingTableType type) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -320,7 +308,6 @@ class _BettingScreenState extends State<BettingScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ✅ Hàng đầu tiên: Tạo lại và Gửi Telegram
           Row(
             children: [
               Expanded(
@@ -348,17 +335,12 @@ class _BettingScreenState extends State<BettingScreen>
             ],
           ),
           const SizedBox(height: 12),
-          
-          // ✅ Hàng thứ hai: Nút xóa bảng
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () => _showDeleteDialog(context, viewModel, type),
               icon: const Icon(Icons.delete_outline, color: Colors.red),
-              label: const Text(
-                'Xóa bảng cược',
-                style: TextStyle(color: Colors.red),
-              ),
+              label: const Text('Xóa bảng cược', style: TextStyle(color: Colors.red)),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Colors.red),
@@ -370,18 +352,19 @@ class _BettingScreenState extends State<BettingScreen>
     );
   }
 
-  // ✅ Thêm method _showDeleteDialog
-  void _showDeleteDialog(
-    BuildContext context,
-    BettingViewModel viewModel,
-    BettingTableType type,
-  ) {
+  void _showDeleteDialog(BuildContext context, BettingViewModel viewModel, BettingTableType type) {
+    String tableName = '';
+    if (type == BettingTableType.xien) tableName = 'xiên';
+    else if (type == BettingTableType.cycle) tableName = 'chu kỳ';
+    else if (type == BettingTableType.trung) tableName = 'Miền Trung';
+    else if (type == BettingTableType.bac) tableName = 'Miền Bắc';
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận xóa'),
         content: Text(
-          'Bạn có chắc muốn xóa bảng cược ${type == BettingTableType.xien ? "xiên" : "chu kỳ"}?\n\n'
+          'Bạn có chắc muốn xóa bảng cược $tableName?\n\n'
           'Dữ liệu sẽ bị xóa khỏi Google Sheet và không thể khôi phục.',
         ),
         actions: [
@@ -392,25 +375,17 @@ class _BettingScreenState extends State<BettingScreen>
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              
               await viewModel.deleteTable(type);
-              
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(
-                      viewModel.errorMessage ?? 'Xóa bảng thành công!',
-                    ),
-                    backgroundColor: viewModel.errorMessage != null
-                        ? Colors.red
-                        : Colors.green,
+                    content: Text(viewModel.errorMessage ?? 'Xóa bảng thành công!'),
+                    backgroundColor: viewModel.errorMessage != null ? Colors.red : Colors.green,
                   ),
                 );
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Xóa'),
           ),
         ],
@@ -418,17 +393,19 @@ class _BettingScreenState extends State<BettingScreen>
     );
   }
 
-  void _showRegenerateDialog(
-    BuildContext context,
-    BettingViewModel viewModel,
-    BettingTableType type,
-  ) {
+  void _showRegenerateDialog(BuildContext context, BettingViewModel viewModel, BettingTableType type) {
+    String tableName = '';
+    if (type == BettingTableType.xien) tableName = 'xiên';
+    else if (type == BettingTableType.cycle) tableName = 'chu kỳ';
+    else if (type == BettingTableType.trung) tableName = 'Miền Trung';
+    else if (type == BettingTableType.bac) tableName = 'Miền Bắc';
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận'),
         content: Text(
-          'Bạn có chắc muốn tạo lại bảng cược ${type == BettingTableType.xien ? "xiên" : "chu kỳ"}? '
+          'Bạn có chắc muốn tạo lại bảng cược $tableName? '
           'Bảng hiện tại sẽ bị ghi đè.',
         ),
         actions: [
@@ -439,19 +416,13 @@ class _BettingScreenState extends State<BettingScreen>
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              
               final config = context.read<SettingsViewModel>().config;
               await viewModel.regenerateTable(type, config);
-              
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(
-                      viewModel.errorMessage ?? 'Tạo bảng thành công!',
-                    ),
-                    backgroundColor: viewModel.errorMessage != null
-                        ? Colors.red
-                        : Colors.green,
+                    content: Text(viewModel.errorMessage ?? 'Tạo bảng thành công!'),
+                    backgroundColor: viewModel.errorMessage != null ? Colors.red : Colors.green,
                   ),
                 );
               }
@@ -463,19 +434,18 @@ class _BettingScreenState extends State<BettingScreen>
     );
   }
 
-  void _showSendTelegramDialog(
-    BuildContext context,
-    BettingViewModel viewModel,
-    BettingTableType type,
-  ) {
+  void _showSendTelegramDialog(BuildContext context, BettingViewModel viewModel, BettingTableType type) {
+    String tableName = '';
+    if (type == BettingTableType.xien) tableName = 'xiên';
+    else if (type == BettingTableType.cycle) tableName = 'chu kỳ';
+    else if (type == BettingTableType.trung) tableName = 'Miền Trung';
+    else if (type == BettingTableType.bac) tableName = 'Miền Bắc';
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận'),
-        content: Text(
-          'Gửi bảng cược ${type == BettingTableType.xien ? "xiên" : "chu kỳ"} '
-          'qua Telegram?',
-        ),
+        content: Text('Gửi bảng cược $tableName qua Telegram?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -484,18 +454,12 @@ class _BettingScreenState extends State<BettingScreen>
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              
               await viewModel.sendToTelegram(type);
-              
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(
-                      viewModel.errorMessage ?? 'Gửi thành công!',
-                    ),
-                    backgroundColor: viewModel.errorMessage != null
-                        ? Colors.red
-                        : Colors.green,
+                    content: Text(viewModel.errorMessage ?? 'Gửi thành công!'),
+                    backgroundColor: viewModel.errorMessage != null ? Colors.red : Colors.green,
                   ),
                 );
               }
