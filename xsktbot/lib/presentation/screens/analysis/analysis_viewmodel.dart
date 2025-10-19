@@ -739,4 +739,158 @@ class AnalysisViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Tạo bảng cược cho số gan Miền Bắc
+  Future<void> createBacGanBettingTable(
+    String targetNumber,
+    AppConfig config,
+  ) async {
+    print('🎯 Creating Bắc gan betting table for number: $targetNumber');
+    
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // Phân tích chi tiết số này
+      final numberDetail = await _analysisService.analyzeNumberDetail(
+        _allResults,
+        targetNumber,
+      );
+
+      if (numberDetail == null) {
+        throw Exception('Không tìm thấy thông tin số $targetNumber');
+      }
+
+      // Lấy thông tin Miền Bắc
+      final bacDetail = numberDetail.mienDetails['Bắc'];
+      if (bacDetail == null) {
+        throw Exception('Số $targetNumber chưa có dữ liệu Miền Bắc');
+      }
+
+      print('📊 Bắc detail: ${bacDetail.daysGan} ngày gan, cuối: ${bacDetail.lastSeenDateStr}');
+
+      // Tạo custom cycle result cho Miền Bắc
+      final customCycleResult = CycleAnalysisResult(
+        ganNumbers: {targetNumber},
+        maxGanDays: bacDetail.daysGan,
+        lastSeenDate: bacDetail.lastSeenDate,
+        mienGroups: {'Bắc': [targetNumber]},
+        targetNumber: targetNumber,
+      );
+
+      // Tính ngày bắt đầu và kết thúc
+      final latestDate = _allResults
+          .map((r) => date_utils.DateUtils.parseDate(r.ngay))
+          .where((d) => d != null)
+          .reduce((a, b) => a!.isAfter(b!) ? a : b);
+
+      final startDate = latestDate!.add(const Duration(days: 1));
+      
+      // ✅ KEY: Ngày kết thúc = ngày cuối + 35 ngày
+      final endDate = bacDetail.lastSeenDate.add(const Duration(days: 35));
+      
+      print('📅 Start: ${date_utils.DateUtils.formatDate(startDate)}');
+      print('📅 End: ${date_utils.DateUtils.formatDate(endDate)}');
+
+      // ✅ Gọi method mới với multiplier 99
+      final newTable = await _bettingService.generateBacGanTable(
+        cycleResult: customCycleResult,
+        startDate: startDate,
+        endDate: endDate,
+        budgetMin: config.budget.budgetMin,
+        budgetMax: config.budget.budgetMax,
+      );
+
+      // Lưu vào sheet xsktBot1 (hoặc tạo sheet riêng nếu muốn)
+      await _saveCycleTableToSheet(newTable);
+
+      print('✅ Bắc gan table created successfully!');
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error creating Bắc gan table: $e');
+      _errorMessage = 'Lỗi tạo bảng: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Tạo bảng cược cho số gan Miền Trung
+  Future<void> createTrungGanBettingTable(
+    String targetNumber,
+    AppConfig config,
+  ) async {
+    print('🎯 Creating Trung gan betting table for number: $targetNumber');
+    
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // Phân tích chi tiết số này
+      final numberDetail = await _analysisService.analyzeNumberDetail(
+        _allResults,
+        targetNumber,
+      );
+
+      if (numberDetail == null) {
+        throw Exception('Không tìm thấy thông tin số $targetNumber');
+      }
+
+      // Lấy thông tin Miền Trung
+      final trungDetail = numberDetail.mienDetails['Trung'];
+      if (trungDetail == null) {
+        throw Exception('Số $targetNumber chưa có dữ liệu Miền Trung');
+      }
+
+      print('📊 Trung detail: ${trungDetail.daysGan} ngày gan, cuối: ${trungDetail.lastSeenDateStr}');
+
+      // Tạo custom cycle result cho Miền Trung
+      final customCycleResult = CycleAnalysisResult(
+        ganNumbers: {targetNumber},
+        maxGanDays: trungDetail.daysGan,
+        lastSeenDate: trungDetail.lastSeenDate,
+        mienGroups: {'Trung': [targetNumber]},
+        targetNumber: targetNumber,
+      );
+
+      // Tính ngày bắt đầu và kết thúc
+      final latestDate = _allResults
+          .map((r) => date_utils.DateUtils.parseDate(r.ngay))
+          .where((d) => d != null)
+          .reduce((a, b) => a!.isAfter(b!) ? a : b);
+
+      final startDate = latestDate!.add(const Duration(days: 1));
+      
+      // ✅ KEY: Ngày kết thúc = ngày cuối + 35 ngày
+      final endDate = trungDetail.lastSeenDate.add(const Duration(days: 35));
+      
+      print('📅 Start: ${date_utils.DateUtils.formatDate(startDate)}');
+      print('📅 End: ${date_utils.DateUtils.formatDate(endDate)}');
+
+      // ✅ Gọi method mới với multiplier 98, duration 30
+      final newTable = await _bettingService.generateTrungGanTable(
+        cycleResult: customCycleResult,
+        startDate: startDate,
+        endDate: endDate,
+        budgetMin: config.budget.budgetMin,
+        budgetMax: config.budget.budgetMax,
+      );
+
+      // Lưu vào sheet xsktBot1
+      await _saveCycleTableToSheet(newTable);
+
+      print('✅ Trung gan table created successfully!');
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error creating Trung gan table: $e');
+      _errorMessage = 'Lỗi tạo bảng: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 }

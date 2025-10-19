@@ -157,9 +157,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 runSpacing: 6,
                 children: cycleResult.ganNumbers.map((number) {
                   return InkWell(
-                    onTap: viewModel.selectedMien == 'Tất cả'
-                        ? () => _showNumberDetail(context, viewModel, number)
-                        : null,
+                    onTap: () {
+                      // ✅ CHECK filter và show dialog tương ứng
+                      if (viewModel.selectedMien == 'Bắc') {
+                        _showCreateBacGanTableDialog(context, viewModel, number);
+                      } else if (viewModel.selectedMien == 'Trung') {
+                        _showCreateTrungGanTableDialog(context, viewModel, number);  // ✅ ADD
+                      } else if (viewModel.selectedMien == 'Tất cả') {
+                        _showNumberDetail(context, viewModel, number);
+                      }
+                    },
                     child: Chip(
                       label: Text(
                         number,
@@ -526,6 +533,151 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               }
             },
             child: const Text('Gửi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ ADD: Method mới cho Trung
+  void _showCreateTrungGanTableDialog(
+    BuildContext context,
+    AnalysisViewModel viewModel,
+    String number,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tạo bảng cược Miền Trung'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Số: $number'),
+            const SizedBox(height: 8),
+            const Text(
+              'Tạo bảng cược cho số gan Miền Trung?\n\n'
+              '• Chỉ cược Miền Trung\n'
+              '• Số lượt: 30 lượt\n'
+              '• Thời gian: ~35 ngày\n'
+              '• Ăn: 98 lần\n'
+              '• Bảng hiện tại sẽ bị thay thế',
+              style: TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              
+              final config = context.read<SettingsViewModel>().config;
+              await viewModel.createTrungGanBettingTable(number, config);
+              
+              if (context.mounted) {
+                if (viewModel.errorMessage == null) {
+                  await context.read<BettingViewModel>().loadBettingTables();
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Tạo bảng cược Trung gan thành công!'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  
+                  await Future.delayed(const Duration(milliseconds: 300));
+                  
+                  if (context.mounted) {
+                    mainNavigationKey.currentState?.switchToTab(2);
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(viewModel.errorMessage!),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Tạo bảng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ ADD: Method mới để show dialog
+  void _showCreateBacGanTableDialog(
+    BuildContext context,
+    AnalysisViewModel viewModel,
+    String number,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tạo bảng cược Miền Bắc'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Số: $number'),
+            const SizedBox(height: 8),
+            const Text(
+              'Tạo bảng cược cho số gan Miền Bắc?\n\n'
+              '• Chỉ cược Miền Bắc\n'
+              '• Thời gian: 35 ngày\n'
+              '• Ăn: 99 lần\n'
+              '• Bảng hiện tại sẽ bị thay thế',
+              style: TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              
+              final config = context.read<SettingsViewModel>().config;
+              await viewModel.createBacGanBettingTable(number, config);
+              
+              if (context.mounted) {
+                if (viewModel.errorMessage == null) {
+                  await context.read<BettingViewModel>().loadBettingTables();
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Tạo bảng cược Bắc gan thành công!'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  
+                  await Future.delayed(const Duration(milliseconds: 300));
+                  
+                  if (context.mounted) {
+                    mainNavigationKey.currentState?.switchToTab(2);
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(viewModel.errorMessage!),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Tạo bảng'),
           ),
         ],
       ),
