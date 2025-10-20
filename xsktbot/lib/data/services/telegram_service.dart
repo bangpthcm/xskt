@@ -1,5 +1,6 @@
 // lib/data/services/telegram_service.dart
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'dart:convert';
 import '../models/app_config.dart';
 import '../models/betting_row.dart';
@@ -48,8 +49,8 @@ class TelegramService {
     buffer.writeln('<pre>');
 
     // Header
-    buffer.writeln('Ngày      | Cược      | Tổng      | Lời');
-    buffer.writeln('----------|-----------|-----------|----------');
+    buffer.writeln('Ngày | Cược  | Tổng  | Lời');
+    buffer.writeln('-----|-------|-------|------');
 
     // Rows
     for (final row in table) {
@@ -58,7 +59,7 @@ class TelegramService {
       final tong = _formatNumber(row.tongTien);
       final loi = _formatNumber(row.loi1So);
 
-      buffer.writeln('${ngay.padRight(10)}|${cuoc.padLeft(11)}|${tong.padLeft(11)}|${loi.padLeft(10)}');
+      buffer.writeln('${ngay.padRight(5)}|${cuoc.padLeft(7)}|${tong.padLeft(7)}|${loi.padLeft(6)}');
     }
 
     buffer.writeln('</pre>');
@@ -77,8 +78,8 @@ class TelegramService {
     buffer.writeln('<pre>');
 
     // Header
-    buffer.writeln('Ngày      |Miền |Cược/số  |Tổng      |Lời(1số)');
-    buffer.writeln('----------|-----|---------|----------|----------');
+    buffer.writeln('Ngày |Miền |Cược/s|Tổng   |Lời1số');
+    buffer.writeln('-----|-----|------|-------|------');
 
     // Rows (chỉ hiển thị một số dòng để không quá dài)
     final displayRows = table.length > 20 ? table.take(20).toList() : table;
@@ -90,7 +91,7 @@ class TelegramService {
       final tong = _formatNumber(row.tongTien);
       final loi = _formatNumber(row.loi1So);
 
-      buffer.writeln('${ngay.padRight(10)}|$mien|${cuoc.padLeft(9)}|${tong.padLeft(10)}|${loi.padLeft(10)}');
+      buffer.writeln('${ngay.padRight(5)}|$mien|${cuoc.padLeft(6)}|${tong.padLeft(7)}|${loi.padLeft(6)}');
     }
 
     if (table.length > 20) {
@@ -103,6 +104,7 @@ class TelegramService {
 
   // ✅ FIX: Hiển thị số đầy đủ với 2 chữ số thập phân, KHÔNG viết tắt
   String _formatNumber(double value) {
-    return value.toStringAsFixed(2);
+    final formatter = NumberFormat('#,###', 'vi_VN');
+    return formatter.format(value.round());
   }
 }
