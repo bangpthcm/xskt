@@ -15,13 +15,15 @@ class BettingScreen extends StatefulWidget {
 }
 
 class _BettingScreenState extends State<BettingScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+    with TickerProviderStateMixin {
+  late TabController _mainTabController;
+  late TabController _cycleSubTabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);  // ✅ 2 → 4 tabs
+    _mainTabController = TabController(length: 2, vsync: this);
+    _cycleSubTabController = TabController(length: 4, vsync: this);
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BettingViewModel>().loadBettingTables();
@@ -30,7 +32,8 @@ class _BettingScreenState extends State<BettingScreen>
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _mainTabController.dispose();
+    _cycleSubTabController.dispose();
     super.dispose();
   }
 
@@ -40,13 +43,10 @@ class _BettingScreenState extends State<BettingScreen>
       appBar: AppBar(
         title: const Text('Bảng cược'),
         bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,  // ✅ Enable scroll for 4 tabs
+          controller: _mainTabController,
           tabs: const [
             Tab(text: 'Xiên'),
             Tab(text: 'Chu kỳ'),
-            Tab(text: 'Trung'),  // ✅ ADD
-            Tab(text: 'Bắc'),    // ✅ ADD
           ],
         ),
         actions: [
@@ -90,15 +90,111 @@ class _BettingScreenState extends State<BettingScreen>
           }
 
           return TabBarView(
-            controller: _tabController,
+            controller: _mainTabController,
             children: [
               _buildXienTab(viewModel),
-              _buildCycleTab(viewModel),
-              _buildTrungTab(viewModel),  // ✅ ADD
-              _buildBacTab(viewModel),    // ✅ ADD
+              _buildCycleMainTab(viewModel),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildCycleMainTab(BettingViewModel viewModel) {
+    return Column(
+      children: [
+        Container(
+          color: Colors.grey.shade100,
+          child: TabBar(
+            controller: _cycleSubTabController,
+            isScrollable: true,
+            labelColor: Colors.blue,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: Colors.blue,
+            tabs: const [
+              Tab(text: 'Tất cả'),
+              Tab(text: 'Nam'),
+              Tab(text: 'Trung'),
+              Tab(text: 'Bắc'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _cycleSubTabController,
+            children: [
+              _buildCycleTab(viewModel),
+              _buildNamWarningTab(),
+              _buildTrungTab(viewModel),
+              _buildBacTab(viewModel),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNamWarningTab() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            size: 80,
+            color: Colors.orange.shade400,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            '⚠️ Tránh rủi ro Bến Tre',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.orange.shade700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              'Miền Nam có nguy cơ trúng tại Bến Tre.\n'
+              'Vui lòng sử dụng bảng "Tất cả" hoặc các miền khác.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade700,
+                height: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.symmetric(horizontal: 32),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.info_outline, color: Colors.orange.shade700),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    'Bảng "Tất cả" đã loại trừ Bến Tre',
+                    style: TextStyle(
+                      color: Colors.orange.shade900,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -219,7 +315,15 @@ class _BettingScreenState extends State<BettingScreen>
               DataCell(Text(row.ngay)),
               DataCell(Text(row.mien)),
               DataCell(Text(row.so)),
-              DataCell(Text(NumberUtils.formatCurrency(row.cuocMien))),
+              DataCell(
+                Text(
+                  NumberUtils.formatCurrency(row.cuocMien),
+                  style: TextStyle(  
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
               DataCell(Text(NumberUtils.formatCurrency(row.tongTien))),
               DataCell(
                 Text(
@@ -264,7 +368,15 @@ class _BettingScreenState extends State<BettingScreen>
               DataCell(Text(row.mien)),
               DataCell(Text(row.so)),
               DataCell(Text(row.soLo?.toString() ?? '-')),
-              DataCell(Text(NumberUtils.formatCurrency(row.cuocSo))),
+              DataCell(
+                Text(
+                  NumberUtils.formatCurrency(row.cuocSo),
+                  style: TextStyle(  
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
               DataCell(Text(NumberUtils.formatCurrency(row.cuocMien))),
               DataCell(Text(NumberUtils.formatCurrency(row.tongTien))),
               DataCell(

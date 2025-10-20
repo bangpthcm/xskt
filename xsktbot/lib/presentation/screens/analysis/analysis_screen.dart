@@ -117,14 +117,14 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, color: Colors.green),
+                  icon: const Icon(Icons.send, color: Colors.blue),
                   tooltip: 'Gửi Telegram',
                   onPressed: cycleResult != null
                       ? () => _sendCycleToTelegram(context, viewModel)
                       : null,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.table_chart, color: Colors.orange),
+                  icon: const Icon(Icons.table_chart, color: Colors.green),
                   tooltip: 'Tạo bảng cược',
                   onPressed: cycleResult != null
                       ? () => _createCycleBettingTable(context, viewModel)
@@ -172,7 +172,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                         number,
                         style: const TextStyle(fontSize: 14),
                       ),
-                      backgroundColor: Colors.green.shade100,
+                      
+                      backgroundColor: viewModel.selectedMien == 'Nam' ? Colors.grey.shade100 : Colors.green.shade100,
                     ),
                   );
                 }).toList(),
@@ -250,7 +251,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                       : null,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.table_chart, color: Colors.orange),
+                  icon: const Icon(Icons.table_chart, color: Colors.green),
                   tooltip: 'Tạo bảng cược',
                   onPressed: ganInfo != null
                       ? () => _createXienBettingTable(context, viewModel)
@@ -294,7 +295,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                         ),
                       ],
                     ),
-                    backgroundColor: Colors.blue.shade100,
+                    backgroundColor: Colors.grey.shade100,
                   );
                 }).toList(),
               ),
@@ -816,7 +817,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                         icon: const Icon(Icons.send, size: 20),
                         label: const Text('Gửi Telegram'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                          backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
@@ -838,7 +839,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                         icon: const Icon(Icons.table_chart, size: 20),
                         label: const Text('Tạo bảng'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(

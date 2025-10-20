@@ -39,8 +39,8 @@ class MainNavigationState extends State<MainNavigation> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Trang chủ',
+            icon: Icon(Icons.confirmation_number),
+            label: 'Xổ số',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.analytics),
