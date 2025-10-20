@@ -14,18 +14,13 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // Google Sheets Controllers (chỉ còn 2 field)
   late TextEditingController _sheetNameController;
   late TextEditingController _worksheetNameController;
-  
-  // Telegram Controllers
   late TextEditingController _telegramTokenController;
   late TextEditingController _chatIdsController;
-  
-  // Budget Controllers
-  late TextEditingController _budgetMinController;
-  late TextEditingController _budgetMaxController;
-  late TextEditingController _xienBudgetController;  // ✅ ADD THIS
+  late TextEditingController _cycleTargetController;  // ✅ NEW
+  late TextEditingController _xienBudgetController;
+  late TextEditingController _tuesdayExtraBudgetController;
 
   @override
   void initState() {
@@ -44,9 +39,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _worksheetNameController = TextEditingController();
     _telegramTokenController = TextEditingController();
     _chatIdsController = TextEditingController();
-    _budgetMinController = TextEditingController();
-    _budgetMaxController = TextEditingController();
+    _cycleTargetController = TextEditingController();  // ✅ NEW
     _xienBudgetController = TextEditingController();
+    _tuesdayExtraBudgetController = TextEditingController();  // ✅ NEW
   }
 
   void _updateControllersFromConfig() {
@@ -56,9 +51,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _worksheetNameController.text = config.googleSheets.worksheetName;
     _telegramTokenController.text = config.telegram.botToken;
     _chatIdsController.text = config.telegram.chatIds.join(', ');
-    _budgetMinController.text = config.budget.budgetMin.toString();
-    _budgetMaxController.text = config.budget.budgetMax.toString();
+    _cycleTargetController.text = config.budget.cycleTarget.toString();  // ✅ NEW
     _xienBudgetController.text = config.budget.xienBudget.toString();
+    _tuesdayExtraBudgetController.text = config.budget.tuesdayExtraBudget.toString();  // ✅ NEW
   }
 
   @override
@@ -67,9 +62,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _worksheetNameController.dispose();
     _telegramTokenController.dispose();
     _chatIdsController.dispose();
-    _budgetMinController.dispose();
-    _budgetMaxController.dispose();
+    _cycleTargetController.dispose();  // ✅ NEW
     _xienBudgetController.dispose();
+    _tuesdayExtraBudgetController.dispose();  // ✅ NEW
     super.dispose();
   }
 
@@ -244,7 +239,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const Divider(),
             
-            // ✅ THÊM LABEL CHU KỲ
+            // ✅ CHU KỲ: Chỉ cần 1 field
             const Text(
               'Chu kỳ 00-99:',
               style: TextStyle(
@@ -256,53 +251,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             
             TextFormField(
-              controller: _budgetMinController,
+              controller: _cycleTargetController,  // ✅ NEW controller
               decoration: const InputDecoration(
-                labelText: 'Ngân sách tối thiểu',
-                hintText: '330000',
+                labelText: 'Ngân sách mục tiêu',
+                hintText: '340000',
                 suffixText: 'VNĐ',
-                prefixIcon: Icon(Icons.money_off),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập ngân sách tối thiểu';
-                }
-                final number = double.tryParse(value);
-                if (number == null || number <= 0) {
-                  return 'Số tiền không hợp lệ';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _budgetMaxController,
-              decoration: const InputDecoration(
-                labelText: 'Ngân sách tối đa',
-                hintText: '350000',
-                suffixText: 'VNĐ',
+                helperText: 'Target budget cho chu kỳ (±5% flexibility)',
                 prefixIcon: Icon(Icons.monetization_on),
               ),
               keyboardType: TextInputType.number,
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập ngân sách tối đa';
+                  return 'Vui lòng nhập ngân sách chu kỳ';
                 }
                 final number = double.tryParse(value);
                 if (number == null || number <= 0) {
                   return 'Số tiền không hợp lệ';
                 }
-                final minBudget = double.tryParse(_budgetMinController.text);
-                if (minBudget != null && number < minBudget) {
-                  return 'Phải lớn hơn ngân sách tối thiểu';
-                }
                 return null;
               },
             ),
             
-            // ✅ THÊM PHẦN XIÊN
             const SizedBox(height: 24),
+            
+            // ✅ XIÊN
             const Text(
               'Cặp số (Xiên):',
               style: TextStyle(
@@ -312,6 +284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 8),
+            
             TextFormField(
               controller: _xienBudgetController,
               decoration: const InputDecoration(
@@ -328,6 +301,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
                 final number = double.tryParse(value);
                 if (number == null || number <= 0) {
+                  return 'Số tiền không hợp lệ';
+                }
+                return null;
+              },
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // ✅ TUESDAY EXTRA BUDGET
+            const Text(
+              'Ngân sách bổ sung:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 8),
+            
+            TextFormField(
+              controller: _tuesdayExtraBudgetController,  // ✅ NEW controller
+              decoration: const InputDecoration(
+                labelText: 'Tiền thêm khi có Thứ 3',
+                hintText: '200000',
+                suffixText: 'VNĐ',
+                helperText: 'Tăng budget khi ngày cuối/áp cuối là Thứ 3',
+                prefixIcon: Icon(Icons.calendar_today),
+              ),
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Vui lòng nhập tiền thêm cho Thứ 3';
+                }
+                final number = double.tryParse(value);
+                if (number == null || number < 0) {
                   return 'Số tiền không hợp lệ';
                 }
                 return null;
@@ -485,15 +493,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             .toList(),
       ),
       budget: BudgetConfig(
-        budgetMin: double.parse(_budgetMinController.text),
-        budgetMax: double.parse(_budgetMaxController.text),
+        cycleTarget: double.parse(_cycleTargetController.text),  // ✅ NEW
         xienBudget: double.parse(_xienBudgetController.text),
+        tuesdayExtraBudget: double.parse(_tuesdayExtraBudgetController.text),  // ✅ NEW
       ),
     );
 
     final viewModel = context.read<SettingsViewModel>();
     
-    // Lưu config
     final saved = await viewModel.saveConfig(config);
     
     if (!saved) {
@@ -508,10 +515,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    // Test kết nối Google Sheets
     await viewModel.testGoogleSheetsConnection();
-    
-    // Test kết nối Telegram
     await viewModel.testTelegramConnection();
 
     if (mounted) {
@@ -531,7 +535,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SnackBar(
           content: Text(message),
           backgroundColor: (viewModel.isGoogleSheetsConnected && 
-                           viewModel.isTelegramConnected)
+                          viewModel.isTelegramConnected)
               ? Colors.green
               : Colors.orange,
           duration: const Duration(seconds: 4),

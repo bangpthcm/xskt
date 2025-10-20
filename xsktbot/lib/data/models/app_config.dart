@@ -113,9 +113,7 @@ class GoogleSheetsConfig {
   }
 
   static const String _defaultProjectId = "fresh-heuristic-469212-h6";
-  
   static const String _defaultPrivateKeyId = "cf577e77874a18e644093da3a81dcfe53b49796e";
-  
   static const String _defaultPrivateKey = 
       "-----BEGIN PRIVATE KEY-----\n"
       "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQClGOjZt6bmTqxX\n"
@@ -145,10 +143,8 @@ class GoogleSheetsConfig {
       "U3jmMcW6p2s9UN1tXVxNcOcPECv8Ml1kwZGPm69J03omxAZPwAZK9URvRUcUQRyk\n"
       "XvKduo02M+x/RYTHwRxgOoI=\n"
       "-----END PRIVATE KEY-----\n";
-  
   static const String _defaultClientEmail = 
       "xskt-0311@fresh-heuristic-469212-h6.iam.gserviceaccount.com";
-  
   static const String _defaultClientId = "118119191342625559220";
 }
 
@@ -178,42 +174,50 @@ class TelegramConfig {
   }
 
   factory TelegramConfig.empty() {
-    return TelegramConfig(botToken: '7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs', chatIds: ['-1003060014477']);
+    return TelegramConfig(
+      botToken: '7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs', 
+      chatIds: ['-1003060014477']
+    );
   }
 }
 
+// ✅ UPDATED: BudgetConfig
 class BudgetConfig {
-  final double budgetMin;
-  final double budgetMax;
-  final double xienBudget;  // ✅ ADD
+  final double cycleTarget;        // ✅ NEW: Thay budgetMin/Max
+  final double xienBudget;
+  final double tuesdayExtraBudget;  // ✅ NEW: Thêm budget cho Tuesday
 
   BudgetConfig({
-    required this.budgetMin,
-    required this.budgetMax,
-    required this.xienBudget,  // ✅ ADD
+    required this.cycleTarget,
+    required this.xienBudget,
+    required this.tuesdayExtraBudget,
   });
+
+  // ✅ Tính budgetMin/Max từ cycleTarget
+  double get budgetMin => cycleTarget * 0.95;  // -5%
+  double get budgetMax => cycleTarget * 1.05;  // +5%
 
   Map<String, dynamic> toJson() {
     return {
-      'budgetMin': budgetMin,
-      'budgetMax': budgetMax,
-      'xienBudget': xienBudget,  // ✅ ADD
+      'cycleTarget': cycleTarget,
+      'xienBudget': xienBudget,
+      'tuesdayExtraBudget': tuesdayExtraBudget,
     };
   }
 
   factory BudgetConfig.fromJson(Map<String, dynamic> json) {
     return BudgetConfig(
-      budgetMin: (json['budgetMin'] ?? 330000.0).toDouble(),
-      budgetMax: (json['budgetMax'] ?? 350000.0).toDouble(),
-      xienBudget: (json['xienBudget'] ?? 19000.0).toDouble(),  // ✅ ADD
+      cycleTarget: (json['cycleTarget'] ?? 340000.0).toDouble(),
+      xienBudget: (json['xienBudget'] ?? 19000.0).toDouble(),
+      tuesdayExtraBudget: (json['tuesdayExtraBudget'] ?? 200000.0).toDouble(),
     );
   }
 
   factory BudgetConfig.defaultBudget() {
     return BudgetConfig(
-      budgetMin: 330000.0,
-      budgetMax: 350000.0,
-      xienBudget: 19000.0,  // ✅ ADD
+      cycleTarget: 330000.0,      // Trung bình của 330k-350k
+      xienBudget: 19000.0,
+      tuesdayExtraBudget: 200000.0,
     );
   }
 }

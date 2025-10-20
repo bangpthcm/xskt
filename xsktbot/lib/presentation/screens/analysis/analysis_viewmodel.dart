@@ -226,7 +226,7 @@ class AnalysisViewModel extends ChangeNotifier {
       if (lastDayWeekday == 1 || secondLastWeekday == 1) {
         print('⚠️ Found Tuesday in last 2 days! Adding +1 day and +200k budget');
         endDate = endDate.add(const Duration(days: 1));
-        budgetMax += 200000.0;
+        budgetMax += config.budget.tuesdayExtraBudget;
         print('📅 New end date: ${date_utils.DateUtils.formatDate(endDate)}');
       }
 
@@ -348,7 +348,7 @@ class AnalysisViewModel extends ChangeNotifier {
       if (lastDayWeekday == 1 || secondLastWeekday == 1) {
         print('⚠️ Found Tuesday! Adding +1 day and +200k budget');
         endDate = endDate.add(const Duration(days: 1));
-        budgetMax += 200000.0;
+        budgetMax += config.budget.tuesdayExtraBudget;
       }
 
       final newTable = await _bettingService.generateCycleTable(
