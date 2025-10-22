@@ -11,28 +11,47 @@ import 'win_tracking_service.dart';
 import 'google_sheets_service.dart';
 import 'telegram_service.dart';
 import '../../core/utils/date_utils.dart' as date_utils;
+import 'backfill_service.dart';
+import 'rss_parser_service.dart';
 
 class AutoCheckService {
   final WinCalculationService _winCalcService;
   final WinTrackingService _trackingService;
   final GoogleSheetsService _sheetsService;
   final TelegramService _telegramService;
+  final BackfillService _backfillService;  // ✅ THÊM
 
   AutoCheckService({
     required WinCalculationService winCalcService,
     required WinTrackingService trackingService,
     required GoogleSheetsService sheetsService,
     required TelegramService telegramService,
+    required BackfillService backfillService,  // ✅ THÊM
   })  : _winCalcService = winCalcService,
         _trackingService = trackingService,
         _sheetsService = sheetsService,
-        _telegramService = telegramService;
+        _telegramService = telegramService,
+        _backfillService = backfillService;  // ✅ THÊM
 
   /// Kiểm tra kết quả hàng ngày
   Future<CheckDailyResult> checkDailyResults({
     String? specificDate,
   }) async {
     print('🔍 ============ STARTING DAILY CHECK ============');
+    
+    // ✅ BƯỚC 0: BACKFILL DỮ LIỆU TRƯỚC
+    print('🔄 Step 0: Backfilling data from RSS...');
+    try {
+      final backfillResult = await _backfillService.syncAllFromRSS();
+      print('📊 Backfill result: ${backfillResult.message}');
+      
+      if (backfillResult.hasError) {
+        print('⚠️ Backfill had errors but continuing check...');
+      }
+    } catch (backfillError) {
+      print('⚠️ Backfill failed: $backfillError');
+      print('   Continuing with existing data...');
+    }
     
     final checkDate = specificDate ?? 
         date_utils.DateUtils.formatDate(
@@ -431,31 +450,112 @@ class AutoCheckService {
   }
 
   /// Parse number from sheet
+  /// ✅ Parse number từ Google Sheets (format VN: dấu chấm = nghìn)
   double _parseNumber(dynamic value) {
+    if (value == null) return 0.0;
+    
+    // Nếu đã là number, return luôn
+    if (value is num) return value.toDouble();
+    
     String str = value.toString().trim();
     
-    int dotCount = str.split('.').length - 1;
-    int commaCount = str.split(',').length - 1;
+    if (str.isEmpty) return 0.0;
     
+    // ✅ LOGIC MỚI: Xử lý format VN
+    // Format VN: 3.762 = 3762 (dấu chấm là phân cách nghìn)
+    // Format VN: 3.762,50 = 3762.50 (dấu chấm = nghìn, dấu phẩy = thập phân)
+    
+    int dotCount = '.'.allMatches(str).length;
+    int commaCount = ','.allMatches(str).length;
+    
+    print('   🔢 Parsing: "$str" (dots: $dotCount, commas: $commaCount)');
+    
+    // CASE 1: Có cả chấm VÀ phẩy → Format VN: 1.234.567,89
     if (dotCount > 0 && commaCount > 0) {
-      if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
-        str = str.replaceAll('.', '').replaceAll(',', '.');
-      } else {
-        str = str.replaceAll(',', '');
+      // Xóa dấu chấm (phân cách nghìn)
+      // Đổi dấu phẩy thành dấu chấm (thập phân)
+      str = str.replaceAll('.', '').replaceAll(',', '.');
+      print('   → Case 1 (dot+comma): "$str"');
+    }
+    // CASE 2: Chỉ có dấu chấm
+    else if (dotCount > 0) {
+      // CASE 2A: Nhiều dấu chấm → Chắc chắn là phân cách nghìn
+      // VD: 1.234.567
+      if (dotCount > 1) {
+        str = str.replaceAll('.', '');
+        print('   → Case 2A (multiple dots): "$str"');
       }
-    } else if (commaCount > 0) {
-      if (commaCount > 1 || str.indexOf(',') < str.length - 3) {
-        str = str.replaceAll(',', '');
-      } else {
-        str = str.replaceAll(',', '.');
+      // CASE 2B: Chỉ 1 dấu chấm
+      else {
+        final dotIndex = str.indexOf('.');
+        final afterDot = str.length - dotIndex - 1;
+        
+        // Nếu sau dấu chấm có 3 chữ số → Phân cách nghìn
+        // VD: 3.762 = 3762
+        if (afterDot == 3) {
+          str = str.replaceAll('.', '');
+          print('   → Case 2B (dot as thousands): "$str"');
+        }
+        // Nếu sau dấu chấm có 1-2 chữ số → Thập phân
+        // VD: 3.5 hoặc 3.50
+        else if (afterDot <= 2) {
+          // Giữ nguyên
+          print('   → Case 2C (dot as decimal): "$str"');
+        }
+        // Trường hợp khác: Xóa dấu chấm để an toàn
+        else {
+          str = str.replaceAll('.', '');
+          print('   → Case 2D (remove dot): "$str"');
+        }
       }
-    } else if (dotCount > 1) {
-      int lastDotIndex = str.lastIndexOf('.');
-      str = str.substring(0, lastDotIndex).replaceAll('.', '') + 
-            '.' + str.substring(lastDotIndex + 1);
+    }
+    // CASE 3: Chỉ có dấu phẩy
+    else if (commaCount > 0) {
+      // CASE 3A: Nhiều dấu phẩy → Phân cách nghìn (format US)
+      if (commaCount > 1) {
+        str = str.replaceAll(',', '');
+        print('   → Case 3A (multiple commas): "$str"');
+      }
+      // CASE 3B: 1 dấu phẩy
+      else {
+        final commaIndex = str.indexOf(',');
+        final afterComma = str.length - commaIndex - 1;
+        
+        // Nếu sau dấu phẩy có 1-2 chữ số → Thập phân (VN)
+        // VD: 3,50
+        if (afterComma <= 2) {
+          str = str.replaceAll(',', '.');
+          print('   → Case 3B (comma as decimal): "$str"');
+        }
+        // Nếu sau dấu phẩy có 3 chữ số → Phân cách nghìn (US)
+        // VD: 3,762
+        else if (afterComma == 3) {
+          str = str.replaceAll(',', '');
+          print('   → Case 3C (comma as thousands): "$str"');
+        }
+        // Trường hợp khác: Xóa phẩy
+        else {
+          str = str.replaceAll(',', '');
+          print('   → Case 3D (remove comma): "$str"');
+        }
+      }
+    }
+    // CASE 4: Không có dấu gì → Số nguyên
+    else {
+      print('   → Case 4 (plain number): "$str"');
     }
     
-    return double.parse(str);
+    // Remove spaces
+    str = str.replaceAll(' ', '');
+    
+    try {
+      final result = double.parse(str);
+      print('   ✅ Parsed result: $result');
+      return result;
+    } catch (e) {
+      print('   ❌ Parse error: $e, returning 0');
+      return 0.0;
+    }
   }
 }
 

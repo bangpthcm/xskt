@@ -15,8 +15,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   
   late TextEditingController _sheetNameController;
-  late TextEditingController _worksheetNameController;
-  late TextEditingController _telegramTokenController;
   late TextEditingController _chatIdsController;
   late TextEditingController _cycleTargetController;  // ✅ NEW
   late TextEditingController _xienBudgetController;
@@ -36,8 +34,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _initializeControllers() {
     _sheetNameController = TextEditingController();
-    _worksheetNameController = TextEditingController();
-    _telegramTokenController = TextEditingController();
     _chatIdsController = TextEditingController();
     _cycleTargetController = TextEditingController();  // ✅ NEW
     _xienBudgetController = TextEditingController();
@@ -48,8 +44,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final config = context.read<SettingsViewModel>().config;
     
     _sheetNameController.text = config.googleSheets.sheetName;
-    _worksheetNameController.text = config.googleSheets.worksheetName;
-    _telegramTokenController.text = config.telegram.botToken;
     _chatIdsController.text = config.telegram.chatIds.join(', ');
     _cycleTargetController.text = config.budget.cycleTarget.toString();  // ✅ NEW
     _xienBudgetController.text = config.budget.xienBudget.toString();
@@ -59,8 +53,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _sheetNameController.dispose();
-    _worksheetNameController.dispose();
-    _telegramTokenController.dispose();
     _chatIdsController.dispose();
     _cycleTargetController.dispose();  // ✅ NEW
     _xienBudgetController.dispose();
@@ -129,30 +121,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             TextFormField(
               controller: _sheetNameController,
               decoration: const InputDecoration(
-                labelText: 'Sheet Name / ID',
+                labelText: 'Sheet ID',
                 hintText: 'XSKT hoặc 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-                helperText: 'Tên hoặc ID của Google Sheet',
+                helperText: 'ID của Google Sheet',
                 prefixIcon: Icon(Icons.description),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập Sheet Name/ID';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _worksheetNameController,
-              decoration: const InputDecoration(
-                labelText: 'Worksheet Name',
-                hintText: 'KQXS',
-                helperText: 'Tên worksheet chứa dữ liệu kết quả',
-                prefixIcon: Icon(Icons.table_chart),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập Worksheet Name';
+                  return 'Vui lòng nhập Sheet ID';
                 }
                 return null;
               },
@@ -181,24 +157,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const Divider(),
-            TextFormField(
-              controller: _telegramTokenController,
-              decoration: const InputDecoration(
-                labelText: 'Bot Token',
-                hintText: '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11',
-                prefixIcon: Icon(Icons.key),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập Bot Token';
-                }
-                if (!value.contains(':')) {
-                  return 'Bot Token không hợp lệ';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
             TextFormField(
               controller: _chatIdsController,
               decoration: const InputDecoration(
@@ -482,10 +440,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final config = AppConfig(
       googleSheets: GoogleSheetsConfig.withHardcodedCredentials(
         sheetName: _sheetNameController.text.trim(),
-        worksheetName: _worksheetNameController.text.trim(),
       ),
       telegram: TelegramConfig(
-        botToken: _telegramTokenController.text.trim(),
+        botToken: TelegramConfig.defaultBotToken,
         chatIds: _chatIdsController.text
             .split(',')
             .map((id) => id.trim())
@@ -522,11 +479,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       String message = 'Đã lưu cấu hình.\n';
       
       if (viewModel.isGoogleSheetsConnected && viewModel.isTelegramConnected) {
-        message += 'Cả 2 kết nối đều thành công!';
+        message += 'Cả 2 kết nối đều thành công!\n';  // ✅ Thông báo rõ ràng
       } else if (viewModel.isGoogleSheetsConnected) {
-        message += 'Google Sheets: ✓\nTelegram: ✗';
+        message += 'Google Sheets: ✓\nTelegram: ✗ (Bot token không hợp lệ)';  // ✅ Chi tiết lỗi
       } else if (viewModel.isTelegramConnected) {
-        message += 'Google Sheets: ✗\nTelegram: ✓';
+        message += 'Google Sheets: ✗\nTelegram: ✓ (Bot token hợp lệ)';  // ✅ Chi tiết
       } else {
         message += 'Cả 2 kết nối đều thất bại!';
       }

@@ -1035,4 +1035,132 @@ class AnalysisViewModel extends ChangeNotifier {
     
     print('✅ Bac table saved to bacBot!');
   }
+
+  bool get hasCycleAlert {
+    if (_cycleResult == null) return false;
+    if (_selectedMien != 'Tất cả') return false;
+    return _cycleResult!.maxGanDays > 3;
+  }
+
+  /// Kiểm tra Trung có gan > 15 ngày
+  bool get hasTrungAlert {
+    if (_cycleResult == null) return false;
+    if (_selectedMien != 'Trung') return false;
+    return _cycleResult!.maxGanDays > 15;
+  }
+
+  /// Kiểm tra Bắc có gan > 17 ngày
+  bool get hasBacAlert {
+    if (_cycleResult == null) return false;
+    if (_selectedMien != 'Bắc') return false;
+    return _cycleResult!.maxGanDays > 17;
+  }
+
+  /// Kiểm tra Xiên có gan > 155 ngày
+  bool get hasXienAlert {
+    if (_ganPairInfo == null) return false;
+    return _ganPairInfo!.daysGan > 155;
+  }
+
+  /// Kiểm tra có bất kỳ alert nào
+  bool get hasAnyAlert {
+    // Check tất cả các filter
+    bool hasAlert = false;
+    
+    // Check Xiên
+    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 155) {
+      hasAlert = true;
+    }
+    
+    // Check Tất cả
+    if (_cycleResult != null && _selectedMien == 'Tất cả') {
+      if (_cycleResult!.maxGanDays > 3) hasAlert = true;
+    }
+    
+    // Check Trung (cần analyze lại)
+    if (_cycleResult != null && _selectedMien == 'Trung') {
+      if (_cycleResult!.maxGanDays > 15) hasAlert = true;
+    }
+    
+    // Check Bắc (cần analyze lại)
+    if (_cycleResult != null && _selectedMien == 'Bắc') {
+      if (_cycleResult!.maxGanDays > 17) hasAlert = true;
+    }
+    
+    return hasAlert;
+  }
+
+  /// Lấy thông tin alert cho từng filter
+  Map<String, AlertInfo> getAlertInfo() {
+    final alerts = <String, AlertInfo>{};
+    
+    // Analyze tất cả các filter để check
+    final currentMien = _selectedMien;
+    
+    // Check Tất cả
+    _selectedMien = 'Tất cả';
+    if (_cycleResult != null && _cycleResult!.maxGanDays > 3) {
+      alerts['Tất cả'] = AlertInfo(
+        threshold: 3,
+        currentDays: _cycleResult!.maxGanDays,
+        targetNumber: _cycleResult!.targetNumber,
+      );
+    }
+    
+    // Reset về filter hiện tại
+    _selectedMien = currentMien;
+    
+    // Check Xiên
+    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 155) {
+      alerts['Xiên'] = AlertInfo(
+        threshold: 155,
+        currentDays: _ganPairInfo!.daysGan,
+        targetNumber: _ganPairInfo!.randomPair.display,
+      );
+    }
+    
+    return alerts;
+  }
+
+  /// Lấy message thông báo
+  String getAlertMessage() {
+    final messages = <String>[];
+    
+    if (hasXienAlert) {
+      messages.add('🔥 Xiên: ${_ganPairInfo!.daysGan} ngày (>${155})');
+    }
+    
+    if (hasCycleAlert) {
+      messages.add('🔥 Chu kỳ: ${_cycleResult!.maxGanDays} ngày (>3)');
+    }
+    
+    if (hasTrungAlert) {
+      messages.add('🔥 Trung: ${_cycleResult!.maxGanDays} ngày (>15)');
+    }
+    
+    if (hasBacAlert) {
+      messages.add('🔥 Bắc: ${_cycleResult!.maxGanDays} ngày (>17)');
+    }
+    
+    if (messages.isEmpty) {
+      return 'Chưa có số nào thỏa điều kiện';
+    }
+    
+    return messages.join('\n');
+  }
+}
+
+// ✅ THÊM: Model cho alert info
+class AlertInfo {
+  final int threshold;
+  final int currentDays;
+  final String targetNumber;
+
+  AlertInfo({
+    required this.threshold,
+    required this.currentDays,
+    required this.targetNumber,
+  });
+
+  bool get isAlert => currentDays > threshold;
 }

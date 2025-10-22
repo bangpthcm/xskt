@@ -60,8 +60,22 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // ✅ 1. Lưu config
       await _storageService.saveConfig(newConfig);
       _config = newConfig;
+      
+      // ✅ 2. Tự động reinitialize services
+      print('🔄 Reinitializing services with new config...');
+      
+      try {
+        await _sheetsService.initialize(newConfig.googleSheets);
+        _telegramService.initialize(newConfig.telegram);
+        print('✅ Services reinitialized successfully');
+      } catch (e) {
+        print('⚠️ Error reinitializing services: $e');
+        // Không throw error, chỉ log
+      }
+      
       _errorMessage = null;
       _isLoading = false;
       notifyListeners();
@@ -104,14 +118,19 @@ class SettingsViewModel extends ChangeNotifier {
 
     try {
       _telegramService.initialize(_config.telegram);
-      await _telegramService.sendMessage('✅ Test connection thành công!');
       
-      _isTelegramConnected = true;
+      // ✅ Dùng testConnection() thay vì sendMessage()
+      _isTelegramConnected = await _telegramService.testConnection();
+      
+      if (!_isTelegramConnected) {
+        _errorMessage = 'Không thể kết nối Telegram (bot token không hợp lệ)';
+      }
+      
       _isLoading = false;
       notifyListeners();
-      return true;
+      return _isTelegramConnected;
     } catch (e) {
-      _errorMessage = 'Lỗi gửi Telegram: $e';
+      _errorMessage = 'Lỗi kết nối Telegram: $e';
       _isTelegramConnected = false;
       _isLoading = false;
       notifyListeners();

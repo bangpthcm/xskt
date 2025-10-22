@@ -103,14 +103,45 @@ class CycleWinHistory {
   }
 
   static double _parseNumber(dynamic value) {
-    String str = value.toString().trim();
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
     
-    // Chỉ cần xóa dấu chấm (phân cách nghìn VN)
-    str = str.replaceAll('.', '');
-    str = str.replaceAll(',', '');
+    String str = value.toString().trim();
+    if (str.isEmpty) return 0.0;
+    
+    // ✅ Xử lý format VN
+    int dotCount = '.'.allMatches(str).length;
+    int commaCount = ','.allMatches(str).length;
+    
+    if (dotCount > 0 && commaCount > 0) {
+      str = str.replaceAll('.', '').replaceAll(',', '.');
+    } else if (dotCount > 0) {
+      if (dotCount > 1) {
+        str = str.replaceAll('.', '');
+      } else {
+        final afterDot = str.length - str.indexOf('.') - 1;
+        if (afterDot == 3) str = str.replaceAll('.', '');
+      }
+    } else if (commaCount > 0) {
+      if (commaCount > 1) {
+        str = str.replaceAll(',', '');
+      } else {
+        final afterComma = str.length - str.indexOf(',') - 1;
+        if (afterComma <= 2) {
+          str = str.replaceAll(',', '.');
+        } else if (afterComma == 3) {
+          str = str.replaceAll(',', '');
+        }
+      }
+    }
+    
     str = str.replaceAll(' ', '');
     
-    return double.parse(str);
+    try {
+      return double.parse(str);
+    } catch (e) {
+      return 0.0;
+    }
   }
 
   static double _parseROI(dynamic value) {

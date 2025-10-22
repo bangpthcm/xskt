@@ -222,7 +222,7 @@ class BettingTableService {
     required String targetMien,
     required DateTime startDate,
     required DateTime endDate,
-    required int startMienIndex,  // ✅ Sử dụng parameter này
+    required int startMienIndex,
     required double startBetValue,
     required double profitTarget,
   }) async {
@@ -235,14 +235,13 @@ class BettingTableService {
     int stt = 1;
     DateTime currentDate = startDate;
     
-    // ✅ QUAN TRỌNG: Biến để track xem đã qua ngày đầu tiên chưa
     bool isFirstDay = true;
 
+    outerLoop:  // ✅ LABEL CHO VÒNG WHILE
     while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(Duration(days: 1)))) {
       final ngayStr = date_utils.DateUtils.formatDate(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
-      // ✅ LOGIC MỚI: Ngày đầu tiên bắt đầu từ startMienIndex, các ngày sau từ đầu
       final initialMienIdx = isFirstDay ? startMienIndex : 0;
       final mienOrder = ['Nam', 'Trung', 'Bắc'];
 
@@ -289,14 +288,13 @@ class BettingTableService {
           loi2So: tienLoi2So,
         ));
         
-        // ✅ CHỈ ĐẾM khi cược vào targetMien
         if (mien == targetMien) {
           mienCount++;
           print('   🎯 Target mien count: $mienCount/$maxMienCount');
           
           if (mienCount >= maxMienCount) {
             print('   ✅ Reached max mien count, stopping...');
-            break;
+            break outerLoop;  // ✅ BREAK CẢ VÒNG WHILE
           }
         }
       }

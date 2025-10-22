@@ -31,7 +31,6 @@ class AppConfig {
     return AppConfig(
       googleSheets: GoogleSheetsConfig.withHardcodedCredentials(
         sheetName: '1P7SitHUhauI8-4E-LxykqDERrQN6c-Dgx9UGnbGvVbs',
-        worksheetName: 'KQXS',
       ),
       telegram: TelegramConfig.empty(),
       budget: BudgetConfig.defaultBudget(),
@@ -69,7 +68,6 @@ class GoogleSheetsConfig {
   Map<String, dynamic> toJson() {
     return {
       'sheetName': sheetName,
-      'worksheetName': worksheetName,
     };
   }
 
@@ -80,14 +78,13 @@ class GoogleSheetsConfig {
       privateKey: _defaultPrivateKey,
       clientEmail: _defaultClientEmail,
       clientId: _defaultClientId,
-      sheetName: json['sheetName'] ?? '1P7SitHUhauI8-4E-LxykqDERrQN6c-Dgx9UGnbGvVbs',
-      worksheetName: json['worksheetName'] ?? 'KQXS',
+      sheetName: json['sheetName'] ?? _defaultSheetName,
+      worksheetName: _defaultWorksheetName,
     );
   }
 
   factory GoogleSheetsConfig.withHardcodedCredentials({
     required String sheetName,
-    required String worksheetName,
   }) {
     return GoogleSheetsConfig(
       projectId: _defaultProjectId,
@@ -96,7 +93,7 @@ class GoogleSheetsConfig {
       clientEmail: _defaultClientEmail,
       clientId: _defaultClientId,
       sheetName: sheetName,
-      worksheetName: worksheetName,
+      worksheetName: _defaultWorksheetName,
     );
   }
 
@@ -108,7 +105,7 @@ class GoogleSheetsConfig {
       clientEmail: _defaultClientEmail,
       clientId: _defaultClientId,
       sheetName: '',
-      worksheetName: '',
+      worksheetName: _defaultWorksheetName,
     );
   }
 
@@ -146,6 +143,8 @@ class GoogleSheetsConfig {
   static const String _defaultClientEmail = 
       "xskt-0311@fresh-heuristic-469212-h6.iam.gserviceaccount.com";
   static const String _defaultClientId = "118119191342625559220";
+  static const String _defaultSheetName = "1P7SitHUhauI8-4E-LxykqDERrQN6c-Dgx9UGnbGvVbs";
+  static const String _defaultWorksheetName = "KQXS"; 
 }
 
 class TelegramConfig {
@@ -161,24 +160,26 @@ class TelegramConfig {
 
   Map<String, dynamic> toJson() {
     return {
-      'botToken': botToken,
       'chatIds': chatIds,
     };
   }
 
   factory TelegramConfig.fromJson(Map<String, dynamic> json) {
     return TelegramConfig(
-      botToken: json['botToken'] ?? '7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs',
+      botToken: _defaultBotToken,
       chatIds: List<String>.from(json['chatIds'] ?? []),
     );
   }
 
   factory TelegramConfig.empty() {
     return TelegramConfig(
-      botToken: '7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs', 
+      botToken: _defaultBotToken, 
       chatIds: ['-1003060014477']
     );
   }
+
+  static const String _defaultBotToken = "7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs";  // ✅ Hardcode Bot Token
+  static String get defaultBotToken => _defaultBotToken;
 }
 
 // ✅ UPDATED: BudgetConfig

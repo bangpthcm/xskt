@@ -29,6 +29,35 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       appBar: AppBar(
         title: const Text('Phân tích'),
         actions: [
+          // ✅ THÊM: Nút thông báo
+          Consumer<AnalysisViewModel>(
+            builder: (context, viewModel, child) {
+              if (viewModel.hasAnyAlert) {
+                return Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.notifications),
+                      tooltip: 'Thông báo',
+                      onPressed: () => _showAlertDialog(context, viewModel),
+                    ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Đồng bộ RSS và phân tích lại',
@@ -86,6 +115,10 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                // ✅ THÊM: Alert banner nếu có
+                if (viewModel.hasAnyAlert)
+                  _buildAlertBanner(viewModel),
+                
                 _buildCycleSection(viewModel),
                 const SizedBox(height: 24),
                 _buildGanPairSection(viewModel),
@@ -93,6 +126,190 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  // ✅ THÊM: Alert banner
+  Widget _buildAlertBanner(AnalysisViewModel viewModel) {
+    return Card(
+      color: Colors.orange.shade50,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: InkWell(
+        onTap: () => _showAlertDialog(context, viewModel),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 32),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Có số gan thỏa điều kiện!',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Nhấn để xem chi tiết',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.orange.shade700),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ✅ THÊM: Dialog hiển thị chi tiết alert
+  void _showAlertDialog(BuildContext context, AnalysisViewModel viewModel) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+            const SizedBox(width: 8),
+            const Text('Thông báo số gan'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Các số sau đã thỏa điều kiện gan:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 16),
+              
+              // Xiên
+              if (viewModel.hasXienAlert)
+                _buildAlertItem(
+                  icon: Icons.trending_up,
+                  color: Colors.blue,
+                  title: 'Cặp số gan (Xiên)',
+                  subtitle: 'Cặp: ${viewModel.ganPairInfo!.randomPair.display}',
+                  days: viewModel.ganPairInfo!.daysGan,
+                  threshold: 155,
+                ),
+              
+              // Chu kỳ Tất cả
+              if (viewModel.hasCycleAlert)
+                _buildAlertItem(
+                  icon: Icons.loop,
+                  color: Colors.green,
+                  title: 'Chu kỳ (Tất cả)',
+                  subtitle: 'Số: ${viewModel.cycleResult!.targetNumber}',
+                  days: viewModel.cycleResult!.maxGanDays,
+                  threshold: 3,
+                ),
+              
+              // Trung
+              if (viewModel.hasTrungAlert)
+                _buildAlertItem(
+                  icon: Icons.filter_2,
+                  color: Colors.purple,
+                  title: 'Miền Trung',
+                  subtitle: 'Số: ${viewModel.cycleResult!.targetNumber}',
+                  days: viewModel.cycleResult!.maxGanDays,
+                  threshold: 15,
+                ),
+              
+              // Bắc
+              if (viewModel.hasBacAlert)
+                _buildAlertItem(
+                  icon: Icons.filter_3,
+                  color: Colors.indigo,
+                  title: 'Miền Bắc',
+                  subtitle: 'Số: ${viewModel.cycleResult!.targetNumber}',
+                  days: viewModel.cycleResult!.maxGanDays,
+                  threshold: 17,
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Có thể chuyển sang tab Bảng cược
+            },
+            child: const Text('Tạo bảng cược'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper: Item trong alert dialog
+  Widget _buildAlertItem({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required int days,
+    required int threshold,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 32),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$days ngày (>${threshold})',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: color),
+        ],
       ),
     );
   }
@@ -108,7 +325,26 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.loop, color: Colors.green),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.loop, color: Colors.green),
+                    if (viewModel.hasCycleAlert)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -117,14 +353,14 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blue),
+                  icon: const Icon(Icons.send, color: Colors.green),
                   tooltip: 'Gửi Telegram',
                   onPressed: cycleResult != null
                       ? () => _sendCycleToTelegram(context, viewModel)
                       : null,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.table_chart, color: Colors.green),
+                  icon: const Icon(Icons.table_chart, color: Colors.orange),
                   tooltip: 'Tạo bảng cược',
                   onPressed: cycleResult != null
                       ? () => _createCycleBettingTable(context, viewModel)
@@ -146,38 +382,22 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
               ),
               _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber),
-              const SizedBox(height: 8),
-              const Text(
-                'Nhóm số gan nhất:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: cycleResult.ganNumbers.map((number) {
-                  return InkWell(
-                    onTap: () {
-                      // ✅ CHECK filter và show dialog tương ứng
-                      if (viewModel.selectedMien == 'Bắc') {
-                        _showCreateBacGanTableDialog(context, viewModel, number);
-                      } else if (viewModel.selectedMien == 'Trung') {
-                        _showCreateTrungGanTableDialog(context, viewModel, number);  // ✅ ADD
-                      } else if (viewModel.selectedMien == 'Tất cả') {
-                        _showNumberDetail(context, viewModel, number);
-                      }
-                    },
-                    child: Chip(
-                      label: Text(
-                        number,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      
-                      backgroundColor: viewModel.selectedMien == 'Nam' ? Colors.grey.shade100 : Colors.green.shade100,
-                    ),
-                  );
-                }).toList(),
-              ),
+              
+              // ✅ CHỈ HIỂN thị "Nhóm số gan nhất" khi filter = Tất cả, Trung, Bắc
+              if (viewModel.selectedMien != 'Nam') ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Nhóm số gan nhất:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                // ✅ BỎ KHUNG: Hiển thị dạng text thường, không có Chip
+                Text(
+                  cycleResult.ganNumbers.join(', '),
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ],
+              
               const SizedBox(height: 16),
               const Text(
                 'Phân bổ theo miền:',
@@ -185,7 +405,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               ),
               const SizedBox(height: 8),
 
-              // ✅ THAY ĐỔI GIAO DIỆN - BỎ KHUNG
               ...['Nam', 'Trung', 'Bắc'].map((mien) {
                 if (!cycleResult.mienGroups.containsKey(mien) || 
                     cycleResult.mienGroups[mien]!.isEmpty) {
@@ -235,7 +454,26 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.trending_up, color: Colors.blue),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.trending_up, color: Colors.blue),
+                    if (viewModel.hasXienAlert)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -251,7 +489,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                       : null,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.table_chart, color: Colors.green),
+                  icon: const Icon(Icons.table_chart, color: Colors.orange),
                   tooltip: 'Tạo bảng cược',
                   onPressed: ganInfo != null
                       ? () => _createXienBettingTable(context, viewModel)
@@ -263,7 +501,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/185 ngày'),
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
@@ -274,31 +512,18 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: ganInfo.pairs.map((pairWithDays) {
-                  return Chip(
-                    label: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          pairWithDays.pair.display,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          '(${pairWithDays.daysGan} ngày)',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: Colors.grey.shade100,
-                  );
-                }).toList(),
-              ),
+              // ✅ BỎ KHUNG: Hiển thị dạng text thường
+              ...ganInfo.pairs.asMap().entries.map((entry) {
+                final index = entry.key;
+                final pairWithDays = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '${index + 1}. ${pairWithDays.pair.display} (${pairWithDays.daysGan} ngày)',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                );
+              }).toList(),
             ],
           ],
         ),
@@ -311,15 +536,45 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       spacing: 8,
       children: ['Tất cả', 'Nam', 'Trung', 'Bắc'].map((mien) {
         final isSelected = viewModel.selectedMien == mien;
-        return FilterChip(
-          label: Text(mien),
-          selected: isSelected,
-          onSelected: (selected) {
-            if (selected) {
-              viewModel.setSelectedMien(mien);
-              viewModel.loadAnalysis(useCache: true);
-            }
-          },
+        
+        // ✅ Check alert cho từng filter
+        bool hasAlert = false;
+        if (mien == 'Tất cả' && viewModel.cycleResult != null) {
+          hasAlert = viewModel.cycleResult!.maxGanDays > 3;
+        } else if (mien == 'Trung' && viewModel.cycleResult != null && viewModel.selectedMien == 'Trung') {
+          hasAlert = viewModel.cycleResult!.maxGanDays > 15;
+        } else if (mien == 'Bắc' && viewModel.cycleResult != null && viewModel.selectedMien == 'Bắc') {
+          hasAlert = viewModel.cycleResult!.maxGanDays > 17;
+        }
+        
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            FilterChip(
+              label: Text(mien),
+              selected: isSelected,
+              onSelected: (selected) {
+                if (selected) {
+                  viewModel.setSelectedMien(mien);
+                  viewModel.loadAnalysis(useCache: true);
+                }
+              },
+            ),
+            if (hasAlert)
+              Positioned(
+                right: 4,
+                top: 4,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1),
+                  ),
+                ),
+              ),
+          ],
         );
       }).toList(),
     );

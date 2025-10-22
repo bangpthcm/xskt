@@ -12,6 +12,45 @@ class TelegramService {
     _config = config;
   }
 
+  Future<bool> testConnection() async {
+    if (_config == null || !_config!.isValid) {
+      print('❌ Telegram config invalid');
+      return false;
+    }
+
+    try {
+      // ✅ Dùng API getMe để kiểm tra bot token
+      final url = 'https://api.telegram.org/bot${_config!.botToken}/getMe';
+      
+      print('🔄 Testing Telegram connection...');
+      
+      final response = await http.get(
+        Uri.parse(url),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['ok'] == true) {
+          final botInfo = data['result'];
+          print('✅ Telegram connected successfully!');
+          print('   Bot name: ${botInfo['first_name']}');
+          print('   Bot username: @${botInfo['username']}');
+          return true;
+        } else {
+          print('❌ Telegram API returned error: ${data['description']}');
+          return false;
+        }
+      } else {
+        print('❌ Telegram connection failed: HTTP ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error testing Telegram connection: $e');
+      return false;
+    }
+  }
+
   Future<void> sendMessage(String message) async {
     if (_config == null || !_config!.isValid) {
       throw Exception('Telegram chưa được cấu hình');

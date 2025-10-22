@@ -52,12 +52,55 @@ class BettingViewModel extends ChangeNotifier {
   Map<String, dynamic>? get bacMetadata => _bacMetadata;       // ✅ ADD
 
   // ✅ HELPER FUNCTION GLOBAL
+  /// ✅ Parse number từ Google Sheets (format VN: dấu chấm = nghìn)
   static double _parseSheetNumber(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    
     String str = value.toString().trim();
-    str = str.replaceAll('.', '');
-    str = str.replaceAll(',', '');
+    if (str.isEmpty) return 0.0;
+    
+    int dotCount = '.'.allMatches(str).length;
+    int commaCount = ','.allMatches(str).length;
+    
+    // CASE 1: Có cả chấm VÀ phẩy
+    if (dotCount > 0 && commaCount > 0) {
+      str = str.replaceAll('.', '').replaceAll(',', '.');
+    }
+    // CASE 2: Chỉ có dấu chấm
+    else if (dotCount > 0) {
+      if (dotCount > 1) {
+        str = str.replaceAll('.', '');
+      } else {
+        final dotIndex = str.indexOf('.');
+        final afterDot = str.length - dotIndex - 1;
+        if (afterDot == 3) {
+          str = str.replaceAll('.', '');
+        }
+      }
+    }
+    // CASE 3: Chỉ có dấu phẩy
+    else if (commaCount > 0) {
+      if (commaCount > 1) {
+        str = str.replaceAll(',', '');
+      } else {
+        final commaIndex = str.indexOf(',');
+        final afterComma = str.length - commaIndex - 1;
+        if (afterComma <= 2) {
+          str = str.replaceAll(',', '.');
+        } else if (afterComma == 3) {
+          str = str.replaceAll(',', '');
+        }
+      }
+    }
+    
     str = str.replaceAll(' ', '');
-    return double.parse(str);
+    
+    try {
+      return double.parse(str);
+    } catch (e) {
+      return 0.0;
+    }
   }
   
   static int _parseSheetInt(dynamic value) {
