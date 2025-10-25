@@ -44,12 +44,18 @@ class AnalysisViewModel extends ChangeNotifier {
   CycleAnalysisResult? _cycleResult;
   String _selectedMien = 'Tất cả';
   List<LotteryResult> _allResults = [];
+  
+  // ✅ Cache alert status
+  bool? _trungAlertCache;
+  bool? _bacAlertCache;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   GanPairInfo? get ganPairInfo => _ganPairInfo;
   CycleAnalysisResult? get cycleResult => _cycleResult;
   String get selectedMien => _selectedMien;
+  bool? get trungAlertCache => _trungAlertCache;
+  bool? get bacAlertCache => _bacAlertCache;
 
   void setSelectedMien(String mien) {
     _selectedMien = mien;
@@ -64,7 +70,7 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // ✅ BƯỚC 1: ĐỒNG BỘ RSS TRƯỚC KHI PHÂN TÍCH
+      // BƯỚC 1: ĐỒNG BỘ RSS
       if (!useCache) {
         print('🔄 Starting RSS sync...');
         
@@ -79,21 +85,17 @@ class AnalysisViewModel extends ChangeNotifier {
           
           if (syncResult.hasError) {
             print('⚠️ RSS sync had errors: ${syncResult.message}');
-            // Hiển thị warning nhưng vẫn tiếp tục phân tích
             _errorMessage = 'Cảnh báo: ${syncResult.message}';
             notifyListeners();
           }
         } catch (syncError) {
           print('❌ RSS sync failed: $syncError');
-          // Vẫn tiếp tục phân tích với dữ liệu hiện có
           _errorMessage = 'Cảnh báo: Không thể đồng bộ RSS - $syncError';
           notifyListeners();
         }
-      } else {
-        print('⏭️ Skipping RSS sync (using cache)');
       }
 
-      // ✅ BƯỚC 2: LẤY DỮ LIỆU TỪ SHEET
+      // BƯỚC 2: LẤY DỮ LIỆU
       final allValues = await _sheetsService.getAllValues('KQXS');
       
       if (allValues.length < 2) {
@@ -109,7 +111,7 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
-      // ✅ BƯỚC 3: PHÂN TÍCH
+      // BƯỚC 3: PHÂN TÍCH
       _ganPairInfo = await _analysisService.findGanPairsMienBac(_allResults);
 
       if (_selectedMien == 'Tất cả') {
@@ -121,10 +123,9 @@ class AnalysisViewModel extends ChangeNotifier {
         _cycleResult = await _analysisService.analyzeCycle(filteredResults);
       }
 
-      // ✅ BƯỚC 4: CHỈ LƯU LỊCH SỬ KHI REFRESH (!useCache)
-      // Không lưu lịch sử khi chỉ đổi filter
+      // BƯỚC 4: LƯU LỊCH SỬ
       if (!useCache) {
-        print('💾 Saving analysis history (because useCache=false)...');
+        print('💾 Saving analysis history...');
         
         if (_cycleResult != null && _allResults.isNotEmpty) {
           await _saveAnalysisHistory();
@@ -133,9 +134,10 @@ class AnalysisViewModel extends ChangeNotifier {
         if (_ganPairInfo != null && _allResults.isNotEmpty) {
           await _saveXienAnalysisHistory();
         }
-      } else {
-        print('⏭️ Skipping history save (useCache=true, just filter change)');
       }
+      
+      // BƯỚC 5: CACHE ALERT
+      await _cacheAllAlerts();
 
       _isLoading = false;
       notifyListeners();
@@ -143,6 +145,27 @@ class AnalysisViewModel extends ChangeNotifier {
       _errorMessage = 'Lỗi phân tích: $e';
       _isLoading = false;
       notifyListeners();
+    }
+  }
+  
+  Future<void> _cacheAllAlerts() async {
+    try {
+      print('💾 Caching alerts...');
+      
+      // Check Trung
+      final trungResults = _allResults.where((r) => r.mien == 'Trung').toList();
+      final trungResult = await _analysisService.analyzeCycle(trungResults);
+      _trungAlertCache = trungResult != null && trungResult.maxGanDays > 15;
+      
+      // Check Bắc
+      final bacResults = _allResults.where((r) => r.mien == 'Bắc').toList();
+      final bacResult = await _analysisService.analyzeCycle(bacResults);
+      _bacAlertCache = bacResult != null && bacResult.maxGanDays > 17;
+      
+    } catch (e) {
+      print('⚠️ Error caching alerts: $e');
+      _trungAlertCache = false;
+      _bacAlertCache = false;
     }
   }
 
@@ -158,7 +181,6 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // BƯỚC 1: Tìm ngày và miền cuối cùng trong KQXS
       DateTime? latestDate;
       String? latestMien;
       
@@ -178,9 +200,6 @@ class AnalysisViewModel extends ChangeNotifier {
         throw Exception('Không tìm thấy dữ liệu KQXS');
       }
 
-      print('📅 Latest KQXS: $latestMien on ${date_utils.DateUtils.formatDate(latestDate)}');
-
-      // BƯỚC 2: Xác định miền bắt đầu
       final mienOrder = ['Nam', 'Trung', 'Bắc'];
       final latestMienIndex = mienOrder.indexOf(latestMien);
       
@@ -195,9 +214,6 @@ class AnalysisViewModel extends ChangeNotifier {
         startMienIndex = latestMienIndex + 1;
       }
 
-      print('🎯 Start betting: ${mienOrder[startMienIndex]} on ${date_utils.DateUtils.formatDate(startDate)}');
-
-      // BƯỚC 3: Tìm miền xuất hiện lần cuối
       String targetMien = 'Nam';
       for (final entry in _cycleResult!.mienGroups.entries) {
         if (entry.value.contains(_cycleResult!.targetNumber)) {
@@ -206,31 +222,19 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
-      print('🎯 Target mien: $targetMien');
-
-      // BƯỚC 4: Tính endDate = lastSeenDate + 9 lần quay
       DateTime endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 9));
-      print('📅 Initial end date: ${date_utils.DateUtils.formatDate(endDate)}');
 
-      // ✅ BƯỚC 5 MỚI: Kiểm tra ngày cuối HOẶC ngày áp cuối có phải thứ 3 không
       double budgetMax = config.budget.budgetMax;
       
       final lastDayWeekday = date_utils.DateUtils.getWeekday(endDate);
       final secondLastDate = endDate.subtract(const Duration(days: 1));
       final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
       
-      print('📅 Last day weekday: $lastDayWeekday (${_getWeekdayName(lastDayWeekday)})');
-      print('📅 Second last day weekday: $secondLastWeekday (${_getWeekdayName(secondLastWeekday)})');
-      
-      // Thứ 3 = weekday 1 (Mon=0, Tue=1, Wed=2, ...)
       if (lastDayWeekday == 1 || secondLastWeekday == 1) {
-        print('⚠️ Found Tuesday in last 2 days! Adding +1 day and +200k budget');
         endDate = endDate.add(const Duration(days: 1));
         budgetMax += config.budget.tuesdayExtraBudget;
-        print('📅 New end date: ${date_utils.DateUtils.formatDate(endDate)}');
       }
 
-      // BƯỚC 6: Generate bảng cược
       final newTable = await _bettingService.generateCycleTable(
         cycleResult: _cycleResult!,
         startDate: startDate,
@@ -251,19 +255,16 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ HELPER: Get weekday name for logging
   String _getWeekdayName(int weekday) {
     const names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
     return names[weekday];
   }
 
-  // HELPER: So sánh thứ tự miền
   bool _isMienLater(String newMien, String oldMien) {
     const mienPriority = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
     return (mienPriority[newMien] ?? 0) > (mienPriority[oldMien] ?? 0);
   }
 
-  // ✅ Tương tự cho createCycleBettingTableForNumber
   Future<void> createCycleBettingTableForNumber(
     String targetNumber,
     AppConfig config,
@@ -306,7 +307,6 @@ class AnalysisViewModel extends ChangeNotifier {
         targetNumber: targetNumber,
       );
 
-      // Logic tương tự như trên
       DateTime? latestDate;
       String? latestMien;
       
@@ -338,7 +338,6 @@ class AnalysisViewModel extends ChangeNotifier {
 
       DateTime endDate = lastSeenDate.add(const Duration(days: 9));
 
-      // ✅ Kiểm tra ngày cuối HOẶC ngày áp cuối có phải thứ 3
       double budgetMax = config.budget.budgetMax;
       
       final lastDayWeekday = date_utils.DateUtils.getWeekday(endDate);
@@ -346,7 +345,6 @@ class AnalysisViewModel extends ChangeNotifier {
       final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
       
       if (lastDayWeekday == 1 || secondLastWeekday == 1) {
-        print('⚠️ Found Tuesday! Adding +1 day and +200k budget');
         endDate = endDate.add(const Duration(days: 1));
         budgetMax += config.budget.tuesdayExtraBudget;
       }
@@ -410,9 +408,6 @@ class AnalysisViewModel extends ChangeNotifier {
   }
 
   Future<void> _saveCycleTableToSheet(List<dynamic> table) async {
-    print('📝 Saving cycle table to sheet...');
-    print('📊 Table rows: ${table.length}');
-    
     await _sheetsService.clearSheet('xsktBot1');
 
     await _sheetsService.updateRange(
@@ -438,14 +433,9 @@ class AnalysisViewModel extends ChangeNotifier {
 
     final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
     await _sheetsService.updateRange('xsktBot1', 'A4', dataRows);
-    
-    print('✅ Cycle table saved successfully!');
   }
 
   Future<void> _saveXienTableToSheet(List<dynamic> table) async {
-    print('📝 Saving xien table to sheet...');
-    print('📊 Table rows: ${table.length}');
-    
     await _sheetsService.clearSheet('xienBot');
 
     await _sheetsService.updateRange(
@@ -471,8 +461,6 @@ class AnalysisViewModel extends ChangeNotifier {
 
     final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
     await _sheetsService.updateRange('xienBot', 'A4', dataRows);
-    
-    print('✅ Xien table saved successfully!');
   }
 
   Future<void> sendCycleAnalysisToTelegram() async {
@@ -565,18 +553,10 @@ class AnalysisViewModel extends ChangeNotifier {
       final ngayCuoiKQXS = lastResult.ngay;
       final mienCuoiKQXS = lastResult.mien;
       
-      print('📊 [SAVE] Ngày cuối KQXS: $ngayCuoiKQXS');
-      print('📊 [SAVE] Miền cuối KQXS: $mienCuoiKQXS');
-      print('📊 [SAVE] Existing rows in sheet: ${existingData.length}');
-      
-      // ✅ LƯU CHO TẤT CẢ 4 FILTERS
       final filtersToSave = ['Tất cả', 'Nam', 'Trung', 'Bắc'];
       final historiesToAdd = <AnalysisHistory>[];
       
       for (final filterMien in filtersToSave) {
-        print('\n🔍 [SAVE] Processing filter: $filterMien');
-        
-        // Phân tích cho từng filter
         CycleAnalysisResult? cycleResult;
         
         if (filterMien == 'Tất cả') {
@@ -585,17 +565,10 @@ class AnalysisViewModel extends ChangeNotifier {
           final filteredResults = _allResults
               .where((r) => r.mien == filterMien)
               .toList();
-          print('   📋 Filtered results count: ${filteredResults.length}');
           cycleResult = await _analysisService.analyzeCycle(filteredResults);
         }
         
-        if (cycleResult == null) {
-          print('   ⚠️ No cycle result for $filterMien');
-          continue;
-        }
-        
-        print('   ✓ Cycle result: ${cycleResult.maxGanDays} days');
-        print('   ✓ Nhóm gan: ${cycleResult.ganNumbersDisplay}');
+        if (cycleResult == null) continue;
         
         final newHistory = AnalysisHistory.fromCycleResult(
           stt: existingData.length + historiesToAdd.length,
@@ -608,46 +581,25 @@ class AnalysisViewModel extends ChangeNotifier {
           filter: filterMien,
         );
         
-        print('   🆕 NEW: Filter=$filterMien, Days=${newHistory.soNgayGan}, Nhom=${newHistory.nhomGan}');
-        
-        // Kiểm tra trùng lặp
         bool isDuplicate = false;
         if (existingData.length > 1) {
           for (int i = 1; i < existingData.length; i++) {
             try {
               final existing = AnalysisHistory.fromSheetRow(existingData[i]);
-              
-              // ✅ THÊM LOGGING CHI TIẾT
-              if (existing.ngayCuoiKQXS == newHistory.ngayCuoiKQXS && 
-                  existing.filter == newHistory.filter) {
-                print('   🔎 Comparing with row $i:');
-                print('      OLD: Filter=${existing.filter}, Days=${existing.soNgayGan}, Nhom=${existing.nhomGan}');
-                print('      Date match: ${existing.ngayCuoiKQXS == newHistory.ngayCuoiKQXS}');
-                print('      Filter match: ${existing.filter == newHistory.filter}');
-                print('      Days match: ${existing.soNgayGan == newHistory.soNgayGan}');
-                print('      Nhom match: ${existing.nhomGan == newHistory.nhomGan}');
-              }
-              
               if (existing.isDuplicate(newHistory)) {
                 isDuplicate = true;
-                print('   ⚠️ DUPLICATE detected at row $i');
                 break;
               }
             } catch (e) {
-              print('   ⚠️ Error parsing existing row $i: $e');
+              // Skip
             }
           }
         }
         
         if (!isDuplicate) {
-          print('   ✅ Adding to save queue');
           historiesToAdd.add(newHistory);
-        } else {
-          print('   ❌ Skipped (duplicate)');
         }
       }
-      
-      print('\n📝 [SAVE] Total to save: ${historiesToAdd.length} records');
       
       if (historiesToAdd.isNotEmpty) {
         if (existingData.isEmpty) {
@@ -671,7 +623,6 @@ class AnalysisViewModel extends ChangeNotifier {
           );
         }
         
-        // Cập nhật STT
         int startSTT = existingData.isEmpty ? 1 : existingData.length;
         for (int i = 0; i < historiesToAdd.length; i++) {
           final history = historiesToAdd[i];
@@ -696,17 +647,12 @@ class AnalysisViewModel extends ChangeNotifier {
           'A$rowNumber',
           rows,
         );
-        
-        print('✅ Analysis history saved: ${historiesToAdd.length} records');
-      } else {
-        print('⏭️ No new records to save');
       }
     } catch (e) {
       print('❌ Error saving analysis history: $e');
     }
   }
 
-  // ✅ LƯU LỊCH SỬ PHÂN TÍCH XIÊN
   Future<void> _saveXienAnalysisHistory() async {
     try {
       final existingData = await _sheetsService.getAllValues('xienGan');
@@ -743,11 +689,10 @@ class AnalysisViewModel extends ChangeNotifier {
               final existing = XienAnalysisHistory.fromSheetRow(existingData[i]);
               if (existing.isDuplicate(newHistory)) {
                 isDuplicate = true;
-                print('⚠️ Duplicate xien history: ${newHistory.capSo}, skipping...');
                 break;
               }
             } catch (e) {
-              // Skip invalid rows
+              // Skip
             }
           }
         }
@@ -796,20 +741,16 @@ class AnalysisViewModel extends ChangeNotifier {
           'A$startRow',
           rows,
         );
-        
-        print('✅ Xien analysis history saved: ${historiesToAdd.length} records');
       }
     } catch (e) {
       print('❌ Error saving xien analysis history: $e');
     }
   }
 
-  // ✅ PHÂN TÍCH CHI TIẾT SỐ THEO MIỀN
   Future<NumberDetail?> analyzeNumberDetail(String number) async {
     return await _analysisService.analyzeNumberDetail(_allResults, number);
   }
 
-  // ✅ GỬI CHI TIẾT SỐ LÊN TELEGRAM
   Future<void> sendNumberDetailToTelegram(NumberDetail numberDetail) async {
     _isLoading = true;
     _errorMessage = null;
@@ -890,7 +831,6 @@ class AnalysisViewModel extends ChangeNotifier {
         budgetMax: config.budget.budgetMax,
       );
 
-      // ✅ SAVE TO bacBot SHEET
       await _saveBacTableToSheet(newTable, customCycleResult);
 
       _isLoading = false;
@@ -952,7 +892,6 @@ class AnalysisViewModel extends ChangeNotifier {
         budgetMax: config.budget.budgetMax,
       );
 
-      // ✅ SAVE TO trungBot SHEET
       await _saveTrungTableToSheet(newTable, customCycleResult);
 
       _isLoading = false;
@@ -963,8 +902,6 @@ class AnalysisViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  // ✅ ADD: New helper methods to save to trungBot and bacBot
 
   Future<void> _saveTrungTableToSheet(
     List<dynamic> table,
@@ -1036,10 +973,10 @@ class AnalysisViewModel extends ChangeNotifier {
     print('✅ Bac table saved to bacBot!');
   }
 
+  // ✅ Alert getters (BỎ hasCycleAlert cho "Tất cả")
   bool get hasCycleAlert {
-    if (_cycleResult == null) return false;
-    if (_selectedMien != 'Tất cả') return false;
-    return _cycleResult!.maxGanDays > 3;
+    // Bỏ alert cho "Tất cả"
+    return false;
   }
 
   /// Kiểm tra Trung có gan > 15 ngày
@@ -1062,9 +999,8 @@ class AnalysisViewModel extends ChangeNotifier {
     return _ganPairInfo!.daysGan > 155;
   }
 
-  /// Kiểm tra có bất kỳ alert nào
+  /// ✅ Kiểm tra có bất kỳ alert nào (dùng cache)
   bool get hasAnyAlert {
-    // Check tất cả các filter
     bool hasAlert = false;
     
     // Check Xiên
@@ -1072,19 +1008,14 @@ class AnalysisViewModel extends ChangeNotifier {
       hasAlert = true;
     }
     
-    // Check Tất cả
-    if (_cycleResult != null && _selectedMien == 'Tất cả') {
-      if (_cycleResult!.maxGanDays > 3) hasAlert = true;
+    // Check Trung (dùng cache)
+    if (_trungAlertCache == true) {
+      hasAlert = true;
     }
     
-    // Check Trung (cần analyze lại)
-    if (_cycleResult != null && _selectedMien == 'Trung') {
-      if (_cycleResult!.maxGanDays > 15) hasAlert = true;
-    }
-    
-    // Check Bắc (cần analyze lại)
-    if (_cycleResult != null && _selectedMien == 'Bắc') {
-      if (_cycleResult!.maxGanDays > 17) hasAlert = true;
+    // Check Bắc (dùng cache)
+    if (_bacAlertCache == true) {
+      hasAlert = true;
     }
     
     return hasAlert;
@@ -1094,28 +1025,30 @@ class AnalysisViewModel extends ChangeNotifier {
   Map<String, AlertInfo> getAlertInfo() {
     final alerts = <String, AlertInfo>{};
     
-    // Analyze tất cả các filter để check
-    final currentMien = _selectedMien;
-    
-    // Check Tất cả
-    _selectedMien = 'Tất cả';
-    if (_cycleResult != null && _cycleResult!.maxGanDays > 3) {
-      alerts['Tất cả'] = AlertInfo(
-        threshold: 3,
-        currentDays: _cycleResult!.maxGanDays,
-        targetNumber: _cycleResult!.targetNumber,
-      );
-    }
-    
-    // Reset về filter hiện tại
-    _selectedMien = currentMien;
-    
     // Check Xiên
     if (_ganPairInfo != null && _ganPairInfo!.daysGan > 155) {
       alerts['Xiên'] = AlertInfo(
         threshold: 155,
         currentDays: _ganPairInfo!.daysGan,
         targetNumber: _ganPairInfo!.randomPair.display,
+      );
+    }
+    
+    // Check Trung
+    if (_trungAlertCache == true) {
+      alerts['Trung'] = AlertInfo(
+        threshold: 15,
+        currentDays: _cycleResult?.maxGanDays ?? 0,
+        targetNumber: _cycleResult?.targetNumber ?? '',
+      );
+    }
+    
+    // Check Bắc
+    if (_bacAlertCache == true) {
+      alerts['Bắc'] = AlertInfo(
+        threshold: 17,
+        currentDays: _cycleResult?.maxGanDays ?? 0,
+        targetNumber: _cycleResult?.targetNumber ?? '',
       );
     }
     
@@ -1127,19 +1060,15 @@ class AnalysisViewModel extends ChangeNotifier {
     final messages = <String>[];
     
     if (hasXienAlert) {
-      messages.add('🔥 Xiên: ${_ganPairInfo!.daysGan} ngày (>${155})');
+      messages.add('🔥 Xiên: ${_ganPairInfo!.daysGan} ngày (>155)');
     }
     
-    if (hasCycleAlert) {
-      messages.add('🔥 Chu kỳ: ${_cycleResult!.maxGanDays} ngày (>3)');
+    if (_trungAlertCache == true) {
+      messages.add('🔥 Trung: gan >15 ngày');
     }
     
-    if (hasTrungAlert) {
-      messages.add('🔥 Trung: ${_cycleResult!.maxGanDays} ngày (>15)');
-    }
-    
-    if (hasBacAlert) {
-      messages.add('🔥 Bắc: ${_cycleResult!.maxGanDays} ngày (>17)');
+    if (_bacAlertCache == true) {
+      messages.add('🔥 Bắc: gan >17 ngày');
     }
     
     if (messages.isEmpty) {
@@ -1150,7 +1079,7 @@ class AnalysisViewModel extends ChangeNotifier {
   }
 }
 
-// ✅ THÊM: Model cho alert info
+// ✅ Model cho alert info
 class AlertInfo {
   final int threshold;
   final int currentDays;

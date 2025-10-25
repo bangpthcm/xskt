@@ -185,6 +185,25 @@ class AutoCheckService {
         winsCount++;
         print('🎉 WIN FOUND! Row ${i+1}');
         
+        // ✅ FIX: Tìm dòng của miền WIN để lấy thông tin chính xác
+        double tienCuocSo = bettingRow.cuocSo;
+        double tongTienCuoc = bettingRow.tongTien;
+        
+        // Duyệt ngược để tìm dòng cuối cùng của miền WIN
+        for (int j = i; j >= 3; j--) {
+          final checkRow = bettingTableData[j];
+          if (checkRow.length > 2 && 
+              checkRow[1].toString() == checkDate && 
+              checkRow[2].toString() == winResult.winningMien) {
+            // Tìm thấy dòng của miền WIN
+            final winMienRow = _parseCycleBettingRow(checkRow);
+            tienCuocSo = winMienRow.cuocSo;
+            tongTienCuoc = winMienRow.tongTien;
+            print('   📍 Found winning mien row at ${j+1}: Mien=${winResult.winningMien}, Cuoc=$tienCuocSo');
+            break;
+          }
+        }
+        
         // ✅ CRITICAL: Chỉ lưu history cho lần WIN đầu tiên
         if (!foundWinForDate) {
           foundWinForDate = true;
@@ -201,8 +220,8 @@ class AutoCheckService {
             mienTrung: winResult.winningMien,
             soLanTrung: winResult.occurrences,
             cacTinhTrung: winResult.provincesDisplay,
-            tienCuocSo: bettingRow.cuocSo,
-            tongTienCuoc: bettingRow.tongTien,
+            tienCuocSo: tienCuocSo,  // ✅ Dùng số tiền từ dòng miền WIN
+            tongTienCuoc: tongTienCuoc,  // ✅ Dùng tổng tiền từ dòng miền WIN
             tienVe: winResult.totalReturn,
             loiLo: winResult.profit,
             roi: winResult.roi,

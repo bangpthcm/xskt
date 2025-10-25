@@ -363,7 +363,25 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   icon: const Icon(Icons.table_chart, color: Colors.orange),
                   tooltip: 'Tạo bảng cược',
                   onPressed: cycleResult != null
-                      ? () => _createCycleBettingTable(context, viewModel)
+                      ? () {
+                          // ✅ CHECK filter trước khi tạo bảng
+                          if (viewModel.selectedMien == 'Bắc') {
+                            _showCreateBacGanTableDialog(
+                              context, 
+                              viewModel, 
+                              cycleResult.targetNumber,
+                            );
+                          } else if (viewModel.selectedMien == 'Trung') {
+                            _showCreateTrungGanTableDialog(
+                              context, 
+                              viewModel, 
+                              cycleResult.targetNumber,
+                            );
+                          } else {
+                            // Tất cả hoặc Nam
+                            _createCycleBettingTable(context, viewModel);
+                          }
+                        }
                       : null,
                 ),
               ],
@@ -537,14 +555,12 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       children: ['Tất cả', 'Nam', 'Trung', 'Bắc'].map((mien) {
         final isSelected = viewModel.selectedMien == mien;
         
-        // ✅ Check alert cho từng filter
+        // ✅ CHECK alert từ cache (LUÔN HIỆN dù đang chọn filter khác)
         bool hasAlert = false;
-        if (mien == 'Tất cả' && viewModel.cycleResult != null) {
-          hasAlert = viewModel.cycleResult!.maxGanDays > 3;
-        } else if (mien == 'Trung' && viewModel.cycleResult != null && viewModel.selectedMien == 'Trung') {
-          hasAlert = viewModel.cycleResult!.maxGanDays > 15;
-        } else if (mien == 'Bắc' && viewModel.cycleResult != null && viewModel.selectedMien == 'Bắc') {
-          hasAlert = viewModel.cycleResult!.maxGanDays > 17;
+        if (mien == 'Trung') {
+          hasAlert = viewModel.trungAlertCache ?? false;
+        } else if (mien == 'Bắc') {
+          hasAlert = viewModel.bacAlertCache ?? false;
         }
         
         return Stack(
