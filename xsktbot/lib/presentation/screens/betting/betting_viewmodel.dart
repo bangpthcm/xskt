@@ -466,7 +466,6 @@ class BettingViewModel extends ChangeNotifier {
       throw Exception('Không đủ điều kiện tạo bảng chu kỳ');
     }
 
-    // BƯỚC 1: Tìm ngày và miền cuối cùng trong KQXS
     DateTime? latestDate;
     String? latestMien;
     
@@ -482,7 +481,6 @@ class BettingViewModel extends ChangeNotifier {
       }
     }
 
-    // BƯỚC 2: Xác định miền bắt đầu
     final mienOrder = ['Nam', 'Trung', 'Bắc'];
     final latestMienIndex = mienOrder.indexOf(latestMien!);
     
@@ -497,7 +495,6 @@ class BettingViewModel extends ChangeNotifier {
       startMienIndex = latestMienIndex + 1;
     }
 
-    // BƯỚC 3: Tìm miền xuất hiện lần cuối
     String targetMien = 'Nam';
     for (final entry in cycleResult.mienGroups.entries) {
       if (entry.value.contains(cycleResult.targetNumber)) {
@@ -506,24 +503,53 @@ class BettingViewModel extends ChangeNotifier {
       }
     }
 
-    // BƯỚC 4: Tính endDate = lastSeenDate + 9 lần quay
-    DateTime endDate = cycleResult.lastSeenDate.add(const Duration(days: 9));
-
-    // ✅ BƯỚC 5 MỚI: Kiểm tra ngày cuối HOẶC ngày áp cuối có phải thứ 3
+    int targetMienCount = 9;
     double budgetMax = config.budget.budgetMax;
     
-    final lastDayWeekday = date_utils.DateUtils.getWeekday(endDate);
-    final secondLastDate = endDate.subtract(const Duration(days: 1));
-    final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+    DateTime endDate = _calculateEndDateByMienCount(
+      startDate: startDate,
+      startMienIndex: startMienIndex,
+      targetMien: targetMien,
+      targetCount: targetMienCount,
+      mienOrder: mienOrder,
+    );
     
-    print('📅 Last day weekday: $lastDayWeekday');
-    print('📅 Second last day weekday: $secondLastWeekday');
+    final lastTwoRows = _findLastTwoRows(
+      startDate: startDate,
+      endDate: endDate,
+      startMienIndex: startMienIndex,
+      mienOrder: mienOrder,
+    );
     
-    // Thứ 3 = weekday 1
-    if (lastDayWeekday == 1 || secondLastWeekday == 1) {
-      print('⚠️ Found Tuesday in last 2 days! Adding +1 day and +200k budget');
-      endDate = endDate.add(const Duration(days: 1));
+    bool needExtraTurn = false;
+    
+    if (lastTwoRows['last'] != null) {
+      final lastRow = lastTwoRows['last']!;
+      final lastWeekday = date_utils.DateUtils.getWeekday(lastRow['date']);
+      if (lastRow['mien'] == 'Nam' && lastWeekday == 1) {
+        needExtraTurn = true;
+      }
+    }
+    
+    if (!needExtraTurn && lastTwoRows['secondLast'] != null) {
+      final secondLast = lastTwoRows['secondLast']!;
+      final secondWeekday = date_utils.DateUtils.getWeekday(secondLast['date']);
+      if (secondLast['mien'] == 'Nam' && secondWeekday == 1) {
+        needExtraTurn = true;
+      }
+    }
+    
+    if (needExtraTurn) {
+      targetMienCount = 10;
       budgetMax += config.budget.tuesdayExtraBudget;
+      
+      endDate = _calculateEndDateByMienCount(
+        startDate: startDate,
+        startMienIndex: startMienIndex,
+        targetMien: targetMien,
+        targetCount: targetMienCount,
+        mienOrder: mienOrder,
+      );
     }
 
     final newTable = await _bettingService.generateCycleTable(
@@ -533,9 +559,80 @@ class BettingViewModel extends ChangeNotifier {
       startMienIndex: startMienIndex,
       budgetMin: config.budget.budgetMin,
       budgetMax: budgetMax,
+      allResults: results,
+      maxMienCount: targetMienCount,  // ✅ TRUYỀN targetMienCount (9 hoặc 10)
     );
 
     await _saveCycleTableToSheet(newTable, cycleResult);
+  }
+
+  // ✅ COPY 2 HELPER FUNCTIONS
+  DateTime _calculateEndDateByMienCount({
+    required DateTime startDate,
+    required int startMienIndex,
+    required String targetMien,
+    required int targetCount,
+    required List<String> mienOrder,
+  }) {
+    DateTime checkDate = startDate;
+    int currentMienIndex = startMienIndex;
+    int count = 0;
+    
+    while (count < targetCount) {
+      final currentMien = mienOrder[currentMienIndex];
+      
+      if (currentMien == targetMien) {
+        count++;
+        if (count >= targetCount) {
+          return checkDate;
+        }
+      }
+      
+      currentMienIndex++;
+      if (currentMienIndex >= mienOrder.length) {
+        currentMienIndex = 0;
+        checkDate = checkDate.add(const Duration(days: 1));
+      }
+    }
+    
+    return checkDate;
+  }
+
+  Map<String, Map<String, dynamic>?> _findLastTwoRows({
+    required DateTime startDate,
+    required DateTime endDate,
+    required int startMienIndex,
+    required List<String> mienOrder,
+  }) {
+    Map<String, dynamic>? lastRow;
+    Map<String, dynamic>? secondLastRow;
+    
+    DateTime checkDate = startDate;
+    int currentMienIndex = startMienIndex;
+    
+    while (checkDate.isBefore(endDate.add(const Duration(days: 1)))) {
+      final currentMien = mienOrder[currentMienIndex];
+      
+      if (lastRow != null) {
+        secondLastRow = lastRow;
+      }
+      
+      lastRow = {
+        'date': checkDate,
+        'mien': currentMien,
+      };
+      
+      currentMienIndex++;
+      if (currentMienIndex >= mienOrder.length) {
+        currentMienIndex = 0;
+        checkDate = checkDate.add(const Duration(days: 1));
+      }
+    }
+    
+    return {
+      'last': lastRow,
+      'secondLast': secondLastRow,
+    };
   }
 
   // ✅ HELPER METHODS (thêm vào class BettingViewModel)

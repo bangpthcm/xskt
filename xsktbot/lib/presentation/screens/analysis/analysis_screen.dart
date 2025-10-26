@@ -14,6 +14,8 @@ class AnalysisScreen extends StatefulWidget {
   State<AnalysisScreen> createState() => _AnalysisScreenState();
 }
 
+enum AlertType { xien, tatCa, trung, bac }
+
 class _AnalysisScreenState extends State<AnalysisScreen> {
   @override
   void initState() {
@@ -29,35 +31,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       appBar: AppBar(
         title: const Text('Phân tích'),
         actions: [
-          // ✅ THÊM: Nút thông báo
-          Consumer<AnalysisViewModel>(
-            builder: (context, viewModel, child) {
-              if (viewModel.hasAnyAlert) {
-                return Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications),
-                      tooltip: 'Thông báo',
-                      onPressed: () => _showAlertDialog(context, viewModel),
-                    ),
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Đồng bộ RSS và phân tích lại',
@@ -198,120 +171,260 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               const SizedBox(height: 16),
               
               // Xiên
-              if (viewModel.hasXienAlert)
-                _buildAlertItem(
+              if (viewModel.ganPairInfo != null && viewModel.ganPairInfo!.daysGan > 152)
+                _buildClickableAlertItem(
+                  context: context,
+                  viewModel: viewModel,
                   icon: Icons.trending_up,
                   color: Colors.blue,
                   title: 'Cặp số gan (Xiên)',
                   subtitle: 'Cặp: ${viewModel.ganPairInfo!.randomPair.display}',
                   days: viewModel.ganPairInfo!.daysGan,
-                  threshold: 155,
+                  threshold: 152,
+                  type: AlertType.xien,
                 ),
               
               // Chu kỳ Tất cả
-              if (viewModel.hasCycleAlert)
-                _buildAlertItem(
+              if (viewModel.tatCaAlertCache == true)
+                _buildClickableAlertItem(
+                  context: context,
+                  viewModel: viewModel,
                   icon: Icons.loop,
                   color: Colors.green,
                   title: 'Chu kỳ (Tất cả)',
-                  subtitle: 'Số: ${viewModel.cycleResult!.targetNumber}',
-                  days: viewModel.cycleResult!.maxGanDays,
+                  subtitle: 'Số: ${viewModel.cycleResult?.targetNumber ?? "N/A"}',
+                  days: viewModel.cycleResult?.maxGanDays ?? 0,
                   threshold: 3,
+                  type: AlertType.tatCa,
                 ),
               
               // Trung
-              if (viewModel.hasTrungAlert)
-                _buildAlertItem(
+              if (viewModel.trungAlertCache == true)
+                _buildClickableAlertItem(
+                  context: context,
+                  viewModel: viewModel,
                   icon: Icons.filter_2,
                   color: Colors.purple,
                   title: 'Miền Trung',
-                  subtitle: 'Số: ${viewModel.cycleResult!.targetNumber}',
-                  days: viewModel.cycleResult!.maxGanDays,
-                  threshold: 15,
+                  subtitle: 'Số: ${viewModel.cycleResult?.targetNumber ?? "N/A"}',
+                  days: viewModel.cycleResult?.maxGanDays ?? 0,
+                  threshold: 14,
+                  type: AlertType.trung,
                 ),
               
               // Bắc
-              if (viewModel.hasBacAlert)
-                _buildAlertItem(
+              if (viewModel.bacAlertCache == true)
+                _buildClickableAlertItem(
+                  context: context,
+                  viewModel: viewModel,
                   icon: Icons.filter_3,
                   color: Colors.indigo,
                   title: 'Miền Bắc',
-                  subtitle: 'Số: ${viewModel.cycleResult!.targetNumber}',
-                  days: viewModel.cycleResult!.maxGanDays,
-                  threshold: 17,
+                  subtitle: 'Số: ${viewModel.cycleResult?.targetNumber ?? "N/A"}',
+                  days: viewModel.cycleResult?.maxGanDays ?? 0,
+                  threshold: 16,
+                  type: AlertType.bac,
+                ),
+              
+              // Thông báo nếu không có alert
+              if ((viewModel.ganPairInfo?.daysGan ?? 0) <= 152 &&
+                  viewModel.tatCaAlertCache != true &&
+                  viewModel.trungAlertCache != true &&
+                  viewModel.bacAlertCache != true)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.grey.shade600),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Hiện chưa có số nào thỏa điều kiện',
+                          style: TextStyle(color: Colors.grey.shade700),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
             ],
           ),
         ),
         actions: [
+          // ✅ CHỈ CÒN NÚT ĐÓNG
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Đóng'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Có thể chuyển sang tab Bảng cược
-            },
-            child: const Text('Tạo bảng cược'),
           ),
         ],
       ),
     );
   }
 
-  // Helper: Item trong alert dialog
-  Widget _buildAlertItem({
+
+  // ✅ SỬA _buildAlertItem() THÀNH CLICKABLE
+  Widget _buildClickableAlertItem({
+    required BuildContext context,
+    required AnalysisViewModel viewModel,
     required IconData icon,
     required Color color,
     required String title,
     required String subtitle,
     required int days,
     required int threshold,
+    required AlertType type,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: color,
+    return InkWell(
+      onTap: () {
+        Navigator.pop(context); // Đóng dialog
+        _handleAlertItemClick(context, viewModel, type);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
                   ),
-                ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(fontSize: 13),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$days ngày (>${threshold})',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: color,
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 13),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    '$days ngày (>$threshold)',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            Icon(Icons.chevron_right, color: color),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ THÊM HANDLER KHI CLICK VÀO TỪNG ITEM
+  void _handleAlertItemClick(
+    BuildContext context,
+    AnalysisViewModel viewModel,
+    AlertType type,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tạo bảng cược'),
+        content: Text(_getCreateTableMessage(type, viewModel)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
           ),
-          Icon(Icons.chevron_right, color: color),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _createTableForAlertType(context, viewModel, type);
+            },
+            child: const Text('Tạo bảng'),
+          ),
         ],
       ),
     );
+  }
+
+  // ✅ LẤY MESSAGE CHO DIALOG XÁC NHẬN
+  String _getCreateTableMessage(AlertType type, AnalysisViewModel viewModel) {
+    switch (type) {
+      case AlertType.xien:
+        return 'Tạo bảng cược Xiên cho cặp ${viewModel.ganPairInfo!.randomPair.display}?\n\n'
+            'Bảng hiện tại sẽ bị thay thế.';
+      case AlertType.tatCa:
+        return 'Tạo bảng cược Chu kỳ (Tất cả) cho số ${viewModel.cycleResult!.targetNumber}?\n\n'
+            'Bảng hiện tại sẽ bị thay thế.';
+      case AlertType.trung:
+        return 'Tạo bảng cược Miền Trung cho số ${viewModel.cycleResult!.targetNumber}?\n\n'
+            'Bảng hiện tại sẽ bị thay thế.';
+      case AlertType.bac:
+        return 'Tạo bảng cược Miền Bắc cho số ${viewModel.cycleResult!.targetNumber}?\n\n'
+            'Bảng hiện tại sẽ bị thay thế.';
+    }
+  }
+
+  // ✅ TẠO BẢNG THEO LOẠI
+  Future<void> _createTableForAlertType(
+    BuildContext context,
+    AnalysisViewModel viewModel,
+    AlertType type,
+  ) async {
+    final config = context.read<SettingsViewModel>().config;
+
+    switch (type) {
+      case AlertType.xien:
+        await viewModel.createXienBettingTable();
+        break;
+      case AlertType.tatCa:
+        await viewModel.createCycleBettingTable(config);
+        break;
+      case AlertType.trung:
+        final number = viewModel.cycleResult!.targetNumber;
+        await viewModel.createTrungGanBettingTable(number, config);
+        break;
+      case AlertType.bac:
+        final number = viewModel.cycleResult!.targetNumber;
+        await viewModel.createBacGanBettingTable(number, config);
+        break;
+    }
+
+    if (context.mounted) {
+      if (viewModel.errorMessage == null) {
+        await context.read<BettingViewModel>().loadBettingTables();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tạo bảng cược thành công!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        if (context.mounted) {
+          mainNavigationKey.currentState?.switchToTab(2);
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(viewModel.errorMessage!),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildCycleSection(AnalysisViewModel viewModel) {
@@ -353,7 +466,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, color: Colors.green),
+                  icon: const Icon(Icons.send, color: Colors.blue),
                   tooltip: 'Gửi Telegram',
                   onPressed: cycleResult != null
                       ? () => _sendCycleToTelegram(context, viewModel)
@@ -519,7 +632,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/185 ngày'),
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/182 ngày'),
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
@@ -557,7 +670,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         
         // ✅ CHECK alert từ cache (LUÔN HIỆN dù đang chọn filter khác)
         bool hasAlert = false;
-        if (mien == 'Trung') {
+        if (mien== 'Tất cả') {
+          hasAlert = viewModel.tatCaAlertCache ?? false;
+        } else if (mien == 'Trung') {
           hasAlert = viewModel.trungAlertCache ?? false;
         } else if (mien == 'Bắc') {
           hasAlert = viewModel.bacAlertCache ?? false;

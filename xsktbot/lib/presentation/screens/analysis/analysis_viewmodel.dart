@@ -46,6 +46,7 @@ class AnalysisViewModel extends ChangeNotifier {
   List<LotteryResult> _allResults = [];
   
   // ✅ Cache alert status
+  bool? _tatCaAlertCache;
   bool? _trungAlertCache;
   bool? _bacAlertCache;
 
@@ -54,6 +55,7 @@ class AnalysisViewModel extends ChangeNotifier {
   GanPairInfo? get ganPairInfo => _ganPairInfo;
   CycleAnalysisResult? get cycleResult => _cycleResult;
   String get selectedMien => _selectedMien;
+  bool? get tatCaAlertCache => _tatCaAlertCache;
   bool? get trungAlertCache => _trungAlertCache;
   bool? get bacAlertCache => _bacAlertCache;
 
@@ -152,22 +154,31 @@ class AnalysisViewModel extends ChangeNotifier {
     try {
       print('💾 Caching alerts...');
       
+      // ✅ CHECK TẤT CẢ (KHÔNG LỌC THEO MIỀN)
+      final tatCaResult = await _analysisService.analyzeCycle(_allResults);
+      _tatCaAlertCache = tatCaResult != null && tatCaResult.maxGanDays > 3;
+      
       // Check Trung
       final trungResults = _allResults.where((r) => r.mien == 'Trung').toList();
       final trungResult = await _analysisService.analyzeCycle(trungResults);
-      _trungAlertCache = trungResult != null && trungResult.maxGanDays > 15;
+      _trungAlertCache = trungResult != null && trungResult.maxGanDays > 14;
       
       // Check Bắc
       final bacResults = _allResults.where((r) => r.mien == 'Bắc').toList();
       final bacResult = await _analysisService.analyzeCycle(bacResults);
-      _bacAlertCache = bacResult != null && bacResult.maxGanDays > 17;
+      _bacAlertCache = bacResult != null && bacResult.maxGanDays > 16;
+      
+      print('   ✅ Alert cache: Tất cả=$_tatCaAlertCache, Trung=$_trungAlertCache, Bắc=$_bacAlertCache');
       
     } catch (e) {
       print('⚠️ Error caching alerts: $e');
+      _tatCaAlertCache = false;
       _trungAlertCache = false;
       _bacAlertCache = false;
     }
   }
+
+  // ✅ SỬA createCycleBettingTable() - ĐƠN GIẢN HÓA
 
   Future<void> createCycleBettingTable(AppConfig config) async {
     if (_cycleResult == null) {
@@ -202,7 +213,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
       final mienOrder = ['Nam', 'Trung', 'Bắc'];
       final latestMienIndex = mienOrder.indexOf(latestMien);
-      
+      print('📅 Latest KQXS: ${date_utils.DateUtils.formatDate(latestDate!)} - $latestMien');
       DateTime startDate;
       int startMienIndex;
       
@@ -222,26 +233,108 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
-      DateTime endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 9));
-
+      // ✅ ĐƠN GIẢN: CHỈ CẦN SỐ LƯỢT VÀ ENDDATE DỰ KIẾN (SAU 15 NGÀY)
+      int targetMienCount = 9;
       double budgetMax = config.budget.budgetMax;
       
-      final lastDayWeekday = date_utils.DateUtils.getWeekday(endDate);
-      final secondLastDate = endDate.subtract(const Duration(days: 1));
-      final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+      // ✅ EndDate dự kiến: 15 ngày (đủ để chứa 9-10 lượt)
+      DateTime endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 15));
+      print('📅 Start betting: ${date_utils.DateUtils.formatDate(startDate)} - startMienIndex: $startMienIndex (${mienOrder[startMienIndex]})');
+      print('🔍 Starting with targetMienCount: $targetMienCount');
+      print('📅 Estimated endDate: ${date_utils.DateUtils.formatDate(endDate)}');
       
-      if (lastDayWeekday == 1 || secondLastWeekday == 1) {
-        endDate = endDate.add(const Duration(days: 1));
-        budgetMax += config.budget.tuesdayExtraBudget;
+      // ✅ TÍNH SỐ LƯỢT ĐÃ QUA TRƯỚC KHI BẮT ĐẦU BẢNG
+      int initialMienCount = _countTargetMienOccurrences(
+        startDate: _cycleResult!.lastSeenDate,
+        endDate: startDate,
+        targetMien: targetMien,
+        allResults: _allResults,
+      );
+
+      print('📊 Initial mien count: $initialMienCount');
+
+
+      // ✅ CHECK TUESDAY: CHỈ CẦN SIMULATE 9 LƯỢT ĐỂ TÌM 2 DÒNG CUỐI
+      final simulatedRows = _simulateTableRows(
+        startDate: startDate,
+        startMienIndex: startMienIndex,
+        targetMien: targetMien,
+        targetCount: targetMienCount,
+        mienOrder: mienOrder,
+        initialCount: initialMienCount,
+      );
+
+      // ✅ THAY ĐỔI: TÌM 2 NGÀY CUỐI, KHÔNG PHẢI 2 DÒNG CUỐI
+      if (simulatedRows.isNotEmpty) {
+        // ✅ LẤY TẤT CẢ CÁC NGÀY DUY NHẤT
+        final uniqueDates = <DateTime>{};
+        for (final row in simulatedRows) {
+          uniqueDates.add(row['date'] as DateTime);
+        }
+        
+        final sortedDates = uniqueDates.toList()..sort();
+        
+        if (sortedDates.length >= 2) {
+          final lastDate = sortedDates[sortedDates.length - 1];
+          final secondLastDate = sortedDates[sortedDates.length - 2];
+          
+          final lastWeekday = date_utils.DateUtils.getWeekday(lastDate);
+          final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+          
+          print('🔍 Last date: ${date_utils.DateUtils.formatDate(lastDate)} - Weekday: $lastWeekday');
+          print('🔍 Second last date: ${date_utils.DateUtils.formatDate(secondLastDate)} - Weekday: $secondLastWeekday');
+          
+          bool needExtraTurn = false;
+          
+          // ✅ CHECK NẾU NGÀY CUỐI HOẶC ÁP CUỐI CÓ MIỀN NAM VÀ LÀ THỨ 3
+          
+          // Check ngày cuối: Có miền Nam không?
+          final lastDateHasNam = simulatedRows.any((row) => 
+            (row['date'] as DateTime).isAtSameMomentAs(lastDate) && 
+            row['mien'] == 'Nam'
+          );
+          
+          if (lastDateHasNam && lastWeekday == 1) {
+            print('   ⚠️ Last date has Nam on Tuesday!');
+            needExtraTurn = true;
+          }
+          
+          // Check ngày áp cuối: Có miền Nam không?
+          if (!needExtraTurn) {
+            final secondLastDateHasNam = simulatedRows.any((row) => 
+              (row['date'] as DateTime).isAtSameMomentAs(secondLastDate) && 
+              row['mien'] == 'Nam'
+            );
+            
+            if (secondLastDateHasNam && secondLastWeekday == 1) {
+              print('   ⚠️ Second last date has Nam on Tuesday!');
+              needExtraTurn = true;
+            }
+          }
+          
+          if (needExtraTurn) {
+            print('💰 Adding extra turn (9 → 10)');
+            targetMienCount = 10;
+            budgetMax += config.budget.tuesdayExtraBudget;
+          }
+        } else {
+          print('⚠️ Not enough dates to check Tuesday logic');
+        }
+      } else {
+        print('⚠️ No simulated rows');
       }
+
+      print('🎯 Final targetMienCount: $targetMienCount');
 
       final newTable = await _bettingService.generateCycleTable(
         cycleResult: _cycleResult!,
         startDate: startDate,
-        endDate: endDate,
+        endDate: endDate,  // ✅ EndDate không quan trọng, logic sẽ dừng khi đủ lượt
         startMienIndex: startMienIndex,
         budgetMin: config.budget.budgetMin,
         budgetMax: budgetMax,
+        allResults: _allResults,
+        maxMienCount: targetMienCount,
       );
 
       await _saveCycleTableToSheet(newTable);
@@ -255,15 +348,147 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  String _getWeekdayName(int weekday) {
-    const names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
-    return names[weekday];
+  // ✅ SỬA _simulateTableRows() - THÊM initialCount
+
+  List<Map<String, dynamic>> _simulateTableRows({
+    required DateTime startDate,
+    required int startMienIndex,
+    required String targetMien,
+    required int targetCount,
+    required List<String> mienOrder,
+    int initialCount = 0,  // ✅ THÊM PARAMETER
+  }) {
+    final rows = <Map<String, dynamic>>[];
+    
+    DateTime currentDate = startDate;
+    int targetMienCount = initialCount;  // ✅ BẮT ĐẦU TỪ initialCount
+    bool isFirstDay = true;
+    
+    outerLoop:
+    while (targetMienCount < targetCount) {
+      final initialMienIdx = isFirstDay ? startMienIndex : 0;
+      
+      for (int i = initialMienIdx; i < mienOrder.length; i++) {
+        final currentMien = mienOrder[i];
+        
+        rows.add({
+          'date': currentDate,
+          'mien': currentMien,
+        });
+        
+        if (currentMien == targetMien) {
+          targetMienCount++;
+          
+          if (targetMienCount >= targetCount) {
+            print('   📊 Simulated ${rows.length} total rows (from $initialCount to $targetCount = ${targetMienCount - initialCount} new $targetMien turns)');
+            print('   📅 Last date: ${date_utils.DateUtils.formatDate(currentDate)}');
+            break outerLoop;
+          }
+        }
+      }
+      
+      isFirstDay = false;
+      currentDate = currentDate.add(const Duration(days: 1));
+    }
+    
+    return rows;
   }
 
-  bool _isMienLater(String newMien, String oldMien) {
-    const mienPriority = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
-    return (mienPriority[newMien] ?? 0) > (mienPriority[oldMien] ?? 0);
+  // ✅ THÊM HELPER _countTargetMienOccurrences NẾU CHƯA CÓ
+  int _countTargetMienOccurrences({
+    required DateTime startDate,
+    required DateTime endDate,
+    required String targetMien,
+    required List<LotteryResult> allResults,
+  }) {
+    final uniqueDates = <String>{};
+    
+    for (final result in allResults) {
+      final date = date_utils.DateUtils.parseDate(result.ngay);
+      if (date == null) continue;
+      
+      if (date.isAfter(startDate) && 
+          (date.isBefore(endDate) || date.isAtSameMomentAs(endDate)) &&
+          result.mien == targetMien) {
+        uniqueDates.add(result.ngay);
+      }
+    }
+    
+    return uniqueDates.length;
   }
+
+
+  // ✅ THÊM HELPER: TÍNH ENDDATE DỰA TRÊN SỐ LƯỢT QUAY
+  DateTime _calculateEndDateByMienCount({
+    required DateTime startDate,
+    required int startMienIndex,
+    required String targetMien,
+    required int targetCount,
+    required List<String> mienOrder,
+  }) {
+    DateTime checkDate = startDate;
+    int currentMienIndex = startMienIndex;
+    int count = 0;
+    
+    while (count < targetCount) {
+      final currentMien = mienOrder[currentMienIndex];
+      
+      if (currentMien == targetMien) {
+        count++;
+        if (count >= targetCount) {
+          return checkDate;
+        }
+      }
+      
+      currentMienIndex++;
+      if (currentMienIndex >= mienOrder.length) {
+        currentMienIndex = 0;
+        checkDate = checkDate.add(const Duration(days: 1));
+      }
+    }
+    
+    return checkDate;
+  }
+
+  // ✅ THÊM HELPER: TÌM 2 DÒNG CUỐI
+  Map<String, Map<String, dynamic>?> _findLastTwoRows({
+    required DateTime startDate,
+    required DateTime endDate,
+    required int startMienIndex,
+    required List<String> mienOrder,
+  }) {
+    Map<String, dynamic>? lastRow;
+    Map<String, dynamic>? secondLastRow;
+    
+    DateTime checkDate = startDate;
+    int currentMienIndex = startMienIndex;
+    
+    while (checkDate.isBefore(endDate.add(const Duration(days: 1)))) {
+      final currentMien = mienOrder[currentMienIndex];
+      
+      // Shift rows
+      if (lastRow != null) {
+        secondLastRow = lastRow;
+      }
+      
+      lastRow = {
+        'date': checkDate,
+        'mien': currentMien,
+      };
+      
+      currentMienIndex++;
+      if (currentMienIndex >= mienOrder.length) {
+        currentMienIndex = 0;
+        checkDate = checkDate.add(const Duration(days: 1));
+      }
+    }
+    
+    return {
+      'last': lastRow,
+      'secondLast': secondLastRow,
+    };
+  }
+
 
   Future<void> createCycleBettingTableForNumber(
     String targetNumber,
@@ -336,17 +561,53 @@ class AnalysisViewModel extends ChangeNotifier {
         startMienIndex = latestMienIndex + 1;
       }
 
-      DateTime endDate = lastSeenDate.add(const Duration(days: 9));
-
+      int targetMienCount = 9;
       double budgetMax = config.budget.budgetMax;
       
-      final lastDayWeekday = date_utils.DateUtils.getWeekday(endDate);
-      final secondLastDate = endDate.subtract(const Duration(days: 1));
-      final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+      DateTime endDate = _calculateEndDateByMienCount(
+        startDate: startDate,
+        startMienIndex: startMienIndex,
+        targetMien: selectedMien,
+        targetCount: targetMienCount,
+        mienOrder: mienOrder,
+      );
       
-      if (lastDayWeekday == 1 || secondLastWeekday == 1) {
-        endDate = endDate.add(const Duration(days: 1));
+      final lastTwoRows = _findLastTwoRows(
+        startDate: startDate,
+        endDate: endDate,
+        startMienIndex: startMienIndex,
+        mienOrder: mienOrder,
+      );
+      
+      bool needExtraTurn = false;
+      
+      if (lastTwoRows['last'] != null) {
+        final lastRow = lastTwoRows['last']!;
+        final lastWeekday = date_utils.DateUtils.getWeekday(lastRow['date']);
+        if (lastRow['mien'] == 'Nam' && lastWeekday == 1) {
+          needExtraTurn = true;
+        }
+      }
+      
+      if (!needExtraTurn && lastTwoRows['secondLast'] != null) {
+        final secondLast = lastTwoRows['secondLast']!;
+        final secondWeekday = date_utils.DateUtils.getWeekday(secondLast['date']);
+        if (secondLast['mien'] == 'Nam' && secondWeekday == 1) {
+          needExtraTurn = true;
+        }
+      }
+      
+      if (needExtraTurn) {
+        targetMienCount = 10;
         budgetMax += config.budget.tuesdayExtraBudget;
+        
+        endDate = _calculateEndDateByMienCount(
+          startDate: startDate,
+          startMienIndex: startMienIndex,
+          targetMien: selectedMien,
+          targetCount: targetMienCount,
+          mienOrder: mienOrder,
+        );
       }
 
       final newTable = await _bettingService.generateCycleTable(
@@ -356,6 +617,8 @@ class AnalysisViewModel extends ChangeNotifier {
         startMienIndex: startMienIndex,
         budgetMin: config.budget.budgetMin,
         budgetMax: budgetMax,
+        allResults: _allResults,
+        maxMienCount: targetMienCount,  // ✅ TRUYỀN targetMienCount (9 hoặc 10)
       );
 
       await _saveCycleTableToSheet(newTable);
@@ -368,6 +631,17 @@ class AnalysisViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  String _getWeekdayName(int weekday) {
+    const names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+    return names[weekday];
+  }
+
+  bool _isMienLater(String newMien, String oldMien) {
+    const mienPriority = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
+    return (mienPriority[newMien] ?? 0) > (mienPriority[oldMien] ?? 0);
+  }
+
 
   Future<void> createXienBettingTable() async {
     if (_ganPairInfo == null) {
@@ -975,28 +1249,30 @@ class AnalysisViewModel extends ChangeNotifier {
 
   // ✅ Alert getters (BỎ hasCycleAlert cho "Tất cả")
   bool get hasCycleAlert {
-    // Bỏ alert cho "Tất cả"
-    return false;
+    // ✅ KIỂM TRA ĐÚNG CHO "TẤT CẢ"
+    if (_cycleResult == null) return false;
+    if (_selectedMien != 'Tất cả') return false;
+    return _cycleResult!.maxGanDays > 3;
   }
 
-  /// Kiểm tra Trung có gan > 15 ngày
+  /// Kiểm tra Trung có gan > 14 ngày
   bool get hasTrungAlert {
     if (_cycleResult == null) return false;
     if (_selectedMien != 'Trung') return false;
-    return _cycleResult!.maxGanDays > 15;
+    return _cycleResult!.maxGanDays > 14;
   }
 
-  /// Kiểm tra Bắc có gan > 17 ngày
+  /// Kiểm tra Bắc có gan > 16 ngày
   bool get hasBacAlert {
     if (_cycleResult == null) return false;
     if (_selectedMien != 'Bắc') return false;
-    return _cycleResult!.maxGanDays > 17;
+    return _cycleResult!.maxGanDays > 16;
   }
 
-  /// Kiểm tra Xiên có gan > 155 ngày
+  /// Kiểm tra Xiên có gan > 2 ngày
   bool get hasXienAlert {
     if (_ganPairInfo == null) return false;
-    return _ganPairInfo!.daysGan > 155;
+    return _ganPairInfo!.daysGan > 152;
   }
 
   /// ✅ Kiểm tra có bất kỳ alert nào (dùng cache)
@@ -1004,7 +1280,12 @@ class AnalysisViewModel extends ChangeNotifier {
     bool hasAlert = false;
     
     // Check Xiên
-    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 155) {
+    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 152) {
+      hasAlert = true;
+    }
+    
+    // ✅ CHECK TẤT CẢ (DÙNG CACHE)
+    if (_tatCaAlertCache == true) {
       hasAlert = true;
     }
     
@@ -1026,18 +1307,27 @@ class AnalysisViewModel extends ChangeNotifier {
     final alerts = <String, AlertInfo>{};
     
     // Check Xiên
-    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 155) {
+    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 152) {
       alerts['Xiên'] = AlertInfo(
-        threshold: 155,
+        threshold: 152,
         currentDays: _ganPairInfo!.daysGan,
         targetNumber: _ganPairInfo!.randomPair.display,
+      );
+    }
+    
+    // ✅ CHECK TẤT CẢ
+    if (_tatCaAlertCache == true) {
+      alerts['Tất cả'] = AlertInfo(
+        threshold: 3,
+        currentDays: _cycleResult?.maxGanDays ?? 0,
+        targetNumber: _cycleResult?.targetNumber ?? '',
       );
     }
     
     // Check Trung
     if (_trungAlertCache == true) {
       alerts['Trung'] = AlertInfo(
-        threshold: 15,
+        threshold: 14,
         currentDays: _cycleResult?.maxGanDays ?? 0,
         targetNumber: _cycleResult?.targetNumber ?? '',
       );
@@ -1046,7 +1336,7 @@ class AnalysisViewModel extends ChangeNotifier {
     // Check Bắc
     if (_bacAlertCache == true) {
       alerts['Bắc'] = AlertInfo(
-        threshold: 17,
+        threshold: 16,
         currentDays: _cycleResult?.maxGanDays ?? 0,
         targetNumber: _cycleResult?.targetNumber ?? '',
       );
@@ -1060,15 +1350,20 @@ class AnalysisViewModel extends ChangeNotifier {
     final messages = <String>[];
     
     if (hasXienAlert) {
-      messages.add('🔥 Xiên: ${_ganPairInfo!.daysGan} ngày (>155)');
+      messages.add('🔥 Xiên: ${_ganPairInfo!.daysGan} ngày (>152)');
+    }
+    
+    // ✅ THÊM MESSAGE CHO "TẤT CẢ"
+    if (_tatCaAlertCache == true) {
+      messages.add('🔥 Chu kỳ (Tất cả): gan >3 ngày');
     }
     
     if (_trungAlertCache == true) {
-      messages.add('🔥 Trung: gan >15 ngày');
+      messages.add('🔥 Trung: gan >14 ngày');
     }
     
     if (_bacAlertCache == true) {
-      messages.add('🔥 Bắc: gan >17 ngày');
+      messages.add('🔥 Bắc: gan >16 ngày');
     }
     
     if (messages.isEmpty) {

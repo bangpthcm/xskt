@@ -6,10 +6,11 @@ import '../models/gan_pair_info.dart';
 import '../models/cycle_analysis_result.dart';
 import '../../core/utils/date_utils.dart' as date_utils;
 import '../../core/utils/number_utils.dart';
+import '../models/lottery_result.dart';
 
 class BettingTableService {
   static const double _winMultiplierXien = 17.0;
-  static const int _durationBase = 185;
+  static const int _durationBase = 182;
   static const double _startingProfit = 50.0;
   static const double _finalProfit = 1000.0;
   
@@ -110,6 +111,8 @@ class BettingTableService {
     required int startMienIndex,
     required double budgetMin,
     required double budgetMax,
+    required List<LotteryResult> allResults,
+    int maxMienCount = 9,  // ✅ THÊM PARAMETER VỚI DEFAULT = 9
   }) async {
     final targetNumber = cycleResult.targetNumber;
     
@@ -124,6 +127,7 @@ class BettingTableService {
     print('🎯 Target number: $targetNumber');
     print('🌍 Target mien: $targetMien');
     print('📊 Current gan days (by mien): ${cycleResult.maxGanDays}');
+    print('🔢 Max mien count: $maxMienCount');  // ✅ LOG
 
     double lowProfit = 100.0;
     double highProfit = 100000.0;
@@ -144,6 +148,8 @@ class BettingTableService {
         budgetMin: budgetMin,
         budgetMax: budgetMax,
         lastSeenDate: cycleResult.lastSeenDate,
+        allResults: allResults,
+        maxMienCount: maxMienCount,  // ✅ TRUYỀN PARAMETER
       );
 
       if (foundTable != null) {
@@ -158,6 +164,8 @@ class BettingTableService {
           budgetMin: budgetMin,
           budgetMax: budgetMax,
           lastSeenDate: cycleResult.lastSeenDate,
+          allResults: allResults,
+          maxMienCount: maxMienCount,  // ✅ TRUYỀN PARAMETER
         );
         lowProfit = midProfit + 1;
       } else {
@@ -166,17 +174,18 @@ class BettingTableService {
     }
 
     if (bestTable == null) {
-      // ✅ THÊM: Thử tạo 1 lần cuối để lấy số tiền thực tế
       final testResult = await _optimizeStartBet(
         targetNumber: targetNumber,
         targetMien: targetMien,
         startDate: startDate,
         endDate: endDate,
         startMienIndex: startMienIndex,
-        profitTarget: 100.0,  // Profit thấp nhất
-        budgetMin: 0,  // Bỏ qua budget check
+        profitTarget: 100.0,
+        budgetMin: 0,
         budgetMax: double.infinity,
         lastSeenDate: cycleResult.lastSeenDate,
+        allResults: allResults,
+        maxMienCount: maxMienCount,  // ✅ TRUYỀN PARAMETER
       );
       
       if (testResult != null && testResult.isNotEmpty) {
@@ -205,6 +214,8 @@ class BettingTableService {
     required double budgetMin,
     required double budgetMax,
     required DateTime lastSeenDate,
+    required List<LotteryResult> allResults,
+    int maxMienCount = 9,  // ✅ THÊM PARAMETER
   }) async {
     double lowBet = 1.0;
     double highBet = 1000.0;
@@ -225,6 +236,8 @@ class BettingTableService {
         startBetValue: midBet,
         profitTarget: profitTarget,
         lastSeenDate: lastSeenDate,
+        allResults: allResults,
+        maxMienCount: maxMienCount,  // ✅ TRUYỀN PARAMETER
       );
 
       final tableData = result['table'] as List<BettingRow>;
@@ -252,6 +265,8 @@ class BettingTableService {
     required double startBetValue,
     required double profitTarget,
     required DateTime lastSeenDate,
+    required List<LotteryResult> allResults,
+    int maxMienCount = 9,  // ✅ THÊM PARAMETER
   }) async {
     final tableData = <BettingRow>[];
     double tongTien = 0.0;
@@ -261,11 +276,11 @@ class BettingTableService {
       startDate: lastSeenDate,
       endDate: startDate,
       targetMien: targetMien,
+      allResults: allResults,
     );
     
     print('📊 Initial mienCount (from lastSeenDate to startDate): $mienCount');
-    
-    final maxMienCount = 9;
+    print('📊 Max mien count target: $maxMienCount');  // ✅ LOG
     
     int stt = 1;
     DateTime currentDate = startDate;
@@ -273,14 +288,12 @@ class BettingTableService {
     bool isFirstDay = true;
 
     outerLoop:
-    while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(Duration(days: 1)))) {
+    while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(Duration(days: 1)))) {  // ✅ SỬ DỤNG maxMienCount
       final ngayStr = date_utils.DateUtils.formatDate(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
       final initialMienIdx = isFirstDay ? startMienIndex : 0;
       final mienOrder = ['Nam', 'Trung', 'Bắc'];
-
-      print('📅 Date: $ngayStr, weekday: $weekday, startMienIdx: $initialMienIdx, isFirstDay: $isFirstDay');
 
       for (int i = initialMienIdx; i < mienOrder.length; i++) {
         final mien = mienOrder[i];
@@ -288,7 +301,6 @@ class BettingTableService {
         final soLo = NumberUtils.calculateSoLo(mien, weekday);
 
         if (98 - soLo <= 0) {
-          print('   ⚠️ Skip $mien (invalid soLo)');
           continue;
         }
 
@@ -308,8 +320,6 @@ class BettingTableService {
         final tienLoi1So = (tienCuoc1So * 98) - tongTien;
         final tienLoi2So = (tienCuoc1So * 98 * 2) - tongTien;
 
-        //print('   ✅ Add row: STT=$stt, Mien=$mien, So=$targetNumber, SoLo=$soLo, Cuoc=$tienCuoc1So, Tong=$tongTien');
-
         tableData.add(BettingRow.forCycle(
           stt: stt++,
           ngay: ngayStr,
@@ -325,10 +335,9 @@ class BettingTableService {
         
         if (mien == targetMien) {
           mienCount++;
-          //print('   🎯 Target mien count: $mienCount/$maxMienCount');
           
-          if (mienCount >= maxMienCount) {
-            print('   ✅ Reached max mien count (9), stopping...');
+          if (mienCount >= maxMienCount) {  // ✅ SỬ DỤNG maxMienCount
+            print('   ✅ Reached max mien count ($maxMienCount), stopping...');
             break outerLoop;
           }
         }
@@ -342,7 +351,7 @@ class BettingTableService {
 
     return {
       'table': tableData,
-      'tong_tien': tongTien,  // ✅ Trả về tổng tiền cuối cùng (tại lần 9)
+      'tong_tien': tongTien,
     };
   }
 
@@ -351,15 +360,27 @@ class BettingTableService {
     required DateTime startDate,
     required DateTime endDate,
     required String targetMien,
+    required List<LotteryResult> allResults,  // ✅ THÊM PARAMETER
   }) {
-    int count = 0;
-    DateTime current = startDate.add(Duration(days: 1)); // Bắt đầu từ ngày sau lastSeenDate
+    // ✅ ĐẾM DỰA TRÊN DỮ LIỆU THỰC TẾ, GIỐNG ANALYSIS SERVICE
+    final uniqueDates = <String>{};
     
-    while (current.isBefore(endDate) || current.isAtSameMomentAs(endDate)) {
-      // ✅ Mọi miền đều quay mỗi ngày
-      count++;
-      current = current.add(Duration(days: 1));
+    for (final result in allResults) {
+      final date = date_utils.DateUtils.parseDate(result.ngay);
+      if (date == null) continue;
+      
+      // Chỉ đếm từ SAU startDate đến endDate
+      if (date.isAfter(startDate) && 
+          (date.isBefore(endDate) || date.isAtSameMomentAs(endDate)) &&
+          result.mien == targetMien) {
+        uniqueDates.add(result.ngay);  // ✅ DÙNG SET ĐỂ LOẠI TRÙNG
+      }
     }
+    
+    final count = uniqueDates.length;
+    //print('   🔢 Counted $count unique dates for $targetMien between '
+    //      '${date_utils.DateUtils.formatDate(startDate)} and '
+    //      '${date_utils.DateUtils.formatDate(endDate)}');
     
     return count;
   }

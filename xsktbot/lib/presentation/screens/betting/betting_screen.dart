@@ -426,9 +426,10 @@ class _BettingScreenState extends State<BettingScreen>
                 child: ElevatedButton.icon(
                   onPressed: () => _showRegenerateDialog(context, viewModel, type),
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Tạo lại'),
+                  label: const Text('Tạo lại',style: TextStyle(color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: Colors.orange,
                   ),
                 ),
               ),
@@ -437,10 +438,10 @@ class _BettingScreenState extends State<BettingScreen>
                 child: ElevatedButton.icon(
                   onPressed: () => _showSendTelegramDialog(context, viewModel, type),
                   icon: const Icon(Icons.send),
-                  label: const Text('Gửi Telegram'),
+                  label: const Text('Gửi Telegram',style: TextStyle(color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Colors.green,
+                    backgroundColor: Colors.blue,
                   ),
                 ),
               ),

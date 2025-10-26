@@ -41,7 +41,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     
-    // ✅ Auto-initialize khi app khởi động
+    // ✅ CHỈ INITIALIZE SERVICES, KHÔNG BACKFILL
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         print('📱 MyApp: Post-frame callback executing...');
@@ -106,7 +106,7 @@ class _MyAppState extends State<MyApp> {
       trackingService: winTrackingService,
       sheetsService: googleSheetsService,
       telegramService: telegramService,
-      backfillService: backfillService,  // ✅ THÊM
+      backfillService: backfillService,
     );
 
     return MultiProvider(
