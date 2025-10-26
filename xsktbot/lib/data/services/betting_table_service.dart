@@ -149,12 +149,18 @@ class BettingTableService {
         budgetMax: budgetMax,
         lastSeenDate: cycleResult.lastSeenDate,
         allResults: allResults,
-        maxMienCount: maxMienCount,  // ✅ TRUYỀN PARAMETER
+        maxMienCount: maxMienCount,
       );
 
       if (foundTable != null) {
+        // ✅ LƯU NGAY NẾU CHƯA CÓ BEST TABLE
+        if (bestTable == null) {
+          bestTable = foundTable;
+          print('   💾 Saved first valid table as backup');
+        }
+        
         final adjustedProfit = midProfit * 3 / 4.2;
-        bestTable = await _optimizeStartBet(
+        final optimizedTable = await _optimizeStartBet(
           targetNumber: targetNumber,
           targetMien: targetMien,
           startDate: startDate,
@@ -165,8 +171,17 @@ class BettingTableService {
           budgetMax: budgetMax,
           lastSeenDate: cycleResult.lastSeenDate,
           allResults: allResults,
-          maxMienCount: maxMienCount,  // ✅ TRUYỀN PARAMETER
+          maxMienCount: maxMienCount,
         );
+        
+        // ✅ CHỈ CẬP NHẬT NẾU TÌM ĐƯỢC BETTER TABLE
+        if (optimizedTable != null) {
+          bestTable = optimizedTable;
+          print('   ✅ Found better optimized table');
+        } else {
+          print('   ⚠️ Optimization failed, keeping previous table');
+        }
+        
         lowProfit = midProfit + 1;
       } else {
         highProfit = midProfit - 1;
@@ -181,21 +196,33 @@ class BettingTableService {
         endDate: endDate,
         startMienIndex: startMienIndex,
         profitTarget: 100.0,
-        budgetMin: 0,
-        budgetMax: double.infinity,
+        budgetMin: budgetMin,
+        budgetMax: budgetMax,
         lastSeenDate: cycleResult.lastSeenDate,
         allResults: allResults,
-        maxMienCount: maxMienCount,  // ✅ TRUYỀN PARAMETER
+        maxMienCount: maxMienCount,
       );
       
       if (testResult != null && testResult.isNotEmpty) {
         final actualTotal = testResult.last.tongTien;
-        throw Exception(
-          'Không thể tạo bảng cược phù hợp!\n'
-          'Ngân sách tối đa: ${NumberUtils.formatCurrency(budgetMax)} VNĐ\n'
-          'Tổng tiền tối thiểu cần: ${NumberUtils.formatCurrency(actualTotal)} VNĐ\n'
-          'Thiếu: ${NumberUtils.formatCurrency(actualTotal - budgetMax)} VNĐ'
-        );
+        
+        // ✅ FIX: KIỂM TRA ĐÚNG
+        if (actualTotal > budgetMax) {
+          throw Exception(
+            'Không thể tạo bảng cược phù hợp!\n'
+            'Ngân sách tối đa: ${NumberUtils.formatCurrency(budgetMax)} VNĐ\n'
+            'Tổng tiền tối thiểu cần: ${NumberUtils.formatCurrency(actualTotal)} VNĐ\n'
+            'Thiếu: ${NumberUtils.formatCurrency(actualTotal - budgetMax)} VNĐ'
+          );
+        } else {
+          // ✅ TRƯỜNG HỢP KHÁ: Budget đủ nhưng không tìm được bảng
+          throw Exception(
+            'Lỗi tạo bảng cược!\n'
+            'Budget khả dụng: ${NumberUtils.formatCurrency(budgetMax)} VNĐ\n'
+            'Tổng tiền ước tính: ${NumberUtils.formatCurrency(actualTotal)} VNĐ\n'
+            'Lỗi: Không thể tối ưu hóa bảng cược (vui lòng thử lại hoặc điều chỉnh ngân sách)'
+          );
+        }
       }
       
       throw Exception('Không thể tạo bảng cược phù hợp');
@@ -215,14 +242,22 @@ class BettingTableService {
     required double budgetMax,
     required DateTime lastSeenDate,
     required List<LotteryResult> allResults,
-    int maxMienCount = 9,  // ✅ THÊM PARAMETER
+    int maxMienCount = 9,
   }) async {
+    print('🔧 _optimizeStartBet called:');
+    print('   budgetMin: ${NumberUtils.formatCurrency(budgetMin)}');
+    print('   budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
+    print('   profitTarget: ${NumberUtils.formatCurrency(profitTarget)}');
+    
     double lowBet = 1.0;
     double highBet = 1000.0;
     List<BettingRow>? bestTable;
 
     for (int i = 0; i < 30; i++) {
-      if (highBet < lowBet) break;
+      if (highBet < lowBet) {
+        print('   ⚠️ Binary search exhausted at iteration $i');
+        break;
+      }
 
       double midBet = ((lowBet + highBet) / 2);
       if (midBet < 1.0) midBet = 1.0;
@@ -237,22 +272,28 @@ class BettingTableService {
         profitTarget: profitTarget,
         lastSeenDate: lastSeenDate,
         allResults: allResults,
-        maxMienCount: maxMienCount,  // ✅ TRUYỀN PARAMETER
+        maxMienCount: maxMienCount,
       );
 
       final tableData = result['table'] as List<BettingRow>;
       final tongTien = result['tong_tien'] as double;
 
+      print('   Iteration $i: midBet=$midBet, tongTien=${NumberUtils.formatCurrency(tongTien)}');
+
       if (tongTien >= budgetMin && tongTien <= budgetMax) {
         bestTable = tableData;
+        print('   ✅ Found valid table!');
         highBet = midBet - 1;
       } else if (tongTien > budgetMax) {
+        print('   ⬆️ Too high, reducing bet');
         highBet = midBet - 1;
       } else {
+        print('   ⬇️ Too low, increasing bet');
         lowBet = midBet + 1;
       }
     }
 
+    print('   Result: ${bestTable != null ? "Found table" : "No table found"}');
     return bestTable;
   }
 

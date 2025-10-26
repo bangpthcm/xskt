@@ -6,6 +6,7 @@ import '../settings/settings_viewmodel.dart';
 import '../betting/betting_viewmodel.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../app.dart';
+import '../../../data/models/cycle_analysis_result.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({Key? key}) : super(key: key);
@@ -170,60 +171,87 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               ),
               const SizedBox(height: 16),
               
-              // Xiên
+              // 1. Chu kỳ (Tất cả) - GIỮ NGUYÊN Icons.loop
+              if (viewModel.tatCaAlertCache == true)
+                FutureBuilder<CycleAnalysisResult?>(
+                  future: viewModel.analyzeCycleForAllMien(), // ✅ THÊM METHOD MỚI
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox.shrink();
+                    final result = snapshot.data!;
+                    
+                    return _buildClickableAlertItem(
+                      context: context,
+                      viewModel: viewModel,
+                      icon: Icons.text_fields,  // ✅ GIỮ NGUYÊN
+                      color: const Color(0xFFEE5A5A),
+                      title: 'Chu kỳ (Tất cả)',
+                      subtitle: 'Số: ${result.targetNumber}',
+                      days: result.maxGanDays,
+                      threshold: 3,
+                      type: AlertType.tatCa,
+                      useTextIcon: 'C',
+                    );
+                  },
+                ),
+              // 2. Miền Trung - THAY BẰNG CHỮ T (dùng text icon)
+              if (viewModel.trungAlertCache == true)
+                FutureBuilder<CycleAnalysisResult?>(
+                  future: viewModel.analyzeCycleForMien('Trung'), // ✅ THÊM METHOD MỚI
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox.shrink();
+                    final result = snapshot.data!;
+                    
+                    return _buildClickableAlertItem(
+                      context: context,
+                      viewModel: viewModel,
+                      icon: Icons.text_fields,  // ❌ KHÔNG DÙNG - sẽ dùng custom
+                      color: const Color(0xFFBB31E6F),
+                      title: 'Miền Trung',
+                      subtitle: 'Số: ${result.targetNumber}',
+                      days: result.maxGanDays,
+                      threshold: 14,
+                      type: AlertType.trung,
+                      useTextIcon: 'T',  // ✅ THÊM PARAMETER MỚI
+                    );
+                  },
+                ),
+
+              // 3. Miền Bắc - THAY BẰNG CHỮ B
+              if (viewModel.bacAlertCache == true)
+                FutureBuilder<CycleAnalysisResult?>(
+                  future: viewModel.analyzeCycleForMien('Bắc'), // ✅ THÊM METHOD MỚI
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox.shrink();
+                    final result = snapshot.data!;
+                    
+                    return _buildClickableAlertItem(
+                      context: context,
+                      viewModel: viewModel,
+                      icon: Icons.text_fields,  // ❌ KHÔNG DÙNG
+                      color: const Color(0xFFB6771D),
+                      title: 'Miền Bắc',
+                      subtitle: 'Số: ${result.targetNumber}',
+                      days: result.maxGanDays,
+                      threshold: 16,
+                      type: AlertType.bac,
+                      useTextIcon: 'B',  // ✅ THÊM PARAMETER MỚI
+                    );
+                  },
+                ),
+
+              // 4. Xiên - THAY BẰNG GẠCH CHÉO
               if (viewModel.ganPairInfo != null && viewModel.ganPairInfo!.daysGan > 152)
                 _buildClickableAlertItem(
                   context: context,
                   viewModel: viewModel,
-                  icon: Icons.trending_up,
-                  color: Colors.blue,
+                  icon: Icons.text_fields,  // ✅ GẠCH CHÉO - hoặc dùng custom
+                  color: const Color(0xFF45B7B7),
                   title: 'Cặp số gan (Xiên)',
                   subtitle: 'Cặp: ${viewModel.ganPairInfo!.randomPair.display}',
                   days: viewModel.ganPairInfo!.daysGan,
                   threshold: 152,
                   type: AlertType.xien,
-                ),
-              
-              // Chu kỳ Tất cả
-              if (viewModel.tatCaAlertCache == true)
-                _buildClickableAlertItem(
-                  context: context,
-                  viewModel: viewModel,
-                  icon: Icons.loop,
-                  color: Colors.green,
-                  title: 'Chu kỳ (Tất cả)',
-                  subtitle: 'Số: ${viewModel.cycleResult?.targetNumber ?? "N/A"}',
-                  days: viewModel.cycleResult?.maxGanDays ?? 0,
-                  threshold: 3,
-                  type: AlertType.tatCa,
-                ),
-              
-              // Trung
-              if (viewModel.trungAlertCache == true)
-                _buildClickableAlertItem(
-                  context: context,
-                  viewModel: viewModel,
-                  icon: Icons.filter_2,
-                  color: Colors.purple,
-                  title: 'Miền Trung',
-                  subtitle: 'Số: ${viewModel.cycleResult?.targetNumber ?? "N/A"}',
-                  days: viewModel.cycleResult?.maxGanDays ?? 0,
-                  threshold: 14,
-                  type: AlertType.trung,
-                ),
-              
-              // Bắc
-              if (viewModel.bacAlertCache == true)
-                _buildClickableAlertItem(
-                  context: context,
-                  viewModel: viewModel,
-                  icon: Icons.filter_3,
-                  color: Colors.indigo,
-                  title: 'Miền Bắc',
-                  subtitle: 'Số: ${viewModel.cycleResult?.targetNumber ?? "N/A"}',
-                  days: viewModel.cycleResult?.maxGanDays ?? 0,
-                  threshold: 16,
-                  type: AlertType.bac,
+                  useTextIcon: 'X',
                 ),
               
               // Thông báo nếu không có alert
@@ -276,6 +304,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     required int days,
     required int threshold,
     required AlertType type,
+    String? useTextIcon,  // ✅ THÊM: Dùng chữ thay vì icon
   }) {
     return InkWell(
       onTap: () {
@@ -292,7 +321,23 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 32),
+            // ✅ THAY ĐỔI: Hiển thị text hoặc icon
+            if (useTextIcon != null)
+              Container(
+                width: 32,
+                height: 32,
+                alignment: Alignment.center,
+                child: Text(
+                  useTextIcon,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              )
+            else
+              Icon(icon, color: color, size: 32),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -441,7 +486,22 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    const Icon(Icons.loop, color: Colors.green),
+                    // ✅ THAY ICON BẰNG CHỮ C
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Center(
+                        child: const Text(
+                          'C',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFFBEE5A5A),
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ),
                     if (viewModel.hasCycleAlert)
                       Positioned(
                         right: -4,
@@ -465,19 +525,13 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blue),
-                  tooltip: 'Gửi Telegram',
-                  onPressed: cycleResult != null
-                      ? () => _sendCycleToTelegram(context, viewModel)
-                      : null,
-                ),
+                // ✅ 3. ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
+                if (viewModel.selectedMien != 'Nam')
                 IconButton(
                   icon: const Icon(Icons.table_chart, color: Colors.orange),
                   tooltip: 'Tạo bảng cược',
                   onPressed: cycleResult != null
                       ? () {
-                          // ✅ CHECK filter trước khi tạo bảng
                           if (viewModel.selectedMien == 'Bắc') {
                             _showCreateBacGanTableDialog(
                               context, 
@@ -491,10 +545,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                               cycleResult.targetNumber,
                             );
                           } else {
-                            // Tất cả hoặc Nam
                             _createCycleBettingTable(context, viewModel);
                           }
                         }
+                      : null,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send, color: Colors.blue),
+                  tooltip: 'Gửi Telegram',
+                  onPressed: cycleResult != null
+                      ? () => _sendCycleToTelegram(context, viewModel)
                       : null,
                 ),
               ],
@@ -512,61 +572,103 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
               ),
+              if (viewModel.selectedMien != 'Nam')
               _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber),
               
-              // ✅ CHỈ HIỂN thị "Nhóm số gan nhất" khi filter = Tất cả, Trung, Bắc
-              if (viewModel.selectedMien != 'Nam') ...[
-                const SizedBox(height: 8),
-                const Text(
-                  'Nhóm số gan nhất:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                // ✅ BỎ KHUNG: Hiển thị dạng text thường, không có Chip
-                Text(
-                  cycleResult.ganNumbers.join(', '),
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ],
-              
-              const SizedBox(height: 16),
+              // ✅ 2. THÊM NHÓM SỐ GAN NHẤT (HIỂN THỊ CHO TẤT CẢ FILTER)
+              const SizedBox(height: 8),
               const Text(
-                'Phân bổ theo miền:',
+                'Nhóm số gan nhất:',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
+              
+              // ✅ HIỂN THỊ DẠNG CHIP ĐỂ CHỌN
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: cycleResult.ganNumbers.map((number) {
+                  // ✅ HIGHLIGHT NẾU LÀ TARGET NUMBER
+                  final isTarget = number == cycleResult.targetNumber;
 
-              ...['Nam', 'Trung', 'Bắc'].map((mien) {
-                if (!cycleResult.mienGroups.containsKey(mien) || 
-                    cycleResult.mienGroups[mien]!.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 100,
-                        child: Text(
-                          'Miền $mien:',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                  // ✅ NẾU FILTER = NAM → DÙNG CHIP (KHÔNG CLICK)
+                  if (viewModel.selectedMien == 'Nam') {
+                    return Chip(
+                      label: Text(
+                        number,
+                        style: TextStyle(
+                          fontWeight: FontWeight.normal,
+                          color: null,
+                        ),
+                      ),
+                      backgroundColor: Colors.grey.shade100,
+                      side: BorderSide(color: Colors.grey.shade300),
+                    );
+                  }
+                  
+                  return ActionChip(
+                    label: Text(
+                      number,
+                      style: TextStyle(
+                        fontWeight: isTarget ? FontWeight.bold : FontWeight.normal,
+                        color: isTarget ? Colors.orange.shade700 : null,
+                      ),
+                    ),
+                    backgroundColor: isTarget 
+                        ? Colors.orange.shade50 
+                        : Colors.grey.shade100,
+                    side: BorderSide(
+                      color: isTarget 
+                          ? Colors.orange.shade300 
+                          : Colors.grey.shade300,
+                    ),
+                    onPressed: () => _showNumberDetail(context, viewModel, number),
+                  );
+                }).toList(),
+              ),
+              
+              // ✅ 1. BỎ PHÂN BỔ THEO MIỀN CHO NAM, TRUNG, BẮC
+              // CHỈ HIỂN THỊ KHI FILTER = "TẤT CẢ"
+              if (viewModel.selectedMien == 'Tất cả') ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Phân bổ theo miền:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+
+                ...['Nam', 'Trung', 'Bắc'].map((mien) {
+                  if (!cycleResult.mienGroups.containsKey(mien) || 
+                      cycleResult.mienGroups[mien]!.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: Text(
+                            'Miền $mien:',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          cycleResult.mienGroups[mien]!.join(', '),
-                          style: const TextStyle(fontSize: 14),
+                        Expanded(
+                          child: Text(
+                            cycleResult.mienGroups[mien]!.join(', '),
+                            style: const TextStyle(fontSize: 14),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
             ],
           ],
         ),
@@ -588,7 +690,22 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    const Icon(Icons.trending_up, color: Colors.blue),
+                    // ✅ THAY ICON BẰNG CHỮ X
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Center(
+                        child: Text(
+                          'X',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF45B7B7),
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ),
                     if (viewModel.hasXienAlert)
                       Positioned(
                         right: -4,
@@ -612,18 +729,19 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blue),
-                  tooltip: 'Gửi Telegram',
-                  onPressed: ganInfo != null
-                      ? () => _sendGanPairToTelegram(context, viewModel)
-                      : null,
-                ),
+                // ✅ ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
                 IconButton(
                   icon: const Icon(Icons.table_chart, color: Colors.orange),
                   tooltip: 'Tạo bảng cược',
                   onPressed: ganInfo != null
                       ? () => _createXienBettingTable(context, viewModel)
+                      : null,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send, color: Colors.blue),
+                  tooltip: 'Gửi Telegram',
+                  onPressed: ganInfo != null
+                      ? () => _sendGanPairToTelegram(context, viewModel)
                       : null,
                 ),
               ],
@@ -632,7 +750,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/182 ngày'),
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/185 ngày'),
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
@@ -643,7 +761,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              // ✅ BỎ KHUNG: Hiển thị dạng text thường
+              // Hiển thị dạng text thường
               ...ganInfo.pairs.asMap().entries.map((entry) {
                 final index = entry.key;
                 final pairWithDays = entry.value;
@@ -1193,17 +1311,17 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 child: Row(
                   children: [
-                    // Gửi Telegram (bên trái)
+                    // Tạo bảng (bên trái)
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
                           Navigator.pop(context);
-                          _sendNumberDetailToTelegram(context, viewModel, numberDetail);
+                          _createTableForNumber(context, viewModel, number);
                         },
-                        icon: const Icon(Icons.send, size: 20),
-                        label: const Text('Gửi Telegram'),
+                        icon: const Icon(Icons.table_chart, size: 20),
+                        label: const Text('Tạo bảng'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          backgroundColor: Colors.orange,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
@@ -1215,17 +1333,17 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
                     const SizedBox(width: 12),
 
-                    // Tạo bảng (bên phải)
+                    // Gửi Telegram (bên phải)
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
                           Navigator.pop(context);
-                          _createTableForNumber(context, viewModel, number);
+                          _sendNumberDetailToTelegram(context, viewModel, numberDetail);
                         },
-                        icon: const Icon(Icons.table_chart, size: 20),
-                        label: const Text('Tạo bảng'),
+                        icon: const Icon(Icons.send, size: 20),
+                        label: const Text('Gửi Telegram'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                          backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(

@@ -1177,6 +1177,16 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
+  Future<CycleAnalysisResult?> analyzeCycleForAllMien() async {
+    return await _analysisService.analyzeCycle(_allResults);
+  }
+
+  /// Phân tích chu kỳ cho một miền cụ thể
+  Future<CycleAnalysisResult?> analyzeCycleForMien(String mien) async {
+    final filteredResults = _allResults.where((r) => r.mien == mien).toList();
+    return await _analysisService.analyzeCycle(filteredResults);
+  }
+
   Future<void> _saveTrungTableToSheet(
     List<dynamic> table,
     CycleAnalysisResult cycleResult,
