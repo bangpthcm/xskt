@@ -111,13 +111,13 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     return Column(
       children: [
         Container(
-          color: Colors.grey.shade100,
+          color: Color(0xFF1E1E1E),
           child: TabBar(
             controller: _cycleSubTabController,
             isScrollable: true,
-            labelColor: Colors.blue,
+            labelColor: Colors.deepPurple.shade100,
             unselectedLabelColor: Colors.grey,
-            indicatorColor: Colors.blue,
+            indicatorColor: Colors.deepPurple.shade100,
             tabs: const [
               Tab(text: 'Tất cả'),
               Tab(text: 'Nam'),
@@ -169,35 +169,9 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.grey.shade700,
+                color: Colors.grey.shade600,
                 height: 1.5,
               ),
-            ),
-          ),
-          const SizedBox(height: 32),
-          Container(
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(horizontal: 32),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.shade200),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.info_outline, color: Colors.orange.shade700),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    'Bảng "Tất cả" đã loại trừ Bến Tre',
-                    style: TextStyle(
-                      color: Colors.orange.shade900,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
         ],

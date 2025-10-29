@@ -153,9 +153,46 @@ class _MyAppState extends State<MyApp> {
       child: MaterialApp(
         title: 'XSKT Bot',
         theme: ThemeData(
+          brightness: Brightness.light,
           primarySwatch: Colors.blue,
           useMaterial3: true,
         ),
+        darkTheme: ThemeData(
+          brightness: Brightness.dark,
+          primarySwatch: Colors.blue,
+          scaffoldBackgroundColor: const Color(0xFF121212),
+          cardColor: const Color(0xFF1E1E1E),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF1E1E1E),
+            foregroundColor: Colors.white,
+          ),
+          cardTheme: const CardThemeData(  // ✅ Sửa: CardTheme → CardThemeData
+            color: Color(0xFF1E1E1E),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+          dataTableTheme: DataTableThemeData(
+            headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
+            dataRowColor: MaterialStateProperty.resolveWith<Color?>(
+              (Set<MaterialState> states) {
+                if (states.contains(MaterialState.selected)) {
+                  return Colors.blue.withOpacity(0.2);
+                }
+                return null;
+              },
+            ),
+          ),
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(color: Colors.white),
+            bodyMedium: TextStyle(color: Colors.white),
+            bodySmall: TextStyle(color: Colors.grey),
+            titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          useMaterial3: true,
+        ),
+        themeMode: ThemeMode.dark, // ✅ Force dark mode
         home: MainNavigation(key: mainNavigationKey),
         debugShowCheckedModeBanner: false,
       ),

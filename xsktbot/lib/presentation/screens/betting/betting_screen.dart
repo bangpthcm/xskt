@@ -105,13 +105,13 @@ class _BettingScreenState extends State<BettingScreen>
     return Column(
       children: [
         Container(
-          color: Colors.grey.shade100,
+          color: Color(0xFF1E1E1E),
           child: TabBar(
             controller: _cycleSubTabController,
             isScrollable: true,
-            labelColor: Colors.blue,
+            labelColor: Colors.deepPurple.shade100,
             unselectedLabelColor: Colors.grey,
-            indicatorColor: Colors.blue,
+            indicatorColor: Colors.deepPurple.shade100,
             tabs: const [
               Tab(text: 'Tất cả'),
               Tab(text: 'Nam'),
@@ -295,6 +295,7 @@ class _BettingScreenState extends State<BettingScreen>
   Widget _buildXienDataTable(List<BettingRow> table) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
+      color: const Color(0xFF1E1E1E),
       child: DataTable2(
         columnSpacing: 12,
         horizontalMargin: 12,
@@ -302,16 +303,23 @@ class _BettingScreenState extends State<BettingScreen>
         headingTextStyle: const TextStyle(
           fontWeight: FontWeight.bold,
           fontSize: 14,
+          color: Colors.white,
         ),
-        dataTextStyle: const TextStyle(fontSize: 13),
-        headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
+        dataTextStyle: const TextStyle(
+          fontSize: 13,
+          color: Colors.white,
+        ),
+        headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
         dataRowColor: MaterialStateProperty.resolveWith<Color?>(
           (Set<MaterialState> states) {
             if (states.contains(MaterialState.selected)) {
-              return Colors.blue.shade50;
+              return const Color(0xFF2C2C2C);
             }
             return null; // Sử dụng màu mặc định
           },
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E1E1E), // ✅ Dark table background
         ),
         columns: [
           DataColumn2(
@@ -364,7 +372,7 @@ class _BettingScreenState extends State<BettingScreen>
 
           return DataRow2(
             color: MaterialStateProperty.all(
-              isEven ? Colors.grey.shade100 : Colors.white,
+              isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525),
             ),
             cells: [
               DataCell(
@@ -415,23 +423,31 @@ class _BettingScreenState extends State<BettingScreen>
   Widget _buildCycleDataTable(List<BettingRow> table) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
+      color: const Color(0xFF1E1E1E),
       child: DataTable2(
         columnSpacing: 12,
         horizontalMargin: 12,
-        minWidth: 800,
+        minWidth: 600,
         headingTextStyle: const TextStyle(
           fontWeight: FontWeight.bold,
           fontSize: 14,
+          color: Colors.white,
         ),
-        dataTextStyle: const TextStyle(fontSize: 13),
-        headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
+        dataTextStyle: const TextStyle(
+          fontSize: 13,
+          color: Colors.white,
+        ),
+        headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
         dataRowColor: MaterialStateProperty.resolveWith<Color?>(
           (Set<MaterialState> states) {
             if (states.contains(MaterialState.selected)) {
-              return Colors.grey.shade100;
+              return const Color(0xFF2C2C2C);
             }
             return null; // Sử dụng màu mặc định
           },
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E1E1E), // ✅ Dark table background
         ),
         columns: [
           DataColumn2(
@@ -495,7 +511,7 @@ class _BettingScreenState extends State<BettingScreen>
           
           return DataRow2(
             color: MaterialStateProperty.all(
-              isEven ? Colors.grey.shade100 : Colors.white,
+              isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525),
             ),
             cells: [
               DataCell(
@@ -569,7 +585,7 @@ class _BettingScreenState extends State<BettingScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: Color(0xFF121212),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),

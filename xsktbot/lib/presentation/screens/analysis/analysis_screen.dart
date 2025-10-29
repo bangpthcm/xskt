@@ -107,7 +107,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   // ✅ THÊM: Alert banner
   Widget _buildAlertBanner(AnalysisViewModel viewModel) {
     return Card(
-      color: Colors.orange.shade50,
+      color: const Color(0xFF2C2C2C), // ✅ Dark background
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
         onTap: () => _showAlertDialog(context, viewModel),
@@ -115,7 +115,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 32),
+              Icon(Icons.warning_amber_rounded, color: Colors.orange.shade400, size: 32),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -126,7 +126,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.orange.shade900,
+                        color: Colors.orange.shade300, // ✅ Lighter orange
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -134,13 +134,13 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                       'Nhấn để xem chi tiết',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.orange.shade700,
+                        color: Colors.orange.shade400,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: Colors.orange.shade700),
+              Icon(Icons.chevron_right, color: Colors.orange.shade400),
             ],
           ),
         ),
@@ -598,7 +598,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                         number,
                         style: TextStyle(
                           fontWeight: FontWeight.normal,
-                          color: null,
+                          color: Colors.grey.shade400,
                         ),
                       ),
                       backgroundColor: Colors.grey.shade100,
@@ -611,7 +611,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                       number,
                       style: TextStyle(
                         fontWeight: isTarget ? FontWeight.bold : FontWeight.normal,
-                        color: isTarget ? Colors.orange.shade700 : null,
+                        color: isTarget ? Colors.orange.shade700 : Colors.grey.shade400,
                       ),
                     ),
                     backgroundColor: isTarget 
@@ -804,17 +804,19 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               children: [
                 FilterChip(
                   label: SizedBox(
-                    width: 40,
+                    width: 38,
                     child: Text(
                       mien,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? Colors.white : Colors.grey.shade300,
                       ),
                       textAlign: TextAlign.center, // ✅ THÊM DÒNG NÀY
                     ),
                   ),
                   selected: isSelected,
+                  backgroundColor: const Color(0xFF2C2C2C),
                   onSelected: (selected) {
                     if (selected) {
                       viewModel.setSelectedMien(mien);
