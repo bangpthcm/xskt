@@ -725,7 +725,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Cặp số gan Miền Bắc',
+                    'Cặp xiên Bắc',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
@@ -781,51 +781,70 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   }
 
   Widget _buildMienFilter(AnalysisViewModel viewModel) {
-    return Wrap(
-      spacing: 8,
-      children: ['Tất cả', 'Nam', 'Trung', 'Bắc'].map((mien) {
-        final isSelected = viewModel.selectedMien == mien;
-        
-        // ✅ CHECK alert từ cache (LUÔN HIỆN dù đang chọn filter khác)
-        bool hasAlert = false;
-        if (mien== 'Tất cả') {
-          hasAlert = viewModel.tatCaAlertCache ?? false;
-        } else if (mien == 'Trung') {
-          hasAlert = viewModel.trungAlertCache ?? false;
-        } else if (mien == 'Bắc') {
-          hasAlert = viewModel.bacAlertCache ?? false;
-        }
-        
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            FilterChip(
-              label: Text(mien),
-              selected: isSelected,
-              onSelected: (selected) {
-                if (selected) {
-                  viewModel.setSelectedMien(mien);
-                  viewModel.loadAnalysis(useCache: true);
-                }
-              },
-            ),
-            if (hasAlert)
-              Positioned(
-                right: 4,
-                top: 4,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: ['Tất cả', 'Nam', 'Trung', 'Bắc'].map((mien) {
+          final isSelected = viewModel.selectedMien == mien;
+          
+          // ✅ CHECK alert từ cache (LUÔN HIỆN dù đang chọn filter khác)
+          bool hasAlert = false;
+          if (mien== 'Tất cả') {
+            hasAlert = viewModel.tatCaAlertCache ?? false;
+          } else if (mien == 'Trung') {
+            hasAlert = viewModel.trungAlertCache ?? false;
+          } else if (mien == 'Bắc') {
+            hasAlert = viewModel.bacAlertCache ?? false;
+          }
+          
+          return Padding(
+            padding: const EdgeInsets.only(right: 7),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                FilterChip(
+                  label: SizedBox(
+                    width: 40,
+                    child: Text(
+                      mien,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                      textAlign: TextAlign.center, // ✅ THÊM DÒNG NÀY
+                    ),
                   ),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) {
+                      viewModel.setSelectedMien(mien);
+                      viewModel.loadAnalysis(useCache: true);
+                    }
+                  },
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 0),
+                  labelPadding: EdgeInsets.zero,
                 ),
-              ),
-          ],
-        );
-      }).toList(),
+                if (hasAlert)
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
