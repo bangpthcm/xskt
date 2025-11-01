@@ -15,15 +15,13 @@ class BettingScreen extends StatefulWidget {
 }
 
 class _BettingScreenState extends State<BettingScreen>
-    with TickerProviderStateMixin {
-  late TabController _mainTabController;
-  late TabController _cycleSubTabController;
+    with SingleTickerProviderStateMixin {  // ✅ THAY ĐỔI: Single thay vì Ticker
+  late TabController _tabController;  // ✅ CHỈ CÒN 1 CONTROLLER
 
   @override
   void initState() {
     super.initState();
-    _mainTabController = TabController(length: 2, vsync: this);
-    _cycleSubTabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);  // ✅ 4 TAB
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BettingViewModel>().loadBettingTables();
@@ -32,8 +30,7 @@ class _BettingScreenState extends State<BettingScreen>
 
   @override
   void dispose() {
-    _mainTabController.dispose();
-    _cycleSubTabController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -42,13 +39,7 @@ class _BettingScreenState extends State<BettingScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bảng cược'),
-        bottom: TabBar(
-          controller: _mainTabController,
-          tabs: const [
-            Tab(text: 'Xiên'),
-            Tab(text: 'Chu kỳ'),
-          ],
-        ),
+        // ✅ BỎ bottom: TabBar (KHÔNG CÒN TAB TRÊN)
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -89,11 +80,36 @@ class _BettingScreenState extends State<BettingScreen>
             );
           }
 
-          return TabBarView(
-            controller: _mainTabController,
+          // ✅ LAYOUT MỚI: CHỈ 1 LEVEL TAB
+          return Column(
             children: [
-              _buildXienTab(viewModel),
-              _buildCycleMainTab(viewModel),
+              Container(
+                color: Color(0xFF1E1E1E),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  labelColor: Colors.deepPurple.shade100,
+                  unselectedLabelColor: Colors.grey,
+                  indicatorColor: Colors.deepPurple.shade100,
+                  tabs: const [
+                    Tab(text: 'Tất cả'),
+                    Tab(text: 'Trung'),
+                    Tab(text: 'Bắc'),
+                    Tab(text: 'Xiên'),  // ✅ THÊM XIÊN
+                  ],
+                ),
+              ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildCycleTab(viewModel),      // Tất cả
+                    _buildTrungTab(viewModel),      // Trung
+                    _buildBacTab(viewModel),        // Bắc
+                    _buildXienTab(viewModel),       // ✅ Xiên
+                  ],
+                ),
+              ),
             ],
           );
         },
@@ -101,104 +117,7 @@ class _BettingScreenState extends State<BettingScreen>
     );
   }
 
-  Widget _buildCycleMainTab(BettingViewModel viewModel) {
-    return Column(
-      children: [
-        Container(
-          color: Color(0xFF1E1E1E),
-          child: TabBar(
-            controller: _cycleSubTabController,
-            isScrollable: true,
-            labelColor: Colors.deepPurple.shade100,
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: Colors.deepPurple.shade100,
-            tabs: const [
-              Tab(text: 'Tất cả'),
-              Tab(text: 'Nam'),
-              Tab(text: 'Trung'),
-              Tab(text: 'Bắc'),
-            ],
-          ),
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _cycleSubTabController,
-            children: [
-              _buildCycleTab(viewModel),
-              _buildNamWarningTab(),
-              _buildTrungTab(viewModel),
-              _buildBacTab(viewModel),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNamWarningTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            size: 80,
-            color: Colors.orange.shade400,
-          ),
-          const SizedBox(height: 24),
-          Text(
-            '⚠️ Tránh rủi ro Bến Tre',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.orange.shade700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              'Miền Nam có nguy cơ trúng tại Bến Tre.\n'
-              'Vui lòng sử dụng bảng "Tất cả" hoặc các miền khác.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade700,
-                height: 1.5,
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
-          Container(
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(horizontal: 32),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.shade200),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.info_outline, color: Colors.orange.shade700),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    'Bảng "Tất cả" đã loại trừ Bến Tre',
-                    style: TextStyle(
-                      color: Colors.orange.shade900,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // ✅ GIỮ NGUYÊN CÁC METHOD XÂY DỰNG TAB
   Widget _buildXienTab(BettingViewModel viewModel) {
     if (viewModel.xienTable == null) {
       return const Center(child: Text('Chưa có bảng cược xiên'));
@@ -225,7 +144,6 @@ class _BettingScreenState extends State<BettingScreen>
     );
   }
 
-  // ✅ ADD: Trung tab
   Widget _buildTrungTab(BettingViewModel viewModel) {
     if (viewModel.trungTable == null) {
       return const Center(child: Text('Chưa có bảng cược Miền Trung'));
@@ -239,7 +157,6 @@ class _BettingScreenState extends State<BettingScreen>
     );
   }
 
-  // ✅ ADD: Bac tab
   Widget _buildBacTab(BettingViewModel viewModel) {
     if (viewModel.bacTable == null) {
       return const Center(child: Text('Chưa có bảng cược Miền Bắc'));
@@ -253,6 +170,7 @@ class _BettingScreenState extends State<BettingScreen>
     );
   }
 
+  // ✅ GIỮ NGUYÊN TẤT CẢ CÁC METHOD KHÁC
   Widget _buildMetadataCard(Map<String, dynamic> metadata) {
     return Card(
       margin: const EdgeInsets.all(16),
@@ -267,10 +185,6 @@ class _BettingScreenState extends State<BettingScreen>
               _buildMetadataRow('Cặp số:', metadata['cap_so_muc_tieu']?.toString() ?? '-'),
             if (metadata.containsKey('so_muc_tieu'))
               _buildMetadataRow('Số mục tiêu:', metadata['so_muc_tieu']?.toString() ?? '-'),
-            if (metadata.containsKey('nhom_so_gan'))
-              _buildMetadataRow('Nhóm gan:', metadata['nhom_so_gan']?.toString() ?? '-'),
-            if (metadata.containsKey('nhom_cap_so'))
-              _buildMetadataRow('Nhóm cặp:', metadata['nhom_cap_so']?.toString() ?? '-'),
           ],
         ),
       ),
@@ -315,11 +229,11 @@ class _BettingScreenState extends State<BettingScreen>
             if (states.contains(MaterialState.selected)) {
               return const Color(0xFF2C2C2C);
             }
-            return null; // Sử dụng màu mặc định
+            return null;
           },
         ),
         decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E), // ✅ Dark table background
+          color: Color(0xFF1E1E1E),
         ),
         columns: [
           DataColumn2(
@@ -330,7 +244,7 @@ class _BettingScreenState extends State<BettingScreen>
           DataColumn2(
             label: Center(child: Text('Ngày')),
             size: ColumnSize.M,
-            fixedWidth: 100,
+            fixedWidth: 90,
           ),
           DataColumn2(
             label: Center(child: Text('Miền')),
@@ -430,7 +344,7 @@ class _BettingScreenState extends State<BettingScreen>
         minWidth: 600,
         headingTextStyle: const TextStyle(
           fontWeight: FontWeight.bold,
-          fontSize: 14,
+          fontSize: 13,
           color: Colors.white,
         ),
         dataTextStyle: const TextStyle(
@@ -443,11 +357,11 @@ class _BettingScreenState extends State<BettingScreen>
             if (states.contains(MaterialState.selected)) {
               return const Color(0xFF2C2C2C);
             }
-            return null; // Sử dụng màu mặc định
+            return null;
           },
         ),
         decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E), // ✅ Dark table background
+          color: Color(0xFF1E1E1E),
         ),
         columns: [
           DataColumn2(
@@ -458,7 +372,7 @@ class _BettingScreenState extends State<BettingScreen>
           DataColumn2(
             label: Center(child: Text('Ngày')),
             size: ColumnSize.M,
-            fixedWidth: 100,
+            fixedWidth: 90,
           ),
           DataColumn2(
             label: Center(child: Text('Miền')),
@@ -473,7 +387,7 @@ class _BettingScreenState extends State<BettingScreen>
           DataColumn2(
             label: Center(child: Text('Cược/Số')),
             size: ColumnSize.S,
-            fixedWidth: 70,
+            fixedWidth: 65,
             ),
           DataColumn2(
             label: Align(

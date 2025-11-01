@@ -1210,8 +1210,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     );
   }
 
-  // ✅ HIỂN THỊ CHI TIẾT SỐ
-  // Thay thế method _showNumberDetail trong analysis_screen.dart
+  // ✅ THAY ĐỔI 1: Sửa _showNumberDetail() - Bỏ nút X ở header
   Future<void> _showNumberDetail(
     BuildContext context,
     AnalysisViewModel viewModel,
@@ -1241,56 +1240,28 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     showDialog(
       context: context,
       builder: (context) => Dialog(
+        backgroundColor: Colors.transparent, // ✅ Transparent để custom màu
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         child: Container(
-          width: MediaQuery.of(context).size.width * 0.9,
+          width: MediaQuery.of(context).size.width * 0.95,
           constraints: const BoxConstraints(maxWidth: 500),
+          decoration: BoxDecoration(
+            color: Color(0xFF1E1E1E), // ✅ MÀU NỀN TOÀN BỘ DIALOG
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ✅ Header với nút X góc phải trên
-              Container(
-                padding: const EdgeInsets.fromLTRB(24, 16, 16, 16),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Chi tiết số $number',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    // ✅ 2. NÚT X THAY VÌ NÚT "ĐÓNG"
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                      tooltip: 'Đóng',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Content
+              // Content - GIỜ SẼ CÓ NỀN TỐI
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Thông tin theo từng miền:',
+                    Text(
+                      'Thông tin $number theo từng miền:',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -1298,7 +1269,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ✅ 1. CÁC Ô MIỀN CÂN ĐỐI VỚI POPUP
+                    // ✅ CÁC Ô MIỀN với màu tối đồng bộ
                     if (numberDetail.mienDetails.containsKey('Nam'))
                       _buildMienCard(
                         'Miền Nam',
@@ -1327,12 +1298,12 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 ),
               ),
 
-              // ✅ 3. ACTION BUTTONS: GỬI TELEGRAM BÊN TRÁI, TẠO BẢNG BÊN PHẢI
+              // ✅ THAY ĐỔI 2: 2 NÚT TRÊN + 1 NÚT DƯỚI
               Container(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
                 child: Row(
                   children: [
-                    // Tạo bảng (bên trái)
+                    // Tạo bảng
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
@@ -1354,7 +1325,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
                     const SizedBox(width: 12),
 
-                    // Gửi Telegram (bên phải)
+                    // Gửi Telegram
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
@@ -1376,6 +1347,27 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   ],
                 ),
               ),
+
+              // ✅ NÚT ĐÓNG Ở DƯỚI (HÀNG RIÊNG)
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, size: 20),
+                    label: const Text('Đóng'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1383,15 +1375,18 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     );
   }
 
-  // ✅ HELPER METHOD ĐỂ BUILD CARD MIỀN
-  Widget _buildMienCard(String title, dynamic detail, Color color) {
+  // ✅ THAY ĐỔI 3: Sửa _buildMienCard() - Dùng màu tối như header
+  Widget _buildMienCard(String title, dynamic detail, Color accentColor) {
     return Container(
-      width: double.infinity,  // ✅ Full width để cân đối
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        // ✅ MÀU TỐI GIỐNG HEADER
+        color: Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(
+          color: accentColor.withOpacity(0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1401,7 +1396,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: color,
+              color: accentColor, // Giữ màu accent cho title
             ),
           ),
           const SizedBox(height: 8),

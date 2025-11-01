@@ -16,15 +16,13 @@ class WinHistoryScreen extends StatefulWidget {
 }
 
 class _WinHistoryScreenState extends State<WinHistoryScreen>
-    with TickerProviderStateMixin {
-  late TabController _mainTabController;
-  late TabController _cycleSubTabController;
+    with SingleTickerProviderStateMixin {  // ✅ THAY ĐỔI: Single thay vì Ticker
+  late TabController _tabController;  // ✅ CHỈ CÒN 1 CONTROLLER
 
   @override
   void initState() {
     super.initState();
-    _mainTabController = TabController(length: 2, vsync: this);
-    _cycleSubTabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);  // ✅ 4 TAB
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<WinHistoryViewModel>().loadHistory();
@@ -33,8 +31,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
 
   @override
   void dispose() {
-    _mainTabController.dispose();
-    _cycleSubTabController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -43,13 +40,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lịch sử trúng số'),
-        bottom: TabBar(
-          controller: _mainTabController,
-          tabs: const [
-            Tab(text: 'Xiên'),
-            Tab(text: 'Chu kỳ'),
-          ],
-        ),
+        // ✅ BỎ bottom: TabBar (KHÔNG CÒN TAB TRÊN)
         actions: [
           IconButton(
             icon: const Icon(Icons.play_arrow),
@@ -95,11 +86,36 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
             );
           }
 
-          return TabBarView(
-            controller: _mainTabController,
+          // ✅ LAYOUT MỚI: CHỈ 1 LEVEL TAB
+          return Column(
             children: [
-              _buildXienTab(viewModel),
-              _buildCycleMainTab(viewModel),
+              Container(
+                color: Color(0xFF1E1E1E),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  labelColor: Colors.deepPurple.shade100,
+                  unselectedLabelColor: Colors.grey,
+                  indicatorColor: Colors.deepPurple.shade100,
+                  tabs: const [
+                    Tab(text: 'Tất cả'),
+                    Tab(text: 'Trung'),
+                    Tab(text: 'Bắc'),
+                    Tab(text: 'Xiên'),  // ✅ THÊM XIÊN
+                  ],
+                ),
+              ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildCycleTab(viewModel),   // Tất cả
+                    _buildTrungTab(viewModel),   // Trung
+                    _buildBacTab(viewModel),     // Bắc
+                    _buildXienTab(viewModel),    // ✅ Xiên
+                  ],
+                ),
+              ),
             ],
           );
         },
@@ -107,78 +123,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     );
   }
 
-  Widget _buildCycleMainTab(WinHistoryViewModel viewModel) {
-    return Column(
-      children: [
-        Container(
-          color: Color(0xFF1E1E1E),
-          child: TabBar(
-            controller: _cycleSubTabController,
-            isScrollable: true,
-            labelColor: Colors.deepPurple.shade100,
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: Colors.deepPurple.shade100,
-            tabs: const [
-              Tab(text: 'Tất cả'),
-              Tab(text: 'Nam'),
-              Tab(text: 'Trung'),
-              Tab(text: 'Bắc'),
-            ],
-          ),
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _cycleSubTabController,
-            children: [
-              _buildCycleTab(viewModel),
-              _buildNamWarningTab(),
-              _buildTrungTab(viewModel),
-              _buildBacTab(viewModel),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNamWarningTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            size: 80,
-            color: Colors.orange.shade400,
-          ),
-          const SizedBox(height: 24),
-          Text(
-            '⚠️ Tránh rủi ro Bến Tre',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.orange.shade700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              'Miền Nam có nguy cơ trúng tại Bến Tre.\n'
-              'Vui lòng sử dụng bảng "Tất cả" hoặc các miền khác.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // ✅ GIỮ NGUYÊN CÁC METHOD XÂY DỰNG TAB
   Widget _buildCycleTab(WinHistoryViewModel viewModel) {
     if (viewModel.cycleHistory.isEmpty) {
       return const Center(child: Text('Chưa có lịch sử trúng số chu kỳ'));
@@ -215,7 +160,6 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     );
   }
 
-  // ✅ ADD: Trung tab
   Widget _buildTrungTab(WinHistoryViewModel viewModel) {
     if (viewModel.trungHistory.isEmpty) {
       return const Center(child: Text('Chưa có lịch sử trúng số Miền Trung'));
@@ -234,7 +178,6 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     );
   }
 
-  // ✅ ADD: Bac tab
   Widget _buildBacTab(WinHistoryViewModel viewModel) {
     if (viewModel.bacHistory.isEmpty) {
       return const Center(child: Text('Chưa có lịch sử trúng số Miền Bắc'));
@@ -418,8 +361,8 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     
     final yesterday = DateTime.now().subtract(const Duration(days: 1));
     final yesterdayStr = '${yesterday.day.toString().padLeft(2, '0')}/'
-        '${yesterday.month.toString().padLeft(2, '0')}/'
-        '${yesterday.year}';
+        '${yesterday.month.toString().padLeft(2, '0')}'
+        '/${yesterday.year}';
     dateController.text = yesterdayStr;
 
     showDialog(
