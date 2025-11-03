@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'settings_viewmodel.dart';
 import '../../../data/models/app_config.dart';
+import '../../../core/utils/number_utils.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -14,11 +15,13 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   
+  // ✅ CONTROLLERS
   late TextEditingController _sheetNameController;
   late TextEditingController _chatIdsController;
-  late TextEditingController _cycleTargetController;  // ✅ NEW
+  late TextEditingController _totalCapitalController;
+  late TextEditingController _trungBudgetController;
+  late TextEditingController _bacBudgetController;
   late TextEditingController _xienBudgetController;
-  late TextEditingController _tuesdayExtraBudgetController;
 
   @override
   void initState() {
@@ -35,9 +38,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _initializeControllers() {
     _sheetNameController = TextEditingController();
     _chatIdsController = TextEditingController();
-    _cycleTargetController = TextEditingController();  // ✅ NEW
+    _totalCapitalController = TextEditingController();
+    _trungBudgetController = TextEditingController();
+    _bacBudgetController = TextEditingController();
     _xienBudgetController = TextEditingController();
-    _tuesdayExtraBudgetController = TextEditingController();  // ✅ NEW
   }
 
   void _updateControllersFromConfig() {
@@ -45,18 +49,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     
     _sheetNameController.text = config.googleSheets.sheetName;
     _chatIdsController.text = config.telegram.chatIds.join(', ');
-    _cycleTargetController.text = config.budget.cycleTarget.toString();  // ✅ NEW
+    _totalCapitalController.text = config.budget.totalCapital.toString();
+    _trungBudgetController.text = config.budget.trungBudget.toString();
+    _bacBudgetController.text = config.budget.bacBudget.toString();
     _xienBudgetController.text = config.budget.xienBudget.toString();
-    _tuesdayExtraBudgetController.text = config.budget.tuesdayExtraBudget.toString();  // ✅ NEW
   }
 
   @override
   void dispose() {
     _sheetNameController.dispose();
     _chatIdsController.dispose();
-    _cycleTargetController.dispose();  // ✅ NEW
+    _totalCapitalController.dispose();
+    _trungBudgetController.dispose();
+    _bacBudgetController.dispose();
     _xienBudgetController.dispose();
-    _tuesdayExtraBudgetController.dispose();  // ✅ NEW
     super.dispose();
   }
 
@@ -178,6 +184,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // ✅ BUDGET SECTION MỚI
   Widget _buildBudgetSection() {
     return Card(
       child: Padding(
@@ -197,9 +204,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const Divider(),
             
-            // ✅ CHU KỲ: Chỉ cần 1 field
+            // TỔNG VỐN
             const Text(
-              'Chu kỳ 00-99:',
+              'Tổng vốn:',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
@@ -209,18 +216,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             
             TextFormField(
-              controller: _cycleTargetController,  // ✅ NEW controller
+              controller: _totalCapitalController,
               decoration: const InputDecoration(
-                labelText: 'Ngân sách mục tiêu',
-                hintText: '340000',
+                labelText: 'Tổng vốn khả dụng',
+                hintText: '600000',
                 suffixText: 'VNĐ',
-                helperText: 'Target budget cho chu kỳ (±5% flexibility)',
-                prefixIcon: Icon(Icons.monetization_on),
+                helperText: 'Tổng vốn bạn muốn sử dụng',
+                prefixIcon: Icon(Icons.account_balance_wallet),
               ),
               keyboardType: TextInputType.number,
+              onChanged: (value) => setState(() {}),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập ngân sách chu kỳ';
+                  return 'Vui lòng nhập tổng vốn';
                 }
                 final number = double.tryParse(value);
                 if (number == null || number <= 0) {
@@ -230,79 +238,214 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             
-            // ✅ XIÊN
+            // PHÂN BỔ HEADER
             const Text(
-              'Cặp số (Xiên):',
+              '── Phân bổ theo bảng ──',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
                 color: Colors.grey,
               ),
             ),
-            const SizedBox(height: 8),
-            
+
+            const SizedBox(height: 14),
+
+            // ✅ INFO - Đặt TRƯỚC các input (giống screenshot)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Colors.grey, width: 1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.grey.shade300, size: 24),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Budget "Tất cả" sẽ tự động tính:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade300,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Tổng vốn - (Tổng tiền dòng thứ 5 của 3 bảng)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Miền Trung
+            TextFormField(
+              controller: _trungBudgetController,
+              decoration: const InputDecoration(
+                labelText: 'Miền Trung',
+                hintText: '200000',
+                suffixText: 'VNĐ',
+                prefixIcon: Icon(Icons.filter_1),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) => setState(() {}),
+              validator: (value) => _validateBudgetField(value, 'Miền Trung'),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Miền Bắc
+            TextFormField(
+              controller: _bacBudgetController,
+              decoration: const InputDecoration(
+                labelText: 'Miền Bắc',
+                hintText: '200000',
+                suffixText: 'VNĐ',
+                prefixIcon: Icon(Icons.filter_2),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) => setState(() {}),
+              validator: (value) => _validateBudgetField(value, 'Miền Bắc'),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Xiên
             TextFormField(
               controller: _xienBudgetController,
               decoration: const InputDecoration(
-                labelText: 'Ngân sách mục tiêu',
-                hintText: '19000',
+                labelText: 'Xiên',
+                hintText: '150000',
                 suffixText: 'VNĐ',
-                helperText: 'Ngân sách cho mỗi cặp số xiên',
                 prefixIcon: Icon(Icons.favorite_border),
               ),
               keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập ngân sách xiên';
-                }
-                final number = double.tryParse(value);
-                if (number == null || number <= 0) {
-                  return 'Số tiền không hợp lệ';
-                }
-                return null;
-              },
+              onChanged: (value) => setState(() {}),
+              validator: (value) => _validateBudgetField(value, 'Xiên'),
             ),
+
+            const SizedBox(height: 16),
+
+            // SUMMARY
+            _buildBudgetSummary(),
             
-            const SizedBox(height: 24),
-            
-            // ✅ TUESDAY EXTRA BUDGET
-            const Text(
-              'Ngân sách bổ sung:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 8),
-            
-            TextFormField(
-              controller: _tuesdayExtraBudgetController,  // ✅ NEW controller
-              decoration: const InputDecoration(
-                labelText: 'Tiền thêm khi có Thứ 3',
-                hintText: '200000',
-                suffixText: 'VNĐ',
-                helperText: 'Tăng budget khi ngày cuối/áp cuối là Thứ 3',
-                prefixIcon: Icon(Icons.calendar_today),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập tiền thêm cho Thứ 3';
-                }
-                final number = double.tryParse(value);
-                if (number == null || number < 0) {
-                  return 'Số tiền không hợp lệ';
-                }
-                return null;
-              },
-            ),
           ],
         ),
       ),
     );
+  }
+
+  // ✅ BUDGET SUMMARY
+  Widget _buildBudgetSummary() {
+    final totalCapital = double.tryParse(_totalCapitalController.text) ?? 0;
+    final trungBudget = double.tryParse(_trungBudgetController.text) ?? 0;
+    final bacBudget = double.tryParse(_bacBudgetController.text) ?? 0;
+    final xienBudget = double.tryParse(_xienBudgetController.text) ?? 0;
+    
+    final totalAllocated = trungBudget + bacBudget + xienBudget;
+    final remaining = totalCapital - totalAllocated;
+    final isValid = totalAllocated <= totalCapital;
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isValid ? const Color(0xFF2C2C2C) : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isValid ? const Color(0xFF2C2C2C) : Colors.red.shade200,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Tổng phân bổ:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: isValid ? Colors.orange.shade300 : Colors.red.shade700,
+                ),
+              ),
+              Text(
+                NumberUtils.formatCurrency(totalAllocated),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: isValid ? Colors.orange.shade300 : Colors.red.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Vốn còn lại:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: isValid ? Colors.orange.shade300 : Colors.red.shade700,
+                ),
+              ),
+              Text(
+                NumberUtils.formatCurrency(remaining),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: isValid ? Colors.orange.shade300 : Colors.red.shade700,
+                ),
+              ),
+            ],
+          ),
+          if (!isValid) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red.shade700, size: 16),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    '⚠️ Tổng phân bổ vượt quá tổng vốn!',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String? _validateBudgetField(String? value, String fieldName) {
+    if (value == null || value.isEmpty) {
+      return 'Vui lòng nhập budget $fieldName';
+    }
+    final number = double.tryParse(value);
+    if (number == null || number < 0) {
+      return 'Số tiền không hợp lệ';
+    }
+    return null;
   }
 
   Widget _buildErrorCard(String error) {
@@ -354,7 +497,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 12),
         
-        // ✅ THÊM NÚT ĐỒNG BỘ RSS
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -375,7 +517,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 12),
         
-        // Hiển thị trạng thái kết nối
         Row(
           children: [
             Expanded(
@@ -437,6 +578,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
+    final totalCapital = double.parse(_totalCapitalController.text);
+    final trungBudget = double.parse(_trungBudgetController.text);
+    final bacBudget = double.parse(_bacBudgetController.text);
+    final xienBudget = double.parse(_xienBudgetController.text);
+    
+    if (trungBudget + bacBudget + xienBudget > totalCapital) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Tổng phân bổ vượt quá tổng vốn!'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final config = AppConfig(
       googleSheets: GoogleSheetsConfig.withHardcodedCredentials(
         sheetName: _sheetNameController.text.trim(),
@@ -450,9 +606,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             .toList(),
       ),
       budget: BudgetConfig(
-        cycleTarget: double.parse(_cycleTargetController.text),  // ✅ NEW
-        xienBudget: double.parse(_xienBudgetController.text),
-        tuesdayExtraBudget: double.parse(_tuesdayExtraBudgetController.text),  // ✅ NEW
+        totalCapital: totalCapital,
+        trungBudget: trungBudget,
+        bacBudget: bacBudget,
+        xienBudget: xienBudget,
       ),
     );
 
@@ -479,11 +636,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       String message = 'Đã lưu cấu hình.\n';
       
       if (viewModel.isGoogleSheetsConnected && viewModel.isTelegramConnected) {
-        message += 'Cả 2 kết nối đều thành công!\n';  // ✅ Thông báo rõ ràng
+        message += 'Cả 2 kết nối đều thành công!';
       } else if (viewModel.isGoogleSheetsConnected) {
-        message += 'Google Sheets: ✓\nTelegram: ✗ (Bot token không hợp lệ)';  // ✅ Chi tiết lỗi
+        message += 'Google Sheets: ✓\nTelegram: ✗';
       } else if (viewModel.isTelegramConnected) {
-        message += 'Google Sheets: ✗\nTelegram: ✓ (Bot token hợp lệ)';  // ✅ Chi tiết
+        message += 'Google Sheets: ✗\nTelegram: ✓';
       } else {
         message += 'Cả 2 kết nối đều thất bại!';
       }
@@ -501,9 +658,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
   
-  // ✅ THÊM METHOD NÀY
   Future<void> _syncRSSData(SettingsViewModel viewModel) async {
-    // Show confirmation dialog
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -527,7 +682,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirm != true) return;
 
-    // Perform sync
     final message = await viewModel.syncRSSData();
 
     if (mounted) {

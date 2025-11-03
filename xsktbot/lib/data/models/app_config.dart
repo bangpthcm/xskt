@@ -178,47 +178,78 @@ class TelegramConfig {
     );
   }
 
-  static const String _defaultBotToken = "7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs";  // ✅ Hardcode Bot Token
+  static const String _defaultBotToken = "7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs";
   static String get defaultBotToken => _defaultBotToken;
 }
 
-// ✅ UPDATED: BudgetConfig
+// ✅ NEW BUDGET CONFIG
 class BudgetConfig {
-  final double cycleTarget;        // ✅ NEW: Thay budgetMin/Max
-  final double xienBudget;
-  final double tuesdayExtraBudget;  // ✅ NEW: Thêm budget cho Tuesday
+  final double totalCapital;    // Tổng vốn
+  final double trungBudget;     // Vốn cho Miền Trung
+  final double bacBudget;       // Vốn cho Miền Bắc
+  final double xienBudget;      // Vốn cho Xiên
 
   BudgetConfig({
-    required this.cycleTarget,
+    required this.totalCapital,
+    required this.trungBudget,
+    required this.bacBudget,
     required this.xienBudget,
-    required this.tuesdayExtraBudget,
   });
 
-  // ✅ Tính budgetMin/Max từ cycleTarget
-  double get budgetMin => cycleTarget * 0.95;  // -5%
-  double get budgetMax => cycleTarget * 1.05;  // +5%
+  // ✅ Validation: Tổng phân bổ không vượt quá tổng vốn
+  bool get isValid {
+    return (trungBudget + bacBudget + xienBudget) <= totalCapital;
+  }
+
+  // ✅ Vốn còn lại sau khi phân bổ
+  double get remainingCapital {
+    return totalCapital - (trungBudget + bacBudget + xienBudget);
+  }
+
+  // ✅ Tổng đã phân bổ
+  double get allocatedCapital {
+    return trungBudget + bacBudget + xienBudget;
+  }
 
   Map<String, dynamic> toJson() {
     return {
-      'cycleTarget': cycleTarget,
+      'totalCapital': totalCapital,
+      'trungBudget': trungBudget,
+      'bacBudget': bacBudget,
       'xienBudget': xienBudget,
-      'tuesdayExtraBudget': tuesdayExtraBudget,
     };
   }
 
   factory BudgetConfig.fromJson(Map<String, dynamic> json) {
     return BudgetConfig(
-      cycleTarget: (json['cycleTarget'] ?? 340000.0).toDouble(),
-      xienBudget: (json['xienBudget'] ?? 19000.0).toDouble(),
-      tuesdayExtraBudget: (json['tuesdayExtraBudget'] ?? 200000.0).toDouble(),
+      totalCapital: (json['totalCapital'] ?? 600000.0).toDouble(),
+      trungBudget: (json['trungBudget'] ?? 200000.0).toDouble(),
+      bacBudget: (json['bacBudget'] ?? 200000.0).toDouble(),
+      xienBudget: (json['xienBudget'] ?? 150000.0).toDouble(),
     );
   }
 
   factory BudgetConfig.defaultBudget() {
     return BudgetConfig(
-      cycleTarget: 330000.0,      // Trung bình của 330k-350k
-      xienBudget: 19000.0,
-      tuesdayExtraBudget: 200000.0,
+      totalCapital: 600000.0,
+      trungBudget: 200000.0,
+      bacBudget: 200000.0,
+      xienBudget: 150000.0,
+    );
+  }
+
+  // ✅ Copy with method để update từng field
+  BudgetConfig copyWith({
+    double? totalCapital,
+    double? trungBudget,
+    double? bacBudget,
+    double? xienBudget,
+  }) {
+    return BudgetConfig(
+      totalCapital: totalCapital ?? this.totalCapital,
+      trungBudget: trungBudget ?? this.trungBudget,
+      bacBudget: bacBudget ?? this.bacBudget,
+      xienBudget: xienBudget ?? this.xienBudget,
     );
   }
 }

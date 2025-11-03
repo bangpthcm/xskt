@@ -15,6 +15,8 @@ import '../../../data/services/betting_table_service.dart';
 import '../../../data/services/rss_parser_service.dart';
 import '../../../data/services/backfill_service.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
+import '../../../data/services/budget_calculation_service.dart';
+import '../../../core/utils/number_utils.dart';
 
 class AnalysisViewModel extends ChangeNotifier {
   final GoogleSheetsService _sheetsService;
@@ -192,6 +194,27 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // ✅ BƯỚC 1: Tính budget khả dụng
+      final budgetService = BudgetCalculationService(
+        sheetsService: _sheetsService,
+      );
+      
+      final availableBudget = await budgetService.calculateTatCaBudget(
+        config.budget.totalCapital,
+      );
+      
+      print('💰 Available budget for Tất cả: ${NumberUtils.formatCurrency(availableBudget)}');
+      
+      // ✅ Validate budget
+      if (availableBudget <= 50000) {
+        throw Exception(
+          'Không đủ vốn để tạo bảng Tất cả!\n'
+          'Vốn khả dụng: ${NumberUtils.formatCurrency(availableBudget)} VNĐ\n'
+          'Cần tối thiểu: 50,000 VNĐ'
+        );
+      }
+
+      // ✅ BƯỚC 2: Tìm ngày bắt đầu (logic cũ, giữ nguyên)
       DateTime? latestDate;
       String? latestMien;
       
@@ -214,6 +237,7 @@ class AnalysisViewModel extends ChangeNotifier {
       final mienOrder = ['Nam', 'Trung', 'Bắc'];
       final latestMienIndex = mienOrder.indexOf(latestMien);
       print('📅 Latest KQXS: ${date_utils.DateUtils.formatDate(latestDate!)} - $latestMien');
+      
       DateTime startDate;
       int startMienIndex;
       
@@ -233,17 +257,15 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
-      // ✅ ĐƠN GIẢN: CHỈ CẦN SỐ LƯỢT VÀ ENDDATE DỰ KIẾN (SAU 15 NGÀY)
+      // ✅ BƯỚC 3: Tính số lượt và budget
       int targetMienCount = 9;
-      double budgetMax = config.budget.budgetMax;
+      double budgetMax = availableBudget;  // ✅ Dùng budget động
       
-      // ✅ EndDate dự kiến: 15 ngày (đủ để chứa 9-10 lượt)
       DateTime endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 15));
       print('📅 Start betting: ${date_utils.DateUtils.formatDate(startDate)} - startMienIndex: $startMienIndex (${mienOrder[startMienIndex]})');
       print('🔍 Starting with targetMienCount: $targetMienCount');
       print('📅 Estimated endDate: ${date_utils.DateUtils.formatDate(endDate)}');
       
-      // ✅ TÍNH SỐ LƯỢT ĐÃ QUA TRƯỚC KHI BẮT ĐẦU BẢNG
       int initialMienCount = _countTargetMienOccurrences(
         startDate: _cycleResult!.lastSeenDate,
         endDate: startDate,
@@ -253,8 +275,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
       print('📊 Initial mien count: $initialMienCount');
 
-
-      // ✅ CHECK TUESDAY: CHỈ CẦN SIMULATE 9 LƯỢT ĐỂ TÌM 2 DÒNG CUỐI
+      // ✅ CHECK TUESDAY: Simulate để tìm 2 ngày cuối
       final simulatedRows = _simulateTableRows(
         startDate: startDate,
         startMienIndex: startMienIndex,
@@ -264,9 +285,8 @@ class AnalysisViewModel extends ChangeNotifier {
         initialCount: initialMienCount,
       );
 
-      // ✅ THAY ĐỔI: TÌM 2 NGÀY CUỐI, KHÔNG PHẢI 2 DÒNG CUỐI
+      // ✅ Check Tuesday logic - CHỈ TĂNG LƯỢT, KHÔNG TĂNG BUDGET
       if (simulatedRows.isNotEmpty) {
-        // ✅ LẤY TẤT CẢ CÁC NGÀY DUY NHẤT
         final uniqueDates = <DateTime>{};
         for (final row in simulatedRows) {
           uniqueDates.add(row['date'] as DateTime);
@@ -286,9 +306,6 @@ class AnalysisViewModel extends ChangeNotifier {
           
           bool needExtraTurn = false;
           
-          // ✅ CHECK NẾU NGÀY CUỐI HOẶC ÁP CUỐI CÓ MIỀN NAM VÀ LÀ THỨ 3
-          
-          // Check ngày cuối: Có miền Nam không?
           final lastDateHasNam = simulatedRows.any((row) => 
             (row['date'] as DateTime).isAtSameMomentAs(lastDate) && 
             row['mien'] == 'Nam'
@@ -299,7 +316,6 @@ class AnalysisViewModel extends ChangeNotifier {
             needExtraTurn = true;
           }
           
-          // Check ngày áp cuối: Có miền Nam không?
           if (!needExtraTurn) {
             final secondLastDateHasNam = simulatedRows.any((row) => 
               (row['date'] as DateTime).isAtSameMomentAs(secondLastDate) && 
@@ -313,25 +329,23 @@ class AnalysisViewModel extends ChangeNotifier {
           }
           
           if (needExtraTurn) {
-            print('💰 Adding extra turn (9 → 10)');
+            print('📅 Adding extra turn (9 → 10) - NO budget increase');
             targetMienCount = 10;
-            budgetMax += config.budget.tuesdayExtraBudget;
+            // ✅ KHÔNG TĂNG budgetMax
           }
-        } else {
-          print('⚠️ Not enough dates to check Tuesday logic');
         }
-      } else {
-        print('⚠️ No simulated rows');
       }
 
       print('🎯 Final targetMienCount: $targetMienCount');
+      print('💰 Final budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
 
+      // ✅ BƯỚC 4: Generate table
       final newTable = await _bettingService.generateCycleTable(
         cycleResult: _cycleResult!,
         startDate: startDate,
-        endDate: endDate,  // ✅ EndDate không quan trọng, logic sẽ dừng khi đủ lượt
+        endDate: endDate,
         startMienIndex: startMienIndex,
-        budgetMin: config.budget.budgetMin,
+        budgetMin: budgetMax * 0.95,  // ✅ -5% flexibility
         budgetMax: budgetMax,
         allResults: _allResults,
         maxMienCount: targetMienCount,
@@ -347,6 +361,7 @@ class AnalysisViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
 
   // ✅ SỬA _simulateTableRows() - THÊM initialCount
 
@@ -499,6 +514,7 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // ✅ BƯỚC 1: Analyze số đó
       final numberDetail = await _analysisService.analyzeNumberDetail(
         _allResults,
         targetNumber,
@@ -532,6 +548,27 @@ class AnalysisViewModel extends ChangeNotifier {
         targetNumber: targetNumber,
       );
 
+      // ✅ BƯỚC 2: Tính budget khả dụng
+      final budgetService = BudgetCalculationService(
+        sheetsService: _sheetsService,
+      );
+      
+      final availableBudget = await budgetService.calculateTatCaBudget(
+        config.budget.totalCapital,
+      );
+      
+      print('💰 Available budget for number $targetNumber: ${NumberUtils.formatCurrency(availableBudget)}');
+      
+      // ✅ Validate budget
+      if (availableBudget <= 50000) {
+        throw Exception(
+          'Không đủ vốn để tạo bảng!\n'
+          'Vốn khả dụng: ${NumberUtils.formatCurrency(availableBudget)} VNĐ\n'
+          'Cần tối thiểu: 50,000 VNĐ'
+        );
+      }
+
+      // ✅ BƯỚC 3: Tìm ngày bắt đầu
       DateTime? latestDate;
       String? latestMien;
       
@@ -561,8 +598,9 @@ class AnalysisViewModel extends ChangeNotifier {
         startMienIndex = latestMienIndex + 1;
       }
 
+      // ✅ BƯỚC 4: Tính số lượt
       int targetMienCount = 9;
-      double budgetMax = config.budget.budgetMax;
+      double budgetMax = availableBudget;  // ✅ Dùng budget động
       
       DateTime endDate = _calculateEndDateByMienCount(
         startDate: startDate,
@@ -599,7 +637,7 @@ class AnalysisViewModel extends ChangeNotifier {
       
       if (needExtraTurn) {
         targetMienCount = 10;
-        budgetMax += config.budget.tuesdayExtraBudget;
+        // ✅ KHÔNG TĂNG budgetMax
         
         endDate = _calculateEndDateByMienCount(
           startDate: startDate,
@@ -610,15 +648,16 @@ class AnalysisViewModel extends ChangeNotifier {
         );
       }
 
+      // ✅ BƯỚC 5: Generate table
       final newTable = await _bettingService.generateCycleTable(
         cycleResult: customCycleResult,
         startDate: startDate,
         endDate: endDate,
         startMienIndex: startMienIndex,
-        budgetMin: config.budget.budgetMin,
+        budgetMin: budgetMax * 0.95,
         budgetMax: budgetMax,
         allResults: _allResults,
-        maxMienCount: targetMienCount,  // ✅ TRUYỀN targetMienCount (9 hoặc 10)
+        maxMienCount: targetMienCount,
       );
 
       await _saveCycleTableToSheet(newTable);
@@ -1097,12 +1136,18 @@ class AnalysisViewModel extends ChangeNotifier {
       final startDate = latestDate!.add(const Duration(days: 1));
       final endDate = bacDetail.lastSeenDate.add(const Duration(days: 35));
 
+      // ✅ Dùng bacBudget từ config
+      final budgetMax = config.budget.bacBudget;
+      final budgetMin = budgetMax * 0.95;
+      
+      print('💰 Bắc budget: ${NumberUtils.formatCurrency(budgetMax)}');
+
       final newTable = await _bettingService.generateBacGanTable(
         cycleResult: customCycleResult,
         startDate: startDate,
         endDate: endDate,
-        budgetMin: config.budget.budgetMin,
-        budgetMax: config.budget.budgetMax,
+        budgetMin: budgetMin,
+        budgetMax: budgetMax,
       );
 
       await _saveBacTableToSheet(newTable, customCycleResult);
@@ -1158,12 +1203,18 @@ class AnalysisViewModel extends ChangeNotifier {
       final startDate = latestDate!.add(const Duration(days: 1));
       final endDate = trungDetail.lastSeenDate.add(const Duration(days: 35));
 
+      // ✅ Dùng trungBudget từ config
+      final budgetMax = config.budget.trungBudget;
+      final budgetMin = budgetMax * 0.95;
+      
+      print('💰 Trung budget: ${NumberUtils.formatCurrency(budgetMax)}');
+
       final newTable = await _bettingService.generateTrungGanTable(
         cycleResult: customCycleResult,
         startDate: startDate,
         endDate: endDate,
-        budgetMin: config.budget.budgetMin,
-        budgetMax: config.budget.budgetMax,
+        budgetMin: budgetMin,
+        budgetMax: budgetMax,
       );
 
       await _saveTrungTableToSheet(newTable, customCycleResult);

@@ -10,6 +10,8 @@ import '../../../data/services/telegram_service.dart';
 import '../../../data/services/analysis_service.dart';
 import '../../../data/models/app_config.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
+import '../../../data/services/budget_calculation_service.dart';
+import '../../../core/utils/number_utils.dart';
 
 enum BettingTableType { xien, cycle, trung, bac }  // ✅ ADD trung, bac
 
@@ -370,12 +372,18 @@ class BettingViewModel extends ChangeNotifier {
     final startDate = latestDate!.add(const Duration(days: 1));
     final endDate = cycleResult.lastSeenDate.add(const Duration(days: 35));
 
+    // ✅ Dùng trungBudget
+    final budgetMax = config.budget.trungBudget;
+    final budgetMin = budgetMax * 0.95;
+    
+    print('💰 Trung budget (regenerate): ${NumberUtils.formatCurrency(budgetMax)}');
+
     final newTable = await _bettingService.generateTrungGanTable(
       cycleResult: cycleResult,
       startDate: startDate,
       endDate: endDate,
-      budgetMin: config.budget.budgetMin,
-      budgetMax: config.budget.budgetMax,
+      budgetMin: budgetMin,
+      budgetMax: budgetMax,
     );
 
     await _saveTrungTableToSheet(newTable, cycleResult);
@@ -407,12 +415,18 @@ class BettingViewModel extends ChangeNotifier {
     final startDate = latestDate!.add(const Duration(days: 1));
     final endDate = cycleResult.lastSeenDate.add(const Duration(days: 35));
 
+    // ✅ Dùng bacBudget
+    final budgetMax = config.budget.bacBudget;
+    final budgetMin = budgetMax * 0.95;
+    
+    print('💰 Bắc budget (regenerate): ${NumberUtils.formatCurrency(budgetMax)}');
+
     final newTable = await _bettingService.generateBacGanTable(
       cycleResult: cycleResult,
       startDate: startDate,
       endDate: endDate,
-      budgetMin: config.budget.budgetMin,
-      budgetMax: config.budget.budgetMax,
+      budgetMin: budgetMin,
+      budgetMax: budgetMax,
     );
 
     await _saveBacTableToSheet(newTable, cycleResult);
@@ -466,6 +480,27 @@ class BettingViewModel extends ChangeNotifier {
       throw Exception('Không đủ điều kiện tạo bảng chu kỳ');
     }
 
+    // ✅ BƯỚC 1: Tính budget khả dụng
+    final budgetService = BudgetCalculationService(
+      sheetsService: _sheetsService,
+    );
+    
+    final availableBudget = await budgetService.calculateTatCaBudget(
+      config.budget.totalCapital,
+    );
+    
+    print('💰 Available budget for Tất cả (regenerate): ${NumberUtils.formatCurrency(availableBudget)}');
+    
+    // ✅ Validate budget
+    if (availableBudget <= 50000) {
+      throw Exception(
+        'Không đủ vốn để tạo bảng Tất cả!\n'
+        'Vốn khả dụng: ${NumberUtils.formatCurrency(availableBudget)} VNĐ\n'
+        'Cần tối thiểu: 50,000 VNĐ'
+      );
+    }
+
+    // ✅ BƯỚC 2: Tìm ngày bắt đầu
     DateTime? latestDate;
     String? latestMien;
     
@@ -503,8 +538,9 @@ class BettingViewModel extends ChangeNotifier {
       }
     }
 
+    // ✅ BƯỚC 3: Tính số lượt
     int targetMienCount = 9;
-    double budgetMax = config.budget.budgetMax;
+    double budgetMax = availableBudget;  // ✅ Dùng budget động
     
     DateTime endDate = _calculateEndDateByMienCount(
       startDate: startDate,
@@ -540,8 +576,9 @@ class BettingViewModel extends ChangeNotifier {
     }
     
     if (needExtraTurn) {
+      print('📅 Adding extra turn (9 → 10) - NO budget increase');
       targetMienCount = 10;
-      budgetMax += config.budget.tuesdayExtraBudget;
+      // ✅ KHÔNG TĂNG budgetMax
       
       endDate = _calculateEndDateByMienCount(
         startDate: startDate,
@@ -552,15 +589,19 @@ class BettingViewModel extends ChangeNotifier {
       );
     }
 
+    print('🎯 Final targetMienCount: $targetMienCount');
+    print('💰 Final budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
+
+    // ✅ BƯỚC 4: Generate table
     final newTable = await _bettingService.generateCycleTable(
       cycleResult: cycleResult,
       startDate: startDate,
       endDate: endDate,
       startMienIndex: startMienIndex,
-      budgetMin: config.budget.budgetMin,
+      budgetMin: budgetMax * 0.95,  // ✅ -5% flexibility
       budgetMax: budgetMax,
       allResults: results,
-      maxMienCount: targetMienCount,  // ✅ TRUYỀN targetMienCount (9 hoặc 10)
+      maxMienCount: targetMienCount,
     );
 
     await _saveCycleTableToSheet(newTable, cycleResult);
