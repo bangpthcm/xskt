@@ -17,6 +17,7 @@ import '../../../data/services/backfill_service.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../data/services/budget_calculation_service.dart';
 import '../../../core/utils/number_utils.dart';
+import '../../../data/services/budget_calculation_service.dart';
 
 class AnalysisViewModel extends ChangeNotifier {
   final GoogleSheetsService _sheetsService;
@@ -180,8 +181,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ SỬA createCycleBettingTable() - ĐƠN GIẢN HÓA
-
   Future<void> createCycleBettingTable(AppConfig config) async {
     if (_cycleResult == null) {
       _errorMessage = 'Chưa có dữ liệu chu kỳ';
@@ -194,25 +193,20 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // ✅ BƯỚC 1: Tính budget khả dụng
+      // ✅ BƯỚC 1: Tính budget khả dụng (NEW LOGIC)
       final budgetService = BudgetCalculationService(
         sheetsService: _sheetsService,
       );
       
-      final availableBudget = await budgetService.calculateTatCaBudget(
-        config.budget.totalCapital,
+      final budgetResult = await budgetService.calculateAvailableBudget(
+        totalCapital: config.budget.totalCapital,
+        targetTable: 'tatca',  // Bảng "Tất cả"
+        configBudget: null,  // Không có config cho Tất cả
       );
       
-      print('💰 Available budget for Tất cả: ${NumberUtils.formatCurrency(availableBudget)}');
+      final budgetMax = budgetResult.budgetMax;
       
-      // ✅ Validate budget
-      if (availableBudget <= 50000) {
-        throw Exception(
-          'Không đủ vốn để tạo bảng Tất cả!\n'
-          'Vốn khả dụng: ${NumberUtils.formatCurrency(availableBudget)} VNĐ\n'
-          'Cần tối thiểu: 50,000 VNĐ'
-        );
-      }
+      print('💰 Budget for Tất cả: ${NumberUtils.formatCurrency(budgetMax)}');
 
       // ✅ BƯỚC 2: Tìm ngày bắt đầu (logic cũ, giữ nguyên)
       DateTime? latestDate;
@@ -257,9 +251,8 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
-      // ✅ BƯỚC 3: Tính số lượt và budget
+      // ✅ BƯỚC 3: Tính số lượt
       int targetMienCount = 9;
-      double budgetMax = availableBudget;  // ✅ Dùng budget động
       
       DateTime endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 15));
       print('📅 Start betting: ${date_utils.DateUtils.formatDate(startDate)} - startMienIndex: $startMienIndex (${mienOrder[startMienIndex]})');
@@ -275,7 +268,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
       print('📊 Initial mien count: $initialMienCount');
 
-      // ✅ CHECK TUESDAY: Simulate để tìm 2 ngày cuối
+      // ✅ CHECK TUESDAY
       final simulatedRows = _simulateTableRows(
         startDate: startDate,
         startMienIndex: startMienIndex,
@@ -285,7 +278,6 @@ class AnalysisViewModel extends ChangeNotifier {
         initialCount: initialMienCount,
       );
 
-      // ✅ Check Tuesday logic - CHỈ TĂNG LƯỢT, KHÔNG TĂNG BUDGET
       if (simulatedRows.isNotEmpty) {
         final uniqueDates = <DateTime>{};
         for (final row in simulatedRows) {
@@ -329,9 +321,8 @@ class AnalysisViewModel extends ChangeNotifier {
           }
           
           if (needExtraTurn) {
-            print('📅 Adding extra turn (9 → 10) - NO budget increase');
+            print('📅 Adding extra turn (9 → 10)');
             targetMienCount = 10;
-            // ✅ KHÔNG TĂNG budgetMax
           }
         }
       }
@@ -340,19 +331,59 @@ class AnalysisViewModel extends ChangeNotifier {
       print('💰 Final budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
 
       // ✅ BƯỚC 4: Generate table
-      final newTable = await _bettingService.generateCycleTable(
-        cycleResult: _cycleResult!,
-        startDate: startDate,
-        endDate: endDate,
-        startMienIndex: startMienIndex,
-        budgetMin: budgetMax * 0.95,  // ✅ -5% flexibility
-        budgetMax: budgetMax,
-        allResults: _allResults,
-        maxMienCount: targetMienCount,
-      );
+      try {
+        final newTable = await _bettingService.generateCycleTable(
+          cycleResult: _cycleResult!,
+          startDate: startDate,
+          endDate: endDate,
+          startMienIndex: startMienIndex,
+          budgetMin: budgetMax * 0.95,
+          budgetMax: budgetMax,
+          allResults: _allResults,
+          maxMienCount: targetMienCount,
+        );
 
-      await _saveCycleTableToSheet(newTable);
+        await _saveCycleTableToSheet(newTable);
 
+        _isLoading = false;
+        notifyListeners();
+        
+      } catch (generateError) {
+        // ✅ Bắt lỗi generate và throw lỗi chi tiết
+        print('❌ Generate table error: $generateError');
+        
+        // Thử tạo một lần để lấy estimated total
+        try {
+          final testTable = await _bettingService.generateCycleTable(
+            cycleResult: _cycleResult!,
+            startDate: startDate,
+            endDate: endDate,
+            startMienIndex: startMienIndex,
+            budgetMin: 1.0,
+            budgetMax: budgetMax * 2,  // Thử với budget gấp đôi
+            allResults: _allResults,
+            maxMienCount: targetMienCount,
+          );
+          
+          final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
+          
+          throw OptimizationFailedException(
+            tableName: 'Tất cả',
+            budgetResult: budgetResult,
+            estimatedTotal: estimatedTotal,
+          );
+        } catch (testError) {
+          // Nếu test cũng fail, throw error gốc
+          rethrow;
+        }
+      }
+      
+    } on BudgetInsufficientException catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    } on OptimizationFailedException catch (e) {
+      _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -548,25 +579,20 @@ class AnalysisViewModel extends ChangeNotifier {
         targetNumber: targetNumber,
       );
 
-      // ✅ BƯỚC 2: Tính budget khả dụng
+      // ✅ BƯỚC 2: Tính budget khả dụng (NEW LOGIC)
       final budgetService = BudgetCalculationService(
         sheetsService: _sheetsService,
       );
       
-      final availableBudget = await budgetService.calculateTatCaBudget(
-        config.budget.totalCapital,
+      final budgetResult = await budgetService.calculateAvailableBudget(
+        totalCapital: config.budget.totalCapital,
+        targetTable: 'tatca',
+        configBudget: null,
       );
       
-      print('💰 Available budget for number $targetNumber: ${NumberUtils.formatCurrency(availableBudget)}');
+      final availableBudget = budgetResult.budgetMax;
       
-      // ✅ Validate budget
-      if (availableBudget <= 50000) {
-        throw Exception(
-          'Không đủ vốn để tạo bảng!\n'
-          'Vốn khả dụng: ${NumberUtils.formatCurrency(availableBudget)} VNĐ\n'
-          'Cần tối thiểu: 50,000 VNĐ'
-        );
-      }
+      print('💰 Available budget for number $targetNumber: ${NumberUtils.formatCurrency(availableBudget)}');
 
       // ✅ BƯỚC 3: Tìm ngày bắt đầu
       DateTime? latestDate;
@@ -600,7 +626,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
       // ✅ BƯỚC 4: Tính số lượt
       int targetMienCount = 9;
-      double budgetMax = availableBudget;  // ✅ Dùng budget động
+      double budgetMax = availableBudget;
       
       DateTime endDate = _calculateEndDateByMienCount(
         startDate: startDate,
@@ -637,7 +663,6 @@ class AnalysisViewModel extends ChangeNotifier {
       
       if (needExtraTurn) {
         targetMienCount = 10;
-        // ✅ KHÔNG TĂNG budgetMax
         
         endDate = _calculateEndDateByMienCount(
           startDate: startDate,
@@ -649,19 +674,56 @@ class AnalysisViewModel extends ChangeNotifier {
       }
 
       // ✅ BƯỚC 5: Generate table
-      final newTable = await _bettingService.generateCycleTable(
-        cycleResult: customCycleResult,
-        startDate: startDate,
-        endDate: endDate,
-        startMienIndex: startMienIndex,
-        budgetMin: budgetMax * 0.95,
-        budgetMax: budgetMax,
-        allResults: _allResults,
-        maxMienCount: targetMienCount,
-      );
+      try {
+        final newTable = await _bettingService.generateCycleTable(
+          cycleResult: customCycleResult,
+          startDate: startDate,
+          endDate: endDate,
+          startMienIndex: startMienIndex,
+          budgetMin: budgetMax * 0.95,
+          budgetMax: budgetMax,
+          allResults: _allResults,
+          maxMienCount: targetMienCount,
+        );
 
-      await _saveCycleTableToSheet(newTable);
+        await _saveCycleTableToSheet(newTable);
 
+        _isLoading = false;
+        notifyListeners();
+        
+      } catch (generateError) {
+        print('❌ Generate table error: $generateError');
+        
+        try {
+          final testTable = await _bettingService.generateCycleTable(
+            cycleResult: customCycleResult,
+            startDate: startDate,
+            endDate: endDate,
+            startMienIndex: startMienIndex,
+            budgetMin: 1.0,
+            budgetMax: budgetMax * 2,
+            allResults: _allResults,
+            maxMienCount: targetMienCount,
+          );
+          
+          final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
+          
+          throw OptimizationFailedException(
+            tableName: 'Tất cả (Number $targetNumber)',
+            budgetResult: budgetResult,
+            estimatedTotal: estimatedTotal,
+          );
+        } catch (testError) {
+          rethrow;
+        }
+      }
+      
+    } on BudgetInsufficientException catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    } on OptimizationFailedException catch (e) {
+      _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -703,14 +765,61 @@ class AnalysisViewModel extends ChangeNotifier {
       
       final config = await _storageService.loadConfig();
       
-      final newTable = await _bettingService.generateXienTable(
-        ganInfo: _ganPairInfo!,
-        startDate: startDate,
-        xienBudget: config?.budget.xienBudget ?? 19000.0,
+      // ✅ NEW LOGIC: Tính budget động
+      final budgetService = BudgetCalculationService(
+        sheetsService: _sheetsService,
       );
+      
+      final budgetResult = await budgetService.calculateAvailableBudget(
+        totalCapital: config!.budget.totalCapital,
+        targetTable: 'xien',
+        configBudget: config.budget.xienBudget,
+      );
+      
+      final xienBudget = budgetResult.budgetMax;
+      
+      print('💰 Xiên budget: ${NumberUtils.formatCurrency(xienBudget)}');
+      
+      try {
+        final newTable = await _bettingService.generateXienTable(
+          ganInfo: _ganPairInfo!,
+          startDate: startDate,
+          xienBudget: xienBudget,
+        );
 
-      await _saveXienTableToSheet(newTable);
+        await _saveXienTableToSheet(newTable);
 
+        _isLoading = false;
+        notifyListeners();
+        
+      } catch (generateError) {
+        print('❌ Generate table error: $generateError');
+        
+        try {
+          final testTable = await _bettingService.generateXienTable(
+            ganInfo: _ganPairInfo!,
+            startDate: startDate,
+            xienBudget: xienBudget * 2,
+          );
+          
+          final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : xienBudget;
+          
+          throw OptimizationFailedException(
+            tableName: 'Xiên',
+            budgetResult: budgetResult,
+            estimatedTotal: estimatedTotal,
+          );
+        } catch (testError) {
+          rethrow;
+        }
+      }
+      
+    } on BudgetInsufficientException catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    } on OptimizationFailedException catch (e) {
+      _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -1136,22 +1245,66 @@ class AnalysisViewModel extends ChangeNotifier {
       final startDate = latestDate!.add(const Duration(days: 1));
       final endDate = bacDetail.lastSeenDate.add(const Duration(days: 35));
 
-      // ✅ Dùng bacBudget từ config
-      final budgetMax = config.budget.bacBudget;
+      // ✅ NEW LOGIC: Tính budget động
+      final budgetService = BudgetCalculationService(
+        sheetsService: _sheetsService,
+      );
+      
+      final budgetResult = await budgetService.calculateAvailableBudget(
+        totalCapital: config.budget.totalCapital,
+        targetTable: 'bac',
+        configBudget: config.budget.bacBudget,
+      );
+      
+      final budgetMax = budgetResult.budgetMax;
       final budgetMin = budgetMax * 0.95;
       
       print('💰 Bắc budget: ${NumberUtils.formatCurrency(budgetMax)}');
 
-      final newTable = await _bettingService.generateBacGanTable(
-        cycleResult: customCycleResult,
-        startDate: startDate,
-        endDate: endDate,
-        budgetMin: budgetMin,
-        budgetMax: budgetMax,
-      );
+      try {
+        final newTable = await _bettingService.generateBacGanTable(
+          cycleResult: customCycleResult,
+          startDate: startDate,
+          endDate: endDate,
+          budgetMin: budgetMin,
+          budgetMax: budgetMax,
+        );
 
-      await _saveBacTableToSheet(newTable, customCycleResult);
+        await _saveBacTableToSheet(newTable, customCycleResult);
 
+        _isLoading = false;
+        notifyListeners();
+        
+      } catch (generateError) {
+        print('❌ Generate table error: $generateError');
+        
+        try {
+          final testTable = await _bettingService.generateBacGanTable(
+            cycleResult: customCycleResult,
+            startDate: startDate,
+            endDate: endDate,
+            budgetMin: 1.0,
+            budgetMax: budgetMax * 2,
+          );
+          
+          final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
+          
+          throw OptimizationFailedException(
+            tableName: 'Miền Bắc',
+            budgetResult: budgetResult,
+            estimatedTotal: estimatedTotal,
+          );
+        } catch (testError) {
+          rethrow;
+        }
+      }
+      
+    } on BudgetInsufficientException catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    } on OptimizationFailedException catch (e) {
+      _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -1203,22 +1356,66 @@ class AnalysisViewModel extends ChangeNotifier {
       final startDate = latestDate!.add(const Duration(days: 1));
       final endDate = trungDetail.lastSeenDate.add(const Duration(days: 35));
 
-      // ✅ Dùng trungBudget từ config
-      final budgetMax = config.budget.trungBudget;
+      // ✅ NEW LOGIC: Tính budget động
+      final budgetService = BudgetCalculationService(
+        sheetsService: _sheetsService,
+      );
+      
+      final budgetResult = await budgetService.calculateAvailableBudget(
+        totalCapital: config.budget.totalCapital,
+        targetTable: 'trung',
+        configBudget: config.budget.trungBudget,
+      );
+      
+      final budgetMax = budgetResult.budgetMax;
       final budgetMin = budgetMax * 0.95;
       
       print('💰 Trung budget: ${NumberUtils.formatCurrency(budgetMax)}');
 
-      final newTable = await _bettingService.generateTrungGanTable(
-        cycleResult: customCycleResult,
-        startDate: startDate,
-        endDate: endDate,
-        budgetMin: budgetMin,
-        budgetMax: budgetMax,
-      );
+      try {
+        final newTable = await _bettingService.generateTrungGanTable(
+          cycleResult: customCycleResult,
+          startDate: startDate,
+          endDate: endDate,
+          budgetMin: budgetMin,
+          budgetMax: budgetMax,
+        );
 
-      await _saveTrungTableToSheet(newTable, customCycleResult);
+        await _saveTrungTableToSheet(newTable, customCycleResult);
 
+        _isLoading = false;
+        notifyListeners();
+        
+      } catch (generateError) {
+        print('❌ Generate table error: $generateError');
+        
+        try {
+          final testTable = await _bettingService.generateTrungGanTable(
+            cycleResult: customCycleResult,
+            startDate: startDate,
+            endDate: endDate,
+            budgetMin: 1.0,
+            budgetMax: budgetMax * 2,
+          );
+          
+          final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
+          
+          throw OptimizationFailedException(
+            tableName: 'Miền Trung',
+            budgetResult: budgetResult,
+            estimatedTotal: estimatedTotal,
+          );
+        } catch (testError) {
+          rethrow;
+        }
+      }
+      
+    } on BudgetInsufficientException catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    } on OptimizationFailedException catch (e) {
+      _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
