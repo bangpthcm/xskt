@@ -64,8 +64,16 @@ class RssParserService {
         final linkText = linkElement.innerText;
         final description = descriptionElement.innerText;
         
-        final dateStr = date_utils.DateUtils.getDateFromRssLink(linkText);
-        if (dateStr == null) continue;  // ✅ Skip if null
+        // ✅ FIX: Lấy ngày từ RSS và format lại
+        final rawDateStr = date_utils.DateUtils.getDateFromRssLink(linkText);
+        if (rawDateStr == null) {
+          print('   ⚠️ Could not extract date from: $linkText');
+          continue;
+        }
+        
+        // ✅ Parse và format lại với 2 chữ số
+        final dateStr = _formatDateWith2Digits(rawDateStr);
+        print('   📅 Formatted date: $rawDateStr → $dateStr');
         
         final provincesData = _parseProvincesData(description, mien);
         
@@ -75,7 +83,7 @@ class RssParserService {
           
           if (numbers.isNotEmpty) {
             results.add(LotteryResult(
-              ngay: dateStr,  // ✅ Safe: already checked null
+              ngay: dateStr,  // ✅ Dùng ngày đã format
               mien: mien,
               tinh: tinh,
               numbers: numbers,
@@ -110,8 +118,13 @@ class RssParserService {
       final linkText = linkElement.innerText;
       final description = descriptionElement.innerText;
       
-      final dateStr = date_utils.DateUtils.getDateFromRssLink(linkText);
-      if (dateStr == null || dateStr != targetDate) continue;
+      final rawDateStr = date_utils.DateUtils.getDateFromRssLink(linkText);
+      if (rawDateStr == null) continue;
+      
+      // ✅ FIX: Format lại với 2 chữ số
+      final dateStr = _formatDateWith2Digits(rawDateStr);
+      
+      if (dateStr != targetDate) continue;
       
       final provincesData = _parseProvincesData(description, mien);
       
@@ -150,5 +163,27 @@ class RssParserService {
     }
     
     return data;
+  }
+
+  // ✅ NEW METHOD: Format ngày với 2 chữ số
+  String _formatDateWith2Digits(String rawDate) {
+    // Input: "4/11/2025" hoặc "04/11/2025"
+    // Output: "04/11/2025" (luôn 2 chữ số)
+    
+    try {
+      final parts = rawDate.split('/');
+      if (parts.length != 3) return rawDate; // Giữ nguyên nếu format lạ
+      
+      final day = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final year = int.parse(parts[2]);
+      
+      // Format lại với 2 chữ số cho ngày và tháng
+      return '${day.toString().padLeft(2, '0')}/${month.toString().padLeft(2, '0')}/$year';
+      
+    } catch (e) {
+      print('   ⚠️ Error formatting date "$rawDate": $e');
+      return rawDate; // Fallback: giữ nguyên
+    }
   }
 }
