@@ -9,20 +9,29 @@ import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/xien_win_history.dart';
 
 class WinHistoryScreen extends StatefulWidget {
-  const WinHistoryScreen({Key? key}) : super(key: key);
+  final int initialTab;
+  
+  const WinHistoryScreen({
+    Key? key,
+    this.initialTab = 0,
+  }) : super(key: key);
 
   @override
   State<WinHistoryScreen> createState() => _WinHistoryScreenState();
 }
 
 class _WinHistoryScreenState extends State<WinHistoryScreen>
-    with SingleTickerProviderStateMixin {  // ✅ THAY ĐỔI: Single thay vì Ticker
-  late TabController _tabController;  // ✅ CHỈ CÒN 1 CONTROLLER
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);  // ✅ 4 TAB
+    _tabController = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: widget.initialTab,  // ✅ SỬ DỤNG initialTab
+    );
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<WinHistoryViewModel>().loadHistory();

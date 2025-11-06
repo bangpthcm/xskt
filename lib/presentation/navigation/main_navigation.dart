@@ -5,7 +5,7 @@ import '../screens/betting/betting_screen.dart';
 import '../screens/analysis/analysis_screen.dart';
 import '../screens/analysis/analysis_viewmodel.dart';
 import '../screens/home/home_screen.dart';
-import '../screens/win_history/win_history_screen.dart';
+import '../screens/win_history/win_summary_screen.dart';
 import '../screens/settings/settings_screen.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -48,7 +48,7 @@ class MainNavigationState extends State<MainNavigation>
           BettingScreen(),      // ✅ Index 0: Bảng cược
           AnalysisScreen(),     // ✅ Index 1: Phân tích
           HomeScreen(),         // ✅ Index 2: Live (Trang chủ)
-          WinHistoryScreen(),   // ✅ Index 3: Lịch sử
+          WinSummaryScreen(),   // ✅ Index 3: Lịch sử
           SettingsScreen(),     // ✅ Index 4: Cài đặt
         ],
       ),
