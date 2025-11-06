@@ -459,7 +459,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         await Future.delayed(const Duration(milliseconds: 300));
         
         if (context.mounted) {
-          mainNavigationKey.currentState?.switchToTab(2);
+          mainNavigationKey.currentState?.switchToTab(1);
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -920,7 +920,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   await Future.delayed(const Duration(milliseconds: 300));
                   
                   if (context.mounted) {
-                    mainNavigationKey.currentState?.switchToTab(2);
+                    mainNavigationKey.currentState?.switchToTab(1);
                   }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -974,7 +974,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   await Future.delayed(const Duration(milliseconds: 300));
                   
                   if (context.mounted) {
-                    mainNavigationKey.currentState?.switchToTab(2);
+                    mainNavigationKey.currentState?.switchToTab(1);
                   }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1119,7 +1119,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   await Future.delayed(const Duration(milliseconds: 300));
                   
                   if (context.mounted) {
-                    mainNavigationKey.currentState?.switchToTab(2);
+                    mainNavigationKey.currentState?.switchToTab(1);
                   }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1191,7 +1191,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   await Future.delayed(const Duration(milliseconds: 300));
                   
                   if (context.mounted) {
-                    mainNavigationKey.currentState?.switchToTab(2);
+                    mainNavigationKey.currentState?.switchToTab(1);
                   }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1510,7 +1510,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         await Future.delayed(const Duration(milliseconds: 300));
         
         if (context.mounted) {
-          mainNavigationKey.currentState?.switchToTab(2);
+          mainNavigationKey.currentState?.switchToTab(1);
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

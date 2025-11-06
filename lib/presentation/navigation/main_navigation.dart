@@ -23,9 +23,9 @@ class MainNavigationState extends State<MainNavigation>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 5,
+      length: 4,
       vsync: this,
-      initialIndex: 0, // ✅ MỞ APP VÀO BẢNG CƯỢC (index 0)
+      initialIndex: 1, // ✅ MỞ APP VÀO BẢNG CƯỢC (index 0)
     );
     _tabController.addListener(() {
       setState(() {});
@@ -45,27 +45,15 @@ class MainNavigationState extends State<MainNavigation>
         controller: _tabController,
         physics: const BouncingScrollPhysics(),
         children: const [
-          BettingScreen(),      // ✅ Index 0: Bảng cược
-          AnalysisScreen(),     // ✅ Index 1: Phân tích
-          HomeScreen(),         // ✅ Index 2: Live (Trang chủ)
-          WinSummaryScreen(),   // ✅ Index 3: Lịch sử
-          SettingsScreen(),     // ✅ Index 4: Cài đặt
+          AnalysisScreen(),     // ✅ Index 0: Phân tích
+          BettingScreen(),      // ✅ Index 1: Bảng cược
+          WinSummaryScreen(),   // ✅ Index 2: Kết quả
+          SettingsScreen(),     // ✅ Index 3: Cài đặt
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _tabController.index,
         onTap: (index) {
-          // ✅ NẾU CLICK VÀO LIVE, MỞ FULL-SCREEN WEBVIEW
-          if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const HomeScreen(),
-              ),
-            );
-            return;
-          }
-          
           _tabController.animateTo(
             index,
             duration: const Duration(milliseconds: 300),
@@ -74,10 +62,6 @@ class MainNavigationState extends State<MainNavigation>
         },
         type: BottomNavigationBarType.fixed,
         items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.table_chart),
-            label: 'Bảng cược',
-          ),
           BottomNavigationBarItem(
             icon: Consumer<AnalysisViewModel>(
               builder: (context, viewModel, child) {
@@ -104,14 +88,13 @@ class MainNavigationState extends State<MainNavigation>
             ),
             label: 'Phân tích',
           ),
-          // ✅ LIVE Ở GIỮA
           const BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Live',
+            icon: Icon(Icons.table_chart),
+            label: 'Bảng cược',
           ),
           const BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Lịch sử',
+            icon: Icon(Icons.assessment),
+            label: 'Kết quả',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.settings),
@@ -123,7 +106,7 @@ class MainNavigationState extends State<MainNavigation>
   }
 
   void switchToTab(int index) {
-    if (index >= 0 && index < 5) {
+    if (index >= 0 && index < 4) {
       _tabController.animateTo(
         index,
         duration: const Duration(milliseconds: 300),

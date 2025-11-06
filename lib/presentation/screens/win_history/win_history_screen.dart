@@ -368,11 +368,11 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
   void _showCheckDialog(BuildContext context) {
     final dateController = TextEditingController();
     
-    final yesterday = DateTime.now().subtract(const Duration(days: 1));
-    final yesterdayStr = '${yesterday.day.toString().padLeft(2, '0')}/'
-        '${yesterday.month.toString().padLeft(2, '0')}'
-        '/${yesterday.year}';
-    dateController.text = yesterdayStr;
+    final today = DateTime.now();
+    final todayStr = '${today.day.toString().padLeft(2, '0')}/'
+        '${today.month.toString().padLeft(2, '0')}'
+        '/${today.year}';
+    dateController.text = todayStr;
 
     showDialog(
       context: context,

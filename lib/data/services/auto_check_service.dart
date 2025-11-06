@@ -65,12 +65,22 @@ class AutoCheckService {
     final messages = <String>[];
 
     try {
-      // 1. Kiểm tra chu kỳ
+      // 1. Kiểm tra chu kỳ (Tất cả)
       final cycleResult = await _checkCycleTable(checkDate);
-      cycleWins = cycleResult.winsCount;
+      cycleWins += cycleResult.winsCount;
       messages.addAll(cycleResult.messages);
       
-      // 2. Kiểm tra xiên
+      // 2. Kiểm tra Miền Trung
+      final trungResult = await _checkTrungTable(checkDate);
+      cycleWins += trungResult.winsCount;
+      messages.addAll(trungResult.messages);
+      
+      // 3. Kiểm tra Miền Bắc
+      final bacResult = await _checkBacTable(checkDate);
+      cycleWins += bacResult.winsCount;
+      messages.addAll(bacResult.messages);
+      
+      // 4. Kiểm tra xiên
       final xienResult = await _checkXienTable(checkDate);
       xienWins = xienResult.winsCount;
       messages.addAll(xienResult.messages);
@@ -260,7 +270,10 @@ class AutoCheckService {
           winMien: winResult.winningMien,
           actualProfit: winResult.profit,
         );
-        
+        if (!foundWinForDate && firstWinResult != null) {
+          print('🗑️ Deleting cycle table xsktBot1 after win...');
+          await _sheetsService.clearSheet('xsktBot1');
+        }
       } else {
         // Đánh dấu đã check nhưng chưa trúng
         await _trackingService.updateCycleBettingStatus(
@@ -410,9 +423,329 @@ class AutoCheckService {
           winDate: checkDate,
           actualProfit: winResult.profit,
         );
-        
+        if (!foundWinForDate && firstWinResult != null) {
+          print('🗑️ Deleting xien table xienBot after win...');
+          await _sheetsService.clearSheet('xienBot');
+        }
       } else {
         await _trackingService.updateXienBettingStatus(
+          rowNumber: i + 1,
+          checked: true,
+          result: 'PENDING',
+        );
+      }
+    }
+
+    return _CheckResult(winsCount: winsCount, messages: messages);
+  }
+
+  Future<_CheckResult> _checkTrungTable(String checkDate) async {
+    print('\n📊 ========== CHECKING TRUNG TABLE ==========');
+    
+    final pendingDates = await _trackingService.getTrungPendingCheckDates();
+    
+    if (!pendingDates.contains(checkDate)) {
+      print('⏭️ No pending trung bets for $checkDate');
+      return _CheckResult(winsCount: 0, messages: []);
+    }
+
+    final allResults = await _loadAllResults();
+    final bettingTableData = await _sheetsService.getAllValues('trungBot');
+    
+    if (bettingTableData.length < 4) {
+      print('⚠️ No betting data in trung table');
+      return _CheckResult(winsCount: 0, messages: []);
+    }
+
+    final metadata = bettingTableData[0];
+    final startDate = metadata.length > 1 ? metadata[1].toString() : '';
+    final targetNumber = metadata.length > 3 ? metadata[3].toString() : '';
+
+    print('🎯 Target number: $targetNumber');
+    print('📅 Start date: $startDate');
+
+    int winsCount = 0;
+    final messages = <String>[];
+    bool foundWinForDate = false;
+    WinResult? firstWinResult;
+
+    for (int i = 3; i < bettingTableData.length; i++) {
+      final row = bettingTableData[i];
+      
+      if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+      
+      final rowDate = row[1].toString();
+      if (rowDate != checkDate) continue;
+      
+      final checked = row.length > 10 
+          ? row[10].toString().toUpperCase() == 'TRUE' 
+          : false;
+      
+      if (checked) {
+        print('⏭️ Row ${i+1} already checked');
+        continue;
+      }
+
+      if (foundWinForDate && firstWinResult != null) {
+        print('⏭️ Row ${i+1}: Already found WIN for $checkDate, just marking...');
+        
+        await _trackingService.updateTrungBettingStatus(
+          rowNumber: i + 1,
+          checked: true,
+          result: 'WIN',
+          winDate: checkDate,
+          winMien: firstWinResult.winningMien,
+          actualProfit: firstWinResult.profit,
+        );
+        
+        continue;
+      }
+
+      final bettingRow = _parseCycleBettingRow(row);
+      
+      final winResult = await _winCalcService.calculateCycleWin(
+        targetNumber: targetNumber,
+        checkDate: checkDate,
+        allResults: allResults,
+        totalBet: bettingRow.tongTien,
+        betPerNumber: bettingRow.cuocSo,
+      );
+
+      if (winResult != null && winResult.isWin) {
+        winsCount++;
+        print('🎉 WIN FOUND! Row ${i+1}');
+        
+        double tienCuocSo = bettingRow.cuocSo;
+        double tongTienCuoc = bettingRow.tongTien;
+        
+        for (int j = i; j >= 3; j--) {
+          final checkRow = bettingTableData[j];
+          if (checkRow.length > 2 && 
+              checkRow[1].toString() == checkDate && 
+              checkRow[2].toString() == winResult.winningMien) {
+            final winMienRow = _parseCycleBettingRow(checkRow);
+            tienCuocSo = winMienRow.cuocSo;
+            tongTienCuoc = winMienRow.tongTien;
+            break;
+          }
+        }
+        
+        if (!foundWinForDate) {
+          foundWinForDate = true;
+          firstWinResult = winResult;
+          
+          final history = CycleWinHistory(
+            stt: 0,
+            ngayKiemTra: date_utils.DateUtils.formatDate(DateTime.now()),
+            soMucTieu: targetNumber,
+            ngayBatDau: startDate,
+            ngayTrung: checkDate,
+            mienTrung: winResult.winningMien,
+            soLanTrung: winResult.occurrences,
+            cacTinhTrung: winResult.provincesDisplay,
+            tienCuocSo: tienCuocSo,
+            tongTienCuoc: tongTienCuoc,
+            tienVe: winResult.totalReturn,
+            loiLo: winResult.profit,
+            roi: winResult.roi,
+            soNgayCuoc: _winCalcService.calculateDaysBetween(startDate, checkDate),
+            trangThai: 'WIN',
+            ghiChu: 'Tự động phát hiện',
+          );
+          
+          await _trackingService.saveTrungWinHistory(history);
+          
+          final message = '🎉 MIỀN TRUNG TRÚNG!\n'
+              'Số: $targetNumber\n'
+              'Ngày: $checkDate\n'
+              'Miền: ${winResult.winningMien}\n'
+              'Lần: ${winResult.occurrences}x\n'
+              'Lời: ${winResult.profit.toStringAsFixed(0)} VNĐ\n'
+              'ROI: ${winResult.roi.toStringAsFixed(2)}%';
+          
+          messages.add(message);
+          
+          try {
+            await _telegramService.sendMessage(message);
+          } catch (e) {
+            print('⚠️ Failed to send Telegram: $e');
+          }
+          
+          // ✅ XÓA BẢNG TRUNG SAU KHI TRÚNG
+          print('🗑️ Deleting trung table trungBot after win...');
+          await _sheetsService.clearSheet('trungBot');
+        }
+        
+        await _trackingService.updateTrungBettingStatus(
+          rowNumber: i + 1,
+          checked: true,
+          result: 'WIN',
+          winDate: checkDate,
+          winMien: winResult.winningMien,
+          actualProfit: winResult.profit,
+        );
+        
+      } else {
+        await _trackingService.updateTrungBettingStatus(
+          rowNumber: i + 1,
+          checked: true,
+          result: 'PENDING',
+        );
+      }
+    }
+
+    return _CheckResult(winsCount: winsCount, messages: messages);
+  }
+
+  /// Kiểm tra bảng Miền Bắc
+  Future<_CheckResult> _checkBacTable(String checkDate) async {
+    print('\n📊 ========== CHECKING BAC TABLE ==========');
+    
+    final pendingDates = await _trackingService.getBacPendingCheckDates();
+    
+    if (!pendingDates.contains(checkDate)) {
+      print('⏭️ No pending bac bets for $checkDate');
+      return _CheckResult(winsCount: 0, messages: []);
+    }
+
+    final allResults = await _loadAllResults();
+    final bettingTableData = await _sheetsService.getAllValues('bacBot');
+    
+    if (bettingTableData.length < 4) {
+      print('⚠️ No betting data in bac table');
+      return _CheckResult(winsCount: 0, messages: []);
+    }
+
+    final metadata = bettingTableData[0];
+    final startDate = metadata.length > 1 ? metadata[1].toString() : '';
+    final targetNumber = metadata.length > 3 ? metadata[3].toString() : '';
+
+    print('🎯 Target number: $targetNumber');
+    print('📅 Start date: $startDate');
+
+    int winsCount = 0;
+    final messages = <String>[];
+    bool foundWinForDate = false;
+    WinResult? firstWinResult;
+
+    for (int i = 3; i < bettingTableData.length; i++) {
+      final row = bettingTableData[i];
+      
+      if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+      
+      final rowDate = row[1].toString();
+      if (rowDate != checkDate) continue;
+      
+      final checked = row.length > 10 
+          ? row[10].toString().toUpperCase() == 'TRUE' 
+          : false;
+      
+      if (checked) {
+        print('⏭️ Row ${i+1} already checked');
+        continue;
+      }
+
+      if (foundWinForDate && firstWinResult != null) {
+        print('⏭️ Row ${i+1}: Already found WIN for $checkDate, just marking...');
+        
+        await _trackingService.updateBacBettingStatus(
+          rowNumber: i + 1,
+          checked: true,
+          result: 'WIN',
+          winDate: checkDate,
+          winMien: firstWinResult.winningMien,
+          actualProfit: firstWinResult.profit,
+        );
+        
+        continue;
+      }
+
+      final bettingRow = _parseCycleBettingRow(row);
+      
+      final winResult = await _winCalcService.calculateCycleWin(
+        targetNumber: targetNumber,
+        checkDate: checkDate,
+        allResults: allResults,
+        totalBet: bettingRow.tongTien,
+        betPerNumber: bettingRow.cuocSo,
+      );
+
+      if (winResult != null && winResult.isWin) {
+        winsCount++;
+        print('🎉 WIN FOUND! Row ${i+1}');
+        
+        double tienCuocSo = bettingRow.cuocSo;
+        double tongTienCuoc = bettingRow.tongTien;
+        
+        for (int j = i; j >= 3; j--) {
+          final checkRow = bettingTableData[j];
+          if (checkRow.length > 2 && 
+              checkRow[1].toString() == checkDate && 
+              checkRow[2].toString() == winResult.winningMien) {
+            final winMienRow = _parseCycleBettingRow(checkRow);
+            tienCuocSo = winMienRow.cuocSo;
+            tongTienCuoc = winMienRow.tongTien;
+            break;
+          }
+        }
+        
+        if (!foundWinForDate) {
+          foundWinForDate = true;
+          firstWinResult = winResult;
+          
+          final history = CycleWinHistory(
+            stt: 0,
+            ngayKiemTra: date_utils.DateUtils.formatDate(DateTime.now()),
+            soMucTieu: targetNumber,
+            ngayBatDau: startDate,
+            ngayTrung: checkDate,
+            mienTrung: winResult.winningMien,
+            soLanTrung: winResult.occurrences,
+            cacTinhTrung: winResult.provincesDisplay,
+            tienCuocSo: tienCuocSo,
+            tongTienCuoc: tongTienCuoc,
+            tienVe: winResult.totalReturn,
+            loiLo: winResult.profit,
+            roi: winResult.roi,
+            soNgayCuoc: _winCalcService.calculateDaysBetween(startDate, checkDate),
+            trangThai: 'WIN',
+            ghiChu: 'Tự động phát hiện',
+          );
+          
+          await _trackingService.saveBacWinHistory(history);
+          
+          final message = '🎉 MIỀN BẮC TRÚNG!\n'
+              'Số: $targetNumber\n'
+              'Ngày: $checkDate\n'
+              'Miền: ${winResult.winningMien}\n'
+              'Lần: ${winResult.occurrences}x\n'
+              'Lời: ${winResult.profit.toStringAsFixed(0)} VNĐ\n'
+              'ROI: ${winResult.roi.toStringAsFixed(2)}%';
+          
+          messages.add(message);
+          
+          try {
+            await _telegramService.sendMessage(message);
+          } catch (e) {
+            print('⚠️ Failed to send Telegram: $e');
+          }
+          
+          // ✅ XÓA BẢNG BẮC SAU KHI TRÚNG
+          print('🗑️ Deleting bac table bacBot after win...');
+          await _sheetsService.clearSheet('bacBot');
+        }
+        
+        await _trackingService.updateBacBettingStatus(
+          rowNumber: i + 1,
+          checked: true,
+          result: 'WIN',
+          winDate: checkDate,
+          winMien: winResult.winningMien,
+          actualProfit: winResult.profit,
+        );
+        
+      } else {
+        await _trackingService.updateBacBettingStatus(
           rowNumber: i + 1,
           checked: true,
           result: 'PENDING',

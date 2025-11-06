@@ -182,7 +182,7 @@ class WinCalculationService {
       final occurrencesInProvince = result.numbers
           .where((n) {
             // ✅ ADD: Debug comparison
-            print('         Comparing: "$n" == "$targetNumber" ? ${n == targetNumber}');
+            //print('         Comparing: "$n" == "$targetNumber" ? ${n == targetNumber}');
             return n == targetNumber;
           })
           .length;

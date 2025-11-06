@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'win_history_viewmodel.dart';
 import 'win_history_screen.dart';
 import '../../../core/utils/number_utils.dart';
+import '../home/home_screen.dart';  // ✅ THÊM DÒNG NÀY
 
 class WinSummaryScreen extends StatefulWidget {
   const WinSummaryScreen({Key? key}) : super(key: key);
@@ -28,7 +29,21 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text('Tổng quan trúng số'),
+        title: const Text('Kết quả trúng số'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.live_tv),
+            tooltip: 'Xem Live',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const HomeScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Consumer<WinHistoryViewModel>(
         builder: (context, viewModel, child) {
