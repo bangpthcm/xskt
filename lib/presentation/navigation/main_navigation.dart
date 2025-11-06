@@ -1,9 +1,10 @@
+// lib/presentation/navigation/main_navigation.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../screens/home/home_screen.dart';
+import '../screens/betting/betting_screen.dart';
 import '../screens/analysis/analysis_screen.dart';
 import '../screens/analysis/analysis_viewmodel.dart';
-import '../screens/betting/betting_screen.dart';
+import '../screens/home/home_screen.dart';
 import '../screens/win_history/win_history_screen.dart';
 import '../screens/settings/settings_screen.dart';
 
@@ -24,10 +25,10 @@ class MainNavigationState extends State<MainNavigation>
     _tabController = TabController(
       length: 5,
       vsync: this,
-      initialIndex: 0,
+      initialIndex: 0, // ✅ MỞ APP VÀO BẢNG CƯỢC (index 0)
     );
     _tabController.addListener(() {
-      setState(() {}); // ✅ Cập nhật bottom nav khi swipe
+      setState(() {});
     });
   }
 
@@ -42,18 +43,29 @@ class MainNavigationState extends State<MainNavigation>
     return Scaffold(
       body: TabBarView(
         controller: _tabController,
-        physics: const BouncingScrollPhysics(), // ✅ Vật lý iOS mượt
+        physics: const BouncingScrollPhysics(),
         children: const [
-          HomeScreen(),
-          AnalysisScreen(),
-          BettingScreen(),
-          WinHistoryScreen(),
-          SettingsScreen(),
+          BettingScreen(),      // ✅ Index 0: Bảng cược
+          AnalysisScreen(),     // ✅ Index 1: Phân tích
+          HomeScreen(),         // ✅ Index 2: Live (Trang chủ)
+          WinHistoryScreen(),   // ✅ Index 3: Lịch sử
+          SettingsScreen(),     // ✅ Index 4: Cài đặt
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _tabController.index,
         onTap: (index) {
+          // ✅ NẾU CLICK VÀO LIVE, MỞ FULL-SCREEN WEBVIEW
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const HomeScreen(),
+              ),
+            );
+            return;
+          }
+          
           _tabController.animateTo(
             index,
             duration: const Duration(milliseconds: 300),
@@ -63,8 +75,8 @@ class MainNavigationState extends State<MainNavigation>
         type: BottomNavigationBarType.fixed,
         items: [
           const BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Trang chủ',
+            icon: Icon(Icons.table_chart),
+            label: 'Bảng cược',
           ),
           BottomNavigationBarItem(
             icon: Consumer<AnalysisViewModel>(
@@ -92,9 +104,10 @@ class MainNavigationState extends State<MainNavigation>
             ),
             label: 'Phân tích',
           ),
+          // ✅ LIVE Ở GIỮA
           const BottomNavigationBarItem(
-            icon: Icon(Icons.table_chart),
-            label: 'Bảng cược',
+            icon: Icon(Icons.home),
+            label: 'Live',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.history),
