@@ -13,6 +13,7 @@ import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../data/services/budget_calculation_service.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/services/budget_calculation_service.dart';
+import '../../../data/services/telegram_service.dart';
 
 enum BettingTableType { xien, cycle, trung, bac }  // ✅ ADD trung, bac
 
@@ -891,24 +892,36 @@ class BettingViewModel extends ChangeNotifier {
         if (_cycleTable == null || _cycleMetadata == null) {
           throw Exception('Chưa có bảng chu kỳ');
         }
-        final message = _telegramService.formatCycleTableMessage(
-          _cycleTable!, _cycleMetadata!['nhom_so_gan'], _cycleMetadata!['so_muc_tieu'],
+        // ✅ SỬ DỤNG METHOD MỚI VỚI TYPE
+        final message = _telegramService.formatCycleTableMessageWithType(
+          _cycleTable!, 
+          _cycleMetadata!['nhom_so_gan'], 
+          _cycleMetadata!['so_muc_tieu'],
+          TelegramTableType.tatCa,  // ✅ TRUYỀN TYPE
         );
         await _telegramService.sendMessage(message);
-      } else if (type == BettingTableType.trung) {  // ✅ ADD
+      } else if (type == BettingTableType.trung) {
         if (_trungTable == null || _trungMetadata == null) {
           throw Exception('Chưa có bảng Miền Trung');
         }
-        final message = _telegramService.formatCycleTableMessage(
-          _trungTable!, _trungMetadata!['nhom_so_gan'], _trungMetadata!['so_muc_tieu'],
+        // ✅ SỬ DỤNG METHOD MỚI VỚI TYPE
+        final message = _telegramService.formatCycleTableMessageWithType(
+          _trungTable!, 
+          _trungMetadata!['nhom_so_gan'], 
+          _trungMetadata!['so_muc_tieu'],
+          TelegramTableType.trung,  // ✅ TRUYỀN TYPE
         );
         await _telegramService.sendMessage(message);
-      } else if (type == BettingTableType.bac) {    // ✅ ADD
+      } else if (type == BettingTableType.bac) {
         if (_bacTable == null || _bacMetadata == null) {
           throw Exception('Chưa có bảng Miền Bắc');
         }
-        final message = _telegramService.formatCycleTableMessage(
-          _bacTable!, _bacMetadata!['nhom_so_gan'], _bacMetadata!['so_muc_tieu'],
+        // ✅ SỬ DỤNG METHOD MỚI VỚI TYPE
+        final message = _telegramService.formatCycleTableMessageWithType(
+          _bacTable!, 
+          _bacMetadata!['nhom_so_gan'], 
+          _bacMetadata!['so_muc_tieu'],
+          TelegramTableType.bac,  // ✅ TRUYỀN TYPE
         );
         await _telegramService.sendMessage(message);
       }

@@ -5,6 +5,14 @@ import 'dart:convert';
 import '../models/app_config.dart';
 import '../models/betting_row.dart';
 
+// ✅ THÊM ENUM ĐỂ PHÂN BIỆT LOẠI BẢNG
+enum TelegramTableType {
+  tatCa,   // Chu kỳ tất cả miền
+  trung,   // Chu kỳ miền Trung
+  bac,     // Chu kỳ miền Bắc
+  xien,    // Xiên miền Bắc
+}
+
 class TelegramService {
   TelegramConfig? _config;
 
@@ -79,9 +87,10 @@ class TelegramService {
     }
   }
 
+  // ✅ FORMAT XIÊN - GIỮ NGUYÊN NHƯNG CẬP NHẬT TIÊU ĐỀ
   String formatXienTableMessage(List<BettingRow> table, String capSo, int soNgayGan, String lanCuoiVe) {
     final buffer = StringBuffer();
-    buffer.writeln('<b>💰 Bảng Cược Xiên Mới</b>\n');
+    buffer.writeln('<b>💎 BẢNG CƯỢC XIÊN BẮC 💎</b>\n');
     buffer.writeln('<b>Cặp:</b> $capSo');
     buffer.writeln('<b>Gan:</b> $soNgayGan ngày');
     buffer.writeln('<b>Lần cuối:</b> $lanCuoiVe\n');
@@ -105,13 +114,45 @@ class TelegramService {
     return buffer.toString();
   }
 
+  // ✅ METHOD CŨ - GIỮ ĐỂ BACKWARD COMPATIBLE (DEFAULT = TẤT CẢ)
   String formatCycleTableMessage(
     List<BettingRow> table,
     String nhomGan,
     String soMucTieu,
   ) {
+    return formatCycleTableMessageWithType(
+      table,
+      nhomGan,
+      soMucTieu,
+      TelegramTableType.tatCa,
+    );
+  }
+
+  // ✅ METHOD MỚI - NHẬN THÊM TYPE ĐỂ CHỌN TIÊU ĐỀ
+  String formatCycleTableMessageWithType(
+    List<BettingRow> table,
+    String nhomGan,
+    String soMucTieu,
+    TelegramTableType type,
+  ) {
     final buffer = StringBuffer();
-    buffer.writeln('<b>💰 Bảng Cược Chu Kỳ Mới</b>\n');
+    
+    // ✅ CHỌN TIÊU ĐỀ THEO TYPE
+    switch (type) {
+      case TelegramTableType.tatCa:
+        buffer.writeln('<b>💰 BẢNG CƯỢC CHU KỲ (TẤT CẢ) 💰</b>\n');
+        break;
+      case TelegramTableType.trung:
+        buffer.writeln('<b>📋 BẢNG CƯỢC MIỀN TRUNG 📋</b>\n');
+        break;
+      case TelegramTableType.bac:
+        buffer.writeln('<b>📊 BẢNG CƯỢC MIỀN BẮC 📊</b>\n');
+        break;
+      case TelegramTableType.xien:
+        buffer.writeln('<b>💎 BẢNG CƯỢC XIÊN BẮC 💎</b>\n');
+        break;
+    }
+    
     buffer.writeln('<b>Nhóm gan:</b> $nhomGan');
     buffer.writeln('<b>Số mục tiêu:</b> $soMucTieu\n');
     buffer.writeln('<pre>');

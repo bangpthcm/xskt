@@ -164,12 +164,12 @@ class AnalysisViewModel extends ChangeNotifier {
       // Check Trung
       final trungResults = _allResults.where((r) => r.mien == 'Trung').toList();
       final trungResult = await _analysisService.analyzeCycle(trungResults);
-      _trungAlertCache = trungResult != null && trungResult.maxGanDays > 14;
+      _trungAlertCache = trungResult != null && trungResult.maxGanDays > 9;
       
       // Check Bắc
       final bacResults = _allResults.where((r) => r.mien == 'Bắc').toList();
       final bacResult = await _analysisService.analyzeCycle(bacResults);
-      _bacAlertCache = bacResult != null && bacResult.maxGanDays > 16;
+      _bacAlertCache = bacResult != null && bacResult.maxGanDays > 15;
       
       print('   ✅ Alert cache: Tất cả=$_tatCaAlertCache, Trung=$_trungAlertCache, Bắc=$_bacAlertCache');
       
@@ -898,7 +898,25 @@ class AnalysisViewModel extends ChangeNotifier {
 
     try {
       final buffer = StringBuffer();
-      buffer.writeln('<b>📊 PHÂN TÍCH CHU KỲ 00-99 📊</b>\n');
+      
+      // ✅ CHỌN TIÊU ĐỀ THEO FILTER ĐANG CHỌN
+      switch (_selectedMien) {
+        case 'Tất cả':
+          buffer.writeln('<b>📊 PHÂN TÍCH CHU KỲ (TẤT CẢ) 📊</b>\n');
+          break;
+        case 'Nam':
+          buffer.writeln('<b>🌴 PHÂN TÍCH CHU KỲ MIỀN NAM 🌴</b>\n');
+          break;
+        case 'Trung':
+          buffer.writeln('<b>🔍 PHÂN TÍCH MIỀN TRUNG 🔍</b>\n');
+          break;
+        case 'Bắc':
+          buffer.writeln('<b>🎯 PHÂN TÍCH MIỀN BẮC 🎯</b>\n');
+          break;
+        default:
+          buffer.writeln('<b>📊 PHÂN TÍCH CHU KỲ 00-99 📊</b>\n');
+      }
+      
       buffer.writeln('<b>Filter:</b> $_selectedMien\n');
       buffer.writeln('<b>Số ngày gan:</b> ${_cycleResult!.maxGanDays} ngày');
       buffer.writeln('<b>Lần cuối về:</b> ${date_utils.DateUtils.formatDate(_cycleResult!.lastSeenDate)}');
@@ -908,10 +926,13 @@ class AnalysisViewModel extends ChangeNotifier {
       buffer.writeln(_cycleResult!.ganNumbersDisplay);
       buffer.writeln();
       
-      buffer.writeln('<b>Phân bổ theo miền:</b>');
-      for (final mien in ['Nam', 'Trung', 'Bắc']) {
-        if (_cycleResult!.mienGroups.containsKey(mien)) {
-          buffer.writeln('- Miền $mien: ${_cycleResult!.mienGroups[mien]!.join(", ")}');
+      // ✅ CHỈ HIỂN THỊ PHÂN BỔ KHI FILTER = "TẤT CẢ"
+      if (_selectedMien == 'Tất cả') {
+        buffer.writeln('<b>Phân bổ theo miền:</b>');
+        for (final mien in ['Nam', 'Trung', 'Bắc']) {
+          if (_cycleResult!.mienGroups.containsKey(mien)) {
+            buffer.writeln('- Miền $mien: ${_cycleResult!.mienGroups[mien]!.join(", ")}');
+          }
         }
       }
 
@@ -939,7 +960,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
     try {
       final buffer = StringBuffer();
-      buffer.writeln('<b>📈 CẶP SỐ GAN MIỀN BẮC 📈</b>\n');
+      buffer.writeln('<b>📈 PHÂN TÍCH CẶP XIÊN BẮC 📈</b>\n');
       buffer.writeln('Đây là 2 cặp số đã lâu nhất chưa xuất hiện cùng nhau:\n');
       
       for (int i = 0; i < _ganPairInfo!.pairs.length && i < 2; i++) {
@@ -1513,24 +1534,24 @@ class AnalysisViewModel extends ChangeNotifier {
     return _cycleResult!.maxGanDays > 3;
   }
 
-  /// Kiểm tra Trung có gan > 14 ngày
+  /// Kiểm tra Trung có gan > 9 ngày
   bool get hasTrungAlert {
     if (_cycleResult == null) return false;
     if (_selectedMien != 'Trung') return false;
-    return _cycleResult!.maxGanDays > 14;
+    return _cycleResult!.maxGanDays > 9;
   }
 
-  /// Kiểm tra Bắc có gan > 16 ngày
+  /// Kiểm tra Bắc có gan > 15 ngày
   bool get hasBacAlert {
     if (_cycleResult == null) return false;
     if (_selectedMien != 'Bắc') return false;
-    return _cycleResult!.maxGanDays > 16;
+    return _cycleResult!.maxGanDays > 15;
   }
 
   /// Kiểm tra Xiên có gan > 2 ngày
   bool get hasXienAlert {
     if (_ganPairInfo == null) return false;
-    return _ganPairInfo!.daysGan > 152;
+    return _ganPairInfo!.daysGan > 150;
   }
 
   /// ✅ Kiểm tra có bất kỳ alert nào (dùng cache)
@@ -1538,7 +1559,7 @@ class AnalysisViewModel extends ChangeNotifier {
     bool hasAlert = false;
     
     // Check Xiên
-    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 152) {
+    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 150) {
       hasAlert = true;
     }
     
@@ -1565,9 +1586,9 @@ class AnalysisViewModel extends ChangeNotifier {
     final alerts = <String, AlertInfo>{};
     
     // Check Xiên
-    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 152) {
+    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 150) {
       alerts['Xiên'] = AlertInfo(
-        threshold: 152,
+        threshold: 150,
         currentDays: _ganPairInfo!.daysGan,
         targetNumber: _ganPairInfo!.randomPair.display,
       );
@@ -1585,7 +1606,7 @@ class AnalysisViewModel extends ChangeNotifier {
     // Check Trung
     if (_trungAlertCache == true) {
       alerts['Trung'] = AlertInfo(
-        threshold: 14,
+        threshold: 9,
         currentDays: _cycleResult?.maxGanDays ?? 0,
         targetNumber: _cycleResult?.targetNumber ?? '',
       );
@@ -1594,7 +1615,7 @@ class AnalysisViewModel extends ChangeNotifier {
     // Check Bắc
     if (_bacAlertCache == true) {
       alerts['Bắc'] = AlertInfo(
-        threshold: 16,
+        threshold: 15,
         currentDays: _cycleResult?.maxGanDays ?? 0,
         targetNumber: _cycleResult?.targetNumber ?? '',
       );
@@ -1608,7 +1629,7 @@ class AnalysisViewModel extends ChangeNotifier {
     final messages = <String>[];
     
     if (hasXienAlert) {
-      messages.add('🔥 Xiên: ${_ganPairInfo!.daysGan} ngày (>152)');
+      messages.add('🔥 Xiên: ${_ganPairInfo!.daysGan} ngày (>150)');
     }
     
     // ✅ THÊM MESSAGE CHO "TẤT CẢ"
@@ -1617,11 +1638,11 @@ class AnalysisViewModel extends ChangeNotifier {
     }
     
     if (_trungAlertCache == true) {
-      messages.add('🔥 Trung: gan >14 ngày');
+      messages.add('🔥 Trung: gan >9 ngày');
     }
     
     if (_bacAlertCache == true) {
-      messages.add('🔥 Bắc: gan >16 ngày');
+      messages.add('🔥 Bắc: gan >15 ngày');
     }
     
     if (messages.isEmpty) {

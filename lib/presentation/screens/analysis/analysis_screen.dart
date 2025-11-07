@@ -209,7 +209,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                       title: 'Miền Trung',
                       subtitle: 'Số: ${result.targetNumber}',
                       days: result.maxGanDays,
-                      threshold: 14,
+                      threshold: 9,
                       type: AlertType.trung,
                       useTextIcon: 'T',  // ✅ THÊM PARAMETER MỚI
                     );
@@ -232,7 +232,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                       title: 'Miền Bắc',
                       subtitle: 'Số: ${result.targetNumber}',
                       days: result.maxGanDays,
-                      threshold: 16,
+                      threshold: 15,
                       type: AlertType.bac,
                       useTextIcon: 'B',  // ✅ THÊM PARAMETER MỚI
                     );
@@ -240,7 +240,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 ),
 
               // 4. Xiên - THAY BẰNG GẠCH CHÉO
-              if (viewModel.ganPairInfo != null && viewModel.ganPairInfo!.daysGan > 152)
+              if (viewModel.ganPairInfo != null && viewModel.ganPairInfo!.daysGan > 150)
                 _buildClickableAlertItem(
                   context: context,
                   viewModel: viewModel,
@@ -249,13 +249,13 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   title: 'Cặp số gan (Xiên)',
                   subtitle: 'Cặp: ${viewModel.ganPairInfo!.randomPair.display}',
                   days: viewModel.ganPairInfo!.daysGan,
-                  threshold: 152,
+                  threshold: 150,
                   type: AlertType.xien,
                   useTextIcon: 'X',
                 ),
               
               // Thông báo nếu không có alert
-              if ((viewModel.ganPairInfo?.daysGan ?? 0) <= 152 &&
+              if ((viewModel.ganPairInfo?.daysGan ?? 0) <= 150 &&
                   viewModel.tatCaAlertCache != true &&
                   viewModel.trungAlertCache != true &&
                   viewModel.bacAlertCache != true)

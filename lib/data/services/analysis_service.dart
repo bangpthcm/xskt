@@ -172,7 +172,7 @@ class AnalysisService {
     }
 
     String targetNumber = '';
-    final mienPriority = ['Trung', 'Nam', 'Bắc'];
+    final mienPriority = ['Nam', 'Trung', 'Bắc'];
     
     for (final mien in mienPriority) {
       if (mienGroups.containsKey(mien) && mienGroups[mien]!.isNotEmpty) {
