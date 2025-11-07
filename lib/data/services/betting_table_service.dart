@@ -61,7 +61,7 @@ class BettingTableService {
       final loi = (tienCuocMien * _winMultiplierXien) - tongTien;
 
       rawTable.add({
-        'ngay': date_utils.DateUtils.formatDate(startDate.add(Duration(days: i))),
+        'ngay': _formatDateWith2Digits(startDate.add(Duration(days: i))),
         'cuoc_mien': tienCuocMien,
         'tong_tien': tongTien,
         'loi': loi,
@@ -330,7 +330,7 @@ class BettingTableService {
 
     outerLoop:
     while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(Duration(days: 1)))) {  // ✅ SỬ DỤNG maxMienCount
-      final ngayStr = date_utils.DateUtils.formatDate(currentDate);
+      final ngayStr = _formatDateWith2Digits(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
       final initialMienIdx = isFirstDay ? startMienIndex : 0;
@@ -438,8 +438,8 @@ class BettingTableService {
     
     print('🎯 Generating Bắc Gan Table');
     print('   Target number: $targetNumber');
-    print('   Start: ${date_utils.DateUtils.formatDate(startDate)}');
-    print('   End: ${date_utils.DateUtils.formatDate(endDate)}');
+    print('   Start: ${_formatDateWith2Digits(startDate)}');
+    print('   End: ${_formatDateWith2Digits(endDate)}');
     print('   Duration base: $_bacGanDurationBase days');
     print('   Win multiplier: $_bacGanWinMultiplier');
 
@@ -567,7 +567,7 @@ class BettingTableService {
     while (dayCount < _bacGanDurationBase && 
            currentDate.isBefore(endDate.add(Duration(days: 1)))) {
       
-      final ngayStr = date_utils.DateUtils.formatDate(currentDate);
+      final ngayStr = _formatDateWith2Digits(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
       final mien = 'Bắc';
@@ -631,8 +631,8 @@ class BettingTableService {
     
     print('🎯 Generating Trung Gan Table');
     print('   Target number: $targetNumber');
-    print('   Start: ${date_utils.DateUtils.formatDate(startDate)}');
-    print('   End: ${date_utils.DateUtils.formatDate(endDate)}');
+    print('   Start: ${_formatDateWith2Digits(startDate)}');
+    print('   End: ${_formatDateWith2Digits(endDate)}');
     print('   Duration base: $_trungGanDurationBase days');
     print('   Win multiplier: $_trungGanWinMultiplier');
 
@@ -760,7 +760,7 @@ class BettingTableService {
     while (dayCount < _trungGanDurationBase && 
            currentDate.isBefore(endDate.add(Duration(days: 1)))) {
       
-      final ngayStr = date_utils.DateUtils.formatDate(currentDate);
+      final ngayStr = _formatDateWith2Digits(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
       final mien = 'Trung';
@@ -810,5 +810,12 @@ class BettingTableService {
       'table': tableData,
       'tong_tien': tongTien,
     };
+  }
+
+  String _formatDateWith2Digits(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+    return '$day/$month/$year';
   }
 }

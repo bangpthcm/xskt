@@ -94,53 +94,121 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
 
   Widget _buildCycleTab(BettingViewModel viewModel) {
     if (viewModel.cycleTable == null) {
-      return const Center(child: Text('Chưa có bảng cược chu kỳ'));
+      return RefreshIndicator(
+        onRefresh: () async {
+          await viewModel.loadBettingTables();
+        },
+        child: ListView(
+          children: const [
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: Text('Chưa có bảng cược chu kỳ')),
+            ),
+          ],
+        ),
+      );
     }
-    return Column(
-      children: [
-        _buildMetadataCard(viewModel.cycleMetadata!),
-        Expanded(child: _buildCycleDataTable(viewModel.cycleTable!)),
-        _buildActionButtons(viewModel, BettingTableType.cycle),
-      ],
+    return RefreshIndicator(
+      onRefresh: () async {
+        await viewModel.loadBettingTables();
+      },
+      child: ListView(
+        children: [
+          _buildMetadataCard(viewModel.cycleMetadata!),
+          _buildCycleDataTable(viewModel.cycleTable!),
+          _buildActionButtons(viewModel, BettingTableType.cycle),
+        ],
+      ),
     );
   }
 
   Widget _buildTrungTab(BettingViewModel viewModel) {
     if (viewModel.trungTable == null) {
-      return const Center(child: Text('Chưa có bảng cược Miền Trung'));
+      return RefreshIndicator(
+        onRefresh: () async {
+          await viewModel.loadBettingTables();
+        },
+        child: ListView(
+          children: const [
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: Text('Chưa có bảng cược Miền Trung')),
+            ),
+          ],
+        ),
+      );
     }
-    return Column(
-      children: [
-        _buildMetadataCard(viewModel.trungMetadata!),
-        Expanded(child: _buildCycleDataTable(viewModel.trungTable!)),
-        _buildActionButtons(viewModel, BettingTableType.trung),
-      ],
+    return RefreshIndicator(
+      onRefresh: () async {
+        await viewModel.loadBettingTables();
+      },
+      child: ListView(
+        children: [
+          _buildMetadataCard(viewModel.trungMetadata!),
+          _buildCycleDataTable(viewModel.trungTable!),
+          _buildActionButtons(viewModel, BettingTableType.trung),
+        ],
+      ),
     );
   }
 
   Widget _buildBacTab(BettingViewModel viewModel) {
     if (viewModel.bacTable == null) {
-      return const Center(child: Text('Chưa có bảng cược Miền Bắc'));
+      return RefreshIndicator(
+        onRefresh: () async {
+          await viewModel.loadBettingTables();
+        },
+        child: ListView(
+          children: const [
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: Text('Chưa có bảng cược Miền Bắc')),
+            ),
+          ],
+        ),
+      );
     }
-    return Column(
-      children: [
-        _buildMetadataCard(viewModel.bacMetadata!),
-        Expanded(child: _buildCycleDataTable(viewModel.bacTable!)),
-        _buildActionButtons(viewModel, BettingTableType.bac),
-      ],
+    return RefreshIndicator(
+      onRefresh: () async {
+        await viewModel.loadBettingTables();
+      },
+      child: ListView(
+        children: [
+          _buildMetadataCard(viewModel.bacMetadata!),
+          _buildCycleDataTable(viewModel.bacTable!),
+          _buildActionButtons(viewModel, BettingTableType.bac),
+        ],
+      ),
     );
   }
 
   Widget _buildXienTab(BettingViewModel viewModel) {
     if (viewModel.xienTable == null) {
-      return const Center(child: Text('Chưa có bảng cược xiên'));
+      return RefreshIndicator(
+        onRefresh: () async {
+          await viewModel.loadBettingTables();
+        },
+        child: ListView(
+          children: const [
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: Text('Chưa có bảng cược xiên')),
+            ),
+          ],
+        ),
+      );
     }
-    return Column(
-      children: [
-        _buildMetadataCard(viewModel.xienMetadata!),
-        Expanded(child: _buildXienDataTable(viewModel.xienTable!)),
-        _buildActionButtons(viewModel, BettingTableType.xien),
-      ],
+    return RefreshIndicator(
+      onRefresh: () async {
+        await viewModel.loadBettingTables();
+      },
+      child: ListView(
+        children: [
+          _buildMetadataCard(viewModel.xienMetadata!),
+          _buildXienDataTable(viewModel.xienTable!),
+          _buildActionButtons(viewModel, BettingTableType.xien),
+        ],
+      ),
     );
   }
 
@@ -181,7 +249,7 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
 
   Widget _buildCycleDataTable(List<BettingRow> table) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.all(16),
       color: const Color(0xFF1E1E1E),
       child: DataTable2(
         columnSpacing: 12,
@@ -247,7 +315,7 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
 
   Widget _buildXienDataTable(List<BettingRow> table) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.all(16),
       color: const Color(0xFF1E1E1E),
       child: DataTable2(
         columnSpacing: 12,

@@ -28,14 +28,6 @@ class _BettingScreenState extends State<BettingScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bảng cược'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              context.read<BettingViewModel>().loadBettingTables();
-            },
-          ),
-        ],
       ),
       body: Consumer<BettingViewModel>(
         builder: (context, viewModel, child) {
@@ -68,15 +60,20 @@ class _BettingScreenState extends State<BettingScreen> {
             );
           }
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildWarningCard(context, viewModel),
-              const SizedBox(height: 16),
-              _buildCycleCard(context, viewModel),
-              const SizedBox(height: 16),
-              _buildXienCard(context, viewModel),
-            ],
+          return RefreshIndicator(
+            onRefresh: () async {
+              await viewModel.loadBettingTables();
+            },
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _buildWarningCard(context, viewModel),
+                const SizedBox(height: 16),
+                _buildCycleCard(context, viewModel),
+                const SizedBox(height: 16),
+                _buildXienCard(context, viewModel),
+              ],
+            ),
           );
         },
       ),
@@ -164,7 +161,7 @@ class _BettingScreenState extends State<BettingScreen> {
 
     // ✅ FIX: Format ngày KHÔNG có số 0 đứng trước (khớp với Google Sheets)
     final now = DateTime.now();
-    final today = '${now.day}/${now.month}/${now.year}';
+    final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
     final todayCycleRows = _getTodayCycleRows(viewModel, today);
     
     // ✅ DEBUG LOG
@@ -480,15 +477,15 @@ class _BettingScreenState extends State<BettingScreen> {
             child: Row(
               children: [
                 const Expanded(
-                  flex: 2,
+                  flex: 4,
                   child: Text('Ngày', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
                 const Expanded(
-                  flex: 2,
+                  flex: 3,
                   child: Text('Miền', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
                 const Expanded(
-                  flex: 2,
+                  flex: 3,
                   child: Text('Số', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
                 Expanded(
@@ -513,15 +510,15 @@ class _BettingScreenState extends State<BettingScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    flex: 2,
+                    flex: 4,
                     child: Text(row.ngay, style: const TextStyle(fontSize: 13, color: Colors.white)),
                   ),
                   Expanded(
-                    flex: 2,
+                    flex: 3,
                     child: Text(row.mien, style: const TextStyle(fontSize: 13, color: Colors.white)),
                   ),
                   Expanded(
-                    flex: 2,
+                    flex: 3,
                     child: Text(row.so, style: const TextStyle(fontSize: 13, color: Colors.orange)),
                   ),
                   Expanded(

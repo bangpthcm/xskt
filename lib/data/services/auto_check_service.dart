@@ -189,6 +189,7 @@ class AutoCheckService {
         allResults: allResults,
         totalBet: bettingRow.tongTien,
         betPerNumber: bettingRow.cuocSo,
+        allowedMiens: ['Nam', 'Trung', 'Bắc'],
       );
 
       if (winResult != null && winResult.isWin) {
@@ -270,10 +271,6 @@ class AutoCheckService {
           winMien: winResult.winningMien,
           actualProfit: winResult.profit,
         );
-        if (!foundWinForDate && firstWinResult != null) {
-          print('🗑️ Deleting cycle table xsktBot1 after win...');
-          await _sheetsService.clearSheet('xsktBot1');
-        }
       } else {
         // Đánh dấu đã check nhưng chưa trúng
         await _trackingService.updateCycleBettingStatus(
@@ -282,6 +279,11 @@ class AutoCheckService {
           result: 'PENDING',
         );
       }
+    }
+
+    if (!foundWinForDate && firstWinResult != null) {
+      print('🗑️ Deleting cycle table xsktBot1 after win...');
+      await _sheetsService.clearSheet('xsktBot1');
     }
 
     return _CheckResult(winsCount: winsCount, messages: messages);
@@ -423,10 +425,6 @@ class AutoCheckService {
           winDate: checkDate,
           actualProfit: winResult.profit,
         );
-        if (!foundWinForDate && firstWinResult != null) {
-          print('🗑️ Deleting xien table xienBot after win...');
-          await _sheetsService.clearSheet('xienBot');
-        }
       } else {
         await _trackingService.updateXienBettingStatus(
           rowNumber: i + 1,
@@ -434,6 +432,11 @@ class AutoCheckService {
           result: 'PENDING',
         );
       }
+    }
+
+    if (!foundWinForDate && firstWinResult != null) {
+      print('🗑️ Deleting xien table xienBot after win...');
+      await _sheetsService.clearSheet('xienBot');
     }
 
     return _CheckResult(winsCount: winsCount, messages: messages);
@@ -509,6 +512,7 @@ class AutoCheckService {
         allResults: allResults,
         totalBet: bettingRow.tongTien,
         betPerNumber: bettingRow.cuocSo,
+        allowedMiens: ['Trung'],
       );
 
       if (winResult != null && winResult.isWin) {
@@ -570,10 +574,6 @@ class AutoCheckService {
           } catch (e) {
             print('⚠️ Failed to send Telegram: $e');
           }
-          
-          // ✅ XÓA BẢNG TRUNG SAU KHI TRÚNG
-          print('🗑️ Deleting trung table trungBot after win...');
-          await _sheetsService.clearSheet('trungBot');
         }
         
         await _trackingService.updateTrungBettingStatus(
@@ -592,6 +592,11 @@ class AutoCheckService {
           result: 'PENDING',
         );
       }
+    }
+
+    if (winsCount > 0) {
+      print('🗑️ Deleting trung table trungBot after win...');
+      await _sheetsService.clearSheet('trungBot');
     }
 
     return _CheckResult(winsCount: winsCount, messages: messages);
@@ -668,6 +673,7 @@ class AutoCheckService {
         allResults: allResults,
         totalBet: bettingRow.tongTien,
         betPerNumber: bettingRow.cuocSo,
+        allowedMiens: ['Bắc'],
       );
 
       if (winResult != null && winResult.isWin) {
@@ -729,10 +735,6 @@ class AutoCheckService {
           } catch (e) {
             print('⚠️ Failed to send Telegram: $e');
           }
-          
-          // ✅ XÓA BẢNG BẮC SAU KHI TRÚNG
-          print('🗑️ Deleting bac table bacBot after win...');
-          await _sheetsService.clearSheet('bacBot');
         }
         
         await _trackingService.updateBacBettingStatus(
@@ -751,6 +753,11 @@ class AutoCheckService {
           result: 'PENDING',
         );
       }
+    }
+
+    if (winsCount > 0) {
+      print('🗑️ Deleting bac table bacBot after win...');
+      await _sheetsService.clearSheet('bacBot');
     }
 
     return _CheckResult(winsCount: winsCount, messages: messages);

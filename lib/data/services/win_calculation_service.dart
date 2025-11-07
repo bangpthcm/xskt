@@ -16,6 +16,7 @@ class WinCalculationService {
     required List<LotteryResult> allResults,
     required double totalBet,
     required double betPerNumber,
+    List<String>? allowedMiens,
   }) async {
     print('🔍 Checking cycle win for number $targetNumber on $checkDate');
     
@@ -29,71 +30,82 @@ class WinCalculationService {
       return null;
     }
 
-    // 2. Check Nam (exclude Bến Tre)
-    print('   🌍 Checking Miền Nam...');
-    final namWin = _checkMien(
-      results: dateResults,
-      mien: 'Nam',
-      targetNumber: targetNumber,
-      excludeProvinces: ['Bến Tre'],
-    );
+    // ✅ XÁC ĐỊNH CÁC MIỀN CẦN KIỂM TRA
+    final miensToCheck = allowedMiens ?? ['Nam', 'Trung', 'Bắc'];
     
-    if (namWin.hasWin) {
-      print('   ✅ WIN in Nam: ${namWin.occurrences}x');
-      return _calculateProfit(
-        occurrences: namWin.occurrences,
-        betPerOccurrence: betPerNumber,
-        totalBet: totalBet,
-        multiplier: _cycleMultiplier,
-        winningMien: 'Nam',
-        provinces: namWin.provinces,
+    print('   📋 Allowed miens: ${miensToCheck.join(", ")}');
+
+    // 2. Check Nam (nếu được phép)
+    if (miensToCheck.contains('Nam')) {
+      print('   🌍 Checking Miền Nam...');
+      final namWin = _checkMien(
+        results: dateResults,
+        mien: 'Nam',
         targetNumber: targetNumber,
-        checkDate: checkDate,
+        excludeProvinces: ['Bến Tre'],
       );
+      
+      if (namWin.hasWin) {
+        print('   ✅ WIN in Nam: ${namWin.occurrences}x');
+        return _calculateProfit(
+          occurrences: namWin.occurrences,
+          betPerOccurrence: betPerNumber,
+          totalBet: totalBet,
+          multiplier: _cycleMultiplier,
+          winningMien: 'Nam',
+          provinces: namWin.provinces,
+          targetNumber: targetNumber,
+          checkDate: checkDate,
+        );
+      }
     }
     
-    // 3. Check Trung
-    print('   🌍 Checking Miền Trung...');
-    final trungWin = _checkMien(
-      results: dateResults,
-      mien: 'Trung',
-      targetNumber: targetNumber,
-    );
-    
-    if (trungWin.hasWin) {
-      print('   ✅ WIN in Trung: ${trungWin.occurrences}x');
-      return _calculateProfit(
-        occurrences: trungWin.occurrences,
-        betPerOccurrence: betPerNumber,
-        totalBet: totalBet,
-        multiplier: _cycleMultiplier,
-        winningMien: 'Trung',
-        provinces: trungWin.provinces,
+    // 3. Check Trung (nếu được phép)
+    if (miensToCheck.contains('Trung')) {
+      print('   🌍 Checking Miền Trung...');
+      final trungWin = _checkMien(
+        results: dateResults,
+        mien: 'Trung',
         targetNumber: targetNumber,
-        checkDate: checkDate,
       );
+      
+      if (trungWin.hasWin) {
+        print('   ✅ WIN in Trung: ${trungWin.occurrences}x');
+        return _calculateProfit(
+          occurrences: trungWin.occurrences,
+          betPerOccurrence: betPerNumber,
+          totalBet: totalBet,
+          multiplier: _cycleMultiplier,
+          winningMien: 'Trung',
+          provinces: trungWin.provinces,
+          targetNumber: targetNumber,
+          checkDate: checkDate,
+        );
+      }
     }
     
-    // 4. Check Bắc
-    print('   🌍 Checking Miền Bắc...');
-    final bacWin = _checkMien(
-      results: dateResults,
-      mien: 'Bắc',
-      targetNumber: targetNumber,
-    );
-    
-    if (bacWin.hasWin) {
-      print('   ✅ WIN in Bắc: ${bacWin.occurrences}x');
-      return _calculateProfit(
-        occurrences: bacWin.occurrences,
-        betPerOccurrence: betPerNumber,
-        totalBet: totalBet,
-        multiplier: _cycleMultiplier,
-        winningMien: 'Bắc',
-        provinces: bacWin.provinces,
+    // 4. Check Bắc (nếu được phép)
+    if (miensToCheck.contains('Bắc')) {
+      print('   🌍 Checking Miền Bắc...');
+      final bacWin = _checkMien(
+        results: dateResults,
+        mien: 'Bắc',
         targetNumber: targetNumber,
-        checkDate: checkDate,
       );
+      
+      if (bacWin.hasWin) {
+        print('   ✅ WIN in Bắc: ${bacWin.occurrences}x');
+        return _calculateProfit(
+          occurrences: bacWin.occurrences,
+          betPerOccurrence: betPerNumber,
+          totalBet: totalBet,
+          multiplier: _cycleMultiplier,
+          winningMien: 'Bắc',
+          provinces: bacWin.provinces,
+          targetNumber: targetNumber,
+          checkDate: checkDate,
+        );
+      }
     }
     
     // No win
