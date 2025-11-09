@@ -379,7 +379,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     AnalysisViewModel viewModel,
     AlertType type,
   ) {
-    print('🔘 Alert item clicked: $type'); // ✅ ADD LOG
+    print('📘 Alert item clicked: $type');
     
     showDialog(
       context: context,
@@ -389,40 +389,26 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              print('❌ User cancelled'); // ✅ ADD LOG
+              print('❌ User cancelled');
               Navigator.pop(context);
             },
             child: const Text('Hủy'),
           ),
           ElevatedButton(
             onPressed: () async {
-              print('✅ User confirmed, creating table...'); // ✅ ADD LOG
-              Navigator.pop(context);
+              print('✅ User confirmed, creating table...');
+              Navigator.pop(context); // ✅ Đóng dialog xác nhận
               
-              // ✅ HIỂN THỊ LOADING
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
+              // ❌ BỎ LOADING Ở ĐÂY - Các hàm bên trong đã có loading riêng
               
               try {
                 await _createTableForAlertType(context, viewModel, type);
-                
-                // ✅ ĐÓNG LOADING
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
+                // ✅ Không cần đóng loading ở đây nữa
               } catch (e) {
-                print('❌ Error in _handleAlertItemClick: $e'); // ✅ ADD LOG
+                print('❌ Error in _handleAlertItemClick: $e');
                 
-                // ✅ ĐÓNG LOADING
+                // ✅ HIỂN THỊ LỖI
                 if (context.mounted) {
-                  Navigator.pop(context);
-                  
-                  // ✅ HIỂN THỊ LỖI
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Lỗi: $e'),
