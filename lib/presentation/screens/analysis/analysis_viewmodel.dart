@@ -624,54 +624,86 @@ class AnalysisViewModel extends ChangeNotifier {
         startMienIndex = latestMienIndex + 1;
       }
 
-      // ✅ BƯỚC 4: Tính số lượt
+      // ✅ BƯỚC 4: Tính số lượt - GIỐNG createCycleBettingTable()
       int targetMienCount = 9;
       double budgetMax = availableBudget;
       
-      DateTime endDate = _calculateEndDateByMienCount(
+      DateTime endDate = lastSeenDate.add(const Duration(days: 15));
+      print('📅 Start betting: ${date_utils.DateUtils.formatDate(startDate)} - startMienIndex: $startMienIndex (${mienOrder[startMienIndex]})');
+      print('🔍 Starting with targetMienCount: $targetMienCount');
+      print('📅 Estimated endDate: ${date_utils.DateUtils.formatDate(endDate)}');
+      
+      // ✅ TÍNH initialCount TỪ lastSeenDate ĐẾN startDate
+      int initialMienCount = _countTargetMienOccurrences(
+        startDate: lastSeenDate,
+        endDate: startDate,
+        targetMien: selectedMien,
+        allResults: _allResults,
+      );
+
+      print('📊 Initial mien count: $initialMienCount');
+
+      // ✅ CHECK TUESDAY
+      final simulatedRows = _simulateTableRows(
         startDate: startDate,
         startMienIndex: startMienIndex,
         targetMien: selectedMien,
         targetCount: targetMienCount,
         mienOrder: mienOrder,
+        initialCount: initialMienCount,
       );
-      
-      final lastTwoRows = _findLastTwoRows(
-        startDate: startDate,
-        endDate: endDate,
-        startMienIndex: startMienIndex,
-        mienOrder: mienOrder,
-      );
-      
-      bool needExtraTurn = false;
-      
-      if (lastTwoRows['last'] != null) {
-        final lastRow = lastTwoRows['last']!;
-        final lastWeekday = date_utils.DateUtils.getWeekday(lastRow['date']);
-        if (lastRow['mien'] == 'Nam' && lastWeekday == 1) {
-          needExtraTurn = true;
+
+      if (simulatedRows.isNotEmpty) {
+        final uniqueDates = <DateTime>{};
+        for (final row in simulatedRows) {
+          uniqueDates.add(row['date'] as DateTime);
         }
-      }
-      
-      if (!needExtraTurn && lastTwoRows['secondLast'] != null) {
-        final secondLast = lastTwoRows['secondLast']!;
-        final secondWeekday = date_utils.DateUtils.getWeekday(secondLast['date']);
-        if (secondLast['mien'] == 'Nam' && secondWeekday == 1) {
-          needExtraTurn = true;
-        }
-      }
-      
-      if (needExtraTurn) {
-        targetMienCount = 10;
         
-        endDate = _calculateEndDateByMienCount(
-          startDate: startDate,
-          startMienIndex: startMienIndex,
-          targetMien: selectedMien,
-          targetCount: targetMienCount,
-          mienOrder: mienOrder,
-        );
+        final sortedDates = uniqueDates.toList()..sort();
+        
+        if (sortedDates.length >= 2) {
+          final lastDate = sortedDates[sortedDates.length - 1];
+          final secondLastDate = sortedDates[sortedDates.length - 2];
+          
+          final lastWeekday = date_utils.DateUtils.getWeekday(lastDate);
+          final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+          
+          print('🔍 Last date: ${date_utils.DateUtils.formatDate(lastDate)} - Weekday: $lastWeekday');
+          print('🔍 Second last date: ${date_utils.DateUtils.formatDate(secondLastDate)} - Weekday: $secondLastWeekday');
+          
+          bool needExtraTurn = false;
+          
+          final lastDateHasNam = simulatedRows.any((row) => 
+            (row['date'] as DateTime).isAtSameMomentAs(lastDate) && 
+            row['mien'] == 'Nam'
+          );
+          
+          if (lastDateHasNam && lastWeekday == 1) {
+            print('   ⚠️ Last date has Nam on Tuesday!');
+            needExtraTurn = true;
+          }
+          
+          if (!needExtraTurn) {
+            final secondLastDateHasNam = simulatedRows.any((row) => 
+              (row['date'] as DateTime).isAtSameMomentAs(secondLastDate) && 
+              row['mien'] == 'Nam'
+            );
+            
+            if (secondLastDateHasNam && secondLastWeekday == 1) {
+              print('   ⚠️ Second last date has Nam on Tuesday!');
+              needExtraTurn = true;
+            }
+          }
+          
+          if (needExtraTurn) {
+            print('📅 Adding extra turn (9 → 10)');
+            targetMienCount = 10;
+          }
+        }
       }
+
+      print('🎯 Final targetMienCount: $targetMienCount');
+      print('💰 Final budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
 
       // ✅ BƯỚC 5: Generate table
       try {

@@ -251,64 +251,67 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
     return Card(
       margin: const EdgeInsets.all(16),
       color: const Color(0xFF1E1E1E),
-      child: DataTable2(
-        columnSpacing: 12,
-        horizontalMargin: 12,
-        minWidth: 600,
-        headingTextStyle: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-          color: Colors.white,
+      child: SizedBox(
+        height: 400, // ✅ FIX: Thêm chiều cao cố định
+        child: DataTable2(
+          columnSpacing: 12,
+          horizontalMargin: 12,
+          minWidth: 600,
+          headingTextStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            color: Colors.white,
+          ),
+          dataTextStyle: const TextStyle(
+            fontSize: 13,
+            color: Colors.white,
+          ),
+          headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
+          dataRowColor: MaterialStateProperty.resolveWith<Color?>(
+            (Set<MaterialState> states) {
+              if (states.contains(MaterialState.selected)) {
+                return const Color(0xFF2C2C2C);
+              }
+              return null;
+            },
+          ),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E1E1E),
+          ),
+          columns: [
+            DataColumn2(label: Center(child: Text('STT')), size: ColumnSize.S, fixedWidth: 30),
+            DataColumn2(label: Center(child: Text('Ngày')), size: ColumnSize.M, fixedWidth: 90),
+            DataColumn2(label: Center(child: Text('Miền')), size: ColumnSize.S, fixedWidth: 60),
+            DataColumn2(label: Center(child: Text('Số')), size: ColumnSize.S, fixedWidth: 50),
+            DataColumn2(label: Center(child: Text('Cược/Số')), size: ColumnSize.S, fixedWidth: 65),
+            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Cược/miền')), size: ColumnSize.M),
+            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Tổng tiền')), size: ColumnSize.M),
+            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Lời (1 số)')), size: ColumnSize.M),
+            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Lời (2 số)')), size: ColumnSize.M),
+          ],
+          rows: table.asMap().entries.map((entry) {
+            final index = entry.key;
+            final row = entry.value;
+            final isEven = index % 2 == 0;
+            
+            return DataRow2(
+              color: MaterialStateProperty.all(
+                isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525),
+              ),
+              cells: [
+                DataCell(Center(child: Text(row.stt.toString()))),
+                DataCell(Center(child: Text(row.ngay))),
+                DataCell(Center(child: Text(row.mien))),
+                DataCell(Center(child: Text(row.so,style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)))),
+                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocSo), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))),
+                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocMien)))),
+                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.tongTien)))),
+                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So), style: TextStyle(color: row.loi1So > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
+                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi2So ?? 0), style: TextStyle(color: (row.loi2So ?? 0) > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
+              ],
+            );
+          }).toList(),
         ),
-        dataTextStyle: const TextStyle(
-          fontSize: 13,
-          color: Colors.white,
-        ),
-        headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
-        dataRowColor: MaterialStateProperty.resolveWith<Color?>(
-          (Set<MaterialState> states) {
-            if (states.contains(MaterialState.selected)) {
-              return const Color(0xFF2C2C2C);
-            }
-            return null;
-          },
-        ),
-        decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E),
-        ),
-        columns: [
-          DataColumn2(label: Center(child: Text('STT')), size: ColumnSize.S, fixedWidth: 30),
-          DataColumn2(label: Center(child: Text('Ngày')), size: ColumnSize.M, fixedWidth: 90),
-          DataColumn2(label: Center(child: Text('Miền')), size: ColumnSize.S, fixedWidth: 60),
-          DataColumn2(label: Center(child: Text('Số')), size: ColumnSize.S, fixedWidth: 50),
-          DataColumn2(label: Center(child: Text('Cược/Số')), size: ColumnSize.S, fixedWidth: 65),
-          DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Cược/miền')), size: ColumnSize.M),
-          DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Tổng tiền')), size: ColumnSize.M),
-          DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Lời (1 số)')), size: ColumnSize.M),
-          DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Lời (2 số)')), size: ColumnSize.M),
-        ],
-        rows: table.asMap().entries.map((entry) {
-          final index = entry.key;
-          final row = entry.value;
-          final isEven = index % 2 == 0;
-          
-          return DataRow2(
-            color: MaterialStateProperty.all(
-              isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525),
-            ),
-            cells: [
-              DataCell(Center(child: Text(row.stt.toString()))),
-              DataCell(Center(child: Text(row.ngay))),
-              DataCell(Center(child: Text(row.mien))),
-              DataCell(Center(child: Text(row.so,style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocSo), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocMien)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.tongTien)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So), style: TextStyle(color: row.loi1So > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi2So ?? 0), style: TextStyle(color: (row.loi2So ?? 0) > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
-            ],
-          );
-        }).toList(),
       ),
     );
   }
@@ -317,45 +320,48 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
     return Card(
       margin: const EdgeInsets.all(16),
       color: const Color(0xFF1E1E1E),
-      child: DataTable2(
-        columnSpacing: 12,
-        horizontalMargin: 12,
-        minWidth: 600,
-        headingTextStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
-        dataTextStyle: const TextStyle(fontSize: 13, color: Colors.white),
-        headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
-        dataRowColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
-          if (states.contains(MaterialState.selected)) return const Color(0xFF2C2C2C);
-          return null;
-        }),
-        decoration: const BoxDecoration(color: Color(0xFF1E1E1E)),
-        columns: [
-          DataColumn2(label: Center(child: Text('STT')), size: ColumnSize.S, fixedWidth: 30),
-          DataColumn2(label: Center(child: Text('Ngày')), size: ColumnSize.M, fixedWidth: 90),
-          DataColumn2(label: Center(child: Text('Miền')), size: ColumnSize.S, fixedWidth: 60),
-          DataColumn2(label: Center(child: Text('Số')), size: ColumnSize.S, fixedWidth: 50),
-          DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Cược')), size: ColumnSize.M, fixedWidth: 70),
-          DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Tổng tiền')), size: ColumnSize.M),
-          DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Lời')), size: ColumnSize.M),
-        ],
-        rows: table.asMap().entries.map((entry) {
-          final index = entry.key;
-          final row = entry.value;
-          final isEven = index % 2 == 0;
+      child: SizedBox(
+        height: 400, // ✅ FIX: Thêm chiều cao cố định
+        child: DataTable2(
+          columnSpacing: 12,
+          horizontalMargin: 12,
+          minWidth: 600,
+          headingTextStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+          dataTextStyle: const TextStyle(fontSize: 13, color: Colors.white),
+          headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
+          dataRowColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
+            if (states.contains(MaterialState.selected)) return const Color(0xFF2C2C2C);
+            return null;
+          }),
+          decoration: const BoxDecoration(color: Color(0xFF1E1E1E)),
+          columns: [
+            DataColumn2(label: Center(child: Text('STT')), size: ColumnSize.S, fixedWidth: 30),
+            DataColumn2(label: Center(child: Text('Ngày')), size: ColumnSize.M, fixedWidth: 90),
+            DataColumn2(label: Center(child: Text('Miền')), size: ColumnSize.S, fixedWidth: 60),
+            DataColumn2(label: Center(child: Text('Số')), size: ColumnSize.S, fixedWidth: 50),
+            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Cược')), size: ColumnSize.M, fixedWidth: 70),
+            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Tổng tiền')), size: ColumnSize.M),
+            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Lời')), size: ColumnSize.M),
+          ],
+          rows: table.asMap().entries.map((entry) {
+            final index = entry.key;
+            final row = entry.value;
+            final isEven = index % 2 == 0;
 
-          return DataRow2(
-            color: MaterialStateProperty.all(isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525)),
-            cells: [
-              DataCell(Center(child: Text(row.stt.toString()))),
-              DataCell(Center(child: Text(row.ngay))),
-              DataCell(Center(child: Text(row.mien))),
-              DataCell(Center(child: Text(row.so,style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocMien), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.tongTien)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So), style: TextStyle(color: row.loi1So > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
-            ],
-          );
-        }).toList(),
+            return DataRow2(
+              color: MaterialStateProperty.all(isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525)),
+              cells: [
+                DataCell(Center(child: Text(row.stt.toString()))),
+                DataCell(Center(child: Text(row.ngay))),
+                DataCell(Center(child: Text(row.mien))),
+                DataCell(Center(child: Text(row.so,style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)))),
+                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocMien), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))),
+                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.tongTien)))),
+                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So), style: TextStyle(color: row.loi1So > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
+              ],
+            );
+          }).toList(),
+        ),
       ),
     );
   }

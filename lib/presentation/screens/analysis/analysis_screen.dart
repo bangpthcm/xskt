@@ -379,6 +379,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     AnalysisViewModel viewModel,
     AlertType type,
   ) {
+    print('🔘 Alert item clicked: $type'); // ✅ ADD LOG
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -386,13 +388,49 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         content: Text(_getCreateTableMessage(type, viewModel)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              print('❌ User cancelled'); // ✅ ADD LOG
+              Navigator.pop(context);
+            },
             child: const Text('Hủy'),
           ),
           ElevatedButton(
             onPressed: () async {
+              print('✅ User confirmed, creating table...'); // ✅ ADD LOG
               Navigator.pop(context);
-              await _createTableForAlertType(context, viewModel, type);
+              
+              // ✅ HIỂN THỊ LOADING
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+              
+              try {
+                await _createTableForAlertType(context, viewModel, type);
+                
+                // ✅ ĐÓNG LOADING
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+              } catch (e) {
+                print('❌ Error in _handleAlertItemClick: $e'); // ✅ ADD LOG
+                
+                // ✅ ĐÓNG LOADING
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  
+                  // ✅ HIỂN THỊ LỖI
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Lỗi: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             child: const Text('Tạo bảng'),
           ),
@@ -425,50 +463,93 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     AnalysisViewModel viewModel,
     AlertType type,
   ) async {
+    print('🎯 _createTableForAlertType called: $type'); // ✅ ADD LOG
+    
     final config = context.read<SettingsViewModel>().config;
 
-    switch (type) {
-      case AlertType.xien:
-        await viewModel.createXienBettingTable();
-        break;
-      case AlertType.tatCa:
-        await viewModel.createCycleBettingTable(config);
-        break;
-      case AlertType.trung:
-        final number = viewModel.cycleResult!.targetNumber;
-        await viewModel.createTrungGanBettingTable(number, config);
-        break;
-      case AlertType.bac:
-        final number = viewModel.cycleResult!.targetNumber;
-        await viewModel.createBacGanBettingTable(number, config);
-        break;
-    }
+    try {
+      switch (type) {
+        case AlertType.xien:
+          print('   Creating Xiên table...'); // ✅ ADD LOG
+          await viewModel.createXienBettingTable();
+          break;
+          
+        case AlertType.tatCa:
+          print('   Creating Tất cả table...'); // ✅ ADD LOG
+          await viewModel.createCycleBettingTable(config);
+          break;
+          
+        case AlertType.trung:
+          print('   Analyzing Trung...'); // ✅ ADD LOG
+          final trungResult = await viewModel.analyzeCycleForMien('Trung');
+          if (trungResult == null) {
+            throw Exception('Không thể phân tích Miền Trung');
+          }
+          print('   Creating Trung table for number: ${trungResult.targetNumber}'); // ✅ ADD LOG
+          await viewModel.createTrungGanBettingTable(trungResult.targetNumber, config);
+          break;
+          
+        case AlertType.bac:
+          print('   Analyzing Bắc...'); // ✅ ADD LOG
+          final bacResult = await viewModel.analyzeCycleForMien('Bắc');
+          if (bacResult == null) {
+            throw Exception('Không thể phân tích Miền Bắc');
+          }
+          print('   Creating Bắc table for number: ${bacResult.targetNumber}'); // ✅ ADD LOG
+          await viewModel.createBacGanBettingTable(bacResult.targetNumber, config);
+          break;
+      }
 
-    if (context.mounted) {
-      if (viewModel.errorMessage == null) {
-        await context.read<BettingViewModel>().loadBettingTables();
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tạo bảng cược thành công!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        
-        await Future.delayed(const Duration(milliseconds: 300));
-        
-        if (context.mounted) {
-          mainNavigationKey.currentState?.switchToTab(1);
+      print('   ✅ Table created successfully'); // ✅ ADD LOG
+
+      // ✅ XỬ LÝ SAU KHI TẠO BẢNG
+      if (context.mounted) {
+        if (viewModel.errorMessage == null) {
+          print('   Reloading betting tables...'); // ✅ ADD LOG
+          await context.read<BettingViewModel>().loadBettingTables();
+          
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Tạo bảng cược thành công!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            
+            await Future.delayed(const Duration(milliseconds: 300));
+            
+            if (context.mounted) {
+              print('   Switching to betting tab...'); // ✅ ADD LOG
+              mainNavigationKey.currentState?.switchToTab(1);
+            }
+          }
+        } else {
+          print('   ❌ ViewModel error: ${viewModel.errorMessage}'); // ✅ ADD LOG
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(viewModel.errorMessage!),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
-      } else {
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error in _createTableForAlertType: $e'); // ✅ ADD LOG
+      print('   Stack trace: $stackTrace'); // ✅ ADD LOG
+      
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(viewModel.errorMessage!),
+            content: Text('Lỗi tạo bảng: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
+      rethrow; // ✅ Throw lại để _handleAlertItemClick bắt được
     }
   }
 
@@ -1210,12 +1291,14 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     );
   }
 
-  // ✅ THAY ĐỔI 1: Sửa _showNumberDetail() - Bỏ nút X ở header
   Future<void> _showNumberDetail(
     BuildContext context,
     AnalysisViewModel viewModel,
     String number,
   ) async {
+    print('🔍 _showNumberDetail called for number: $number'); // ✅ ADD LOG
+    print('   Selected mien: ${viewModel.selectedMien}'); // ✅ ADD LOG
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1237,10 +1320,12 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       return;
     }
 
+    print('✅ Number detail loaded'); // ✅ ADD LOG
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        backgroundColor: Colors.transparent, // ✅ Transparent để custom màu
+        backgroundColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -1248,13 +1333,13 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           width: MediaQuery.of(context).size.width * 0.95,
           constraints: const BoxConstraints(maxWidth: 500),
           decoration: BoxDecoration(
-            color: Color(0xFF1E1E1E), // ✅ MÀU NỀN TOÀN BỘ DIALOG
+            color: Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Content - GIỜ SẼ CÓ NỀN TỐI
+              // Content
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -1269,7 +1354,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ✅ CÁC Ô MIỀN với màu tối đồng bộ
                     if (numberDetail.mienDetails.containsKey('Nam'))
                       _buildMienCard(
                         'Miền Nam',
@@ -1298,17 +1382,18 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 ),
               ),
 
-              // ✅ THAY ĐỔI 2: 2 NÚT TRÊN + 1 NÚT DƯỚI
+              // 2 NÚT TRÊN
               Container(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
                 child: Row(
                   children: [
-                    // Tạo bảng
+                    // Tạo bảng - ✅ THÊM LOG
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
+                          print('📊 Create table button clicked'); // ✅ ADD LOG
                           Navigator.pop(context);
-                          _createTableForNumber(context, viewModel, number);
+                          _createTableForNumberWithMien(context, viewModel, number);
                         },
                         icon: const Icon(Icons.table_chart, size: 20),
                         label: const Text('Tạo bảng'),
@@ -1329,6 +1414,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
+                          print('📤 Send telegram button clicked'); // ✅ ADD LOG
                           Navigator.pop(context);
                           _sendNumberDetailToTelegram(context, viewModel, numberDetail);
                         },
@@ -1348,13 +1434,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 ),
               ),
 
-              // ✅ NÚT ĐÓNG Ở DƯỚI (HÀNG RIÊNG)
+              // NÚT ĐÓNG Ở DƯỚI
               Container(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      print('❌ Close button clicked'); // ✅ ADD LOG
+                      Navigator.pop(context);
+                    },
                     icon: const Icon(Icons.close, size: 20),
                     label: const Text('Đóng'),
                     style: ElevatedButton.styleFrom(
@@ -1464,42 +1553,110 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     }
   }
 
-  Future<void> _createTableForNumber(
+  // ✅ HÀM MỚI: Tạo bảng theo miền đang chọn (FIXED V2)
+  Future<void> _createTableForNumberWithMien(
     BuildContext context,
     AnalysisViewModel viewModel,
     String number,
   ) async {
+    print('🎯 _createTableForNumberWithMien called');
+    print('   Number: $number');
+    
+    final selectedMien = viewModel.selectedMien;
+    print('   Selected mien: $selectedMien');
+    
+    // ✅ XÁC ĐỊNH LOẠI BẢNG DỰA TRÊN FILTER
+    String tableType;
+    if (selectedMien == 'Bắc') {
+      tableType = 'Miền Bắc';
+    } else if (selectedMien == 'Trung') {
+      tableType = 'Miền Trung';
+    } else {
+      tableType = 'Chu kỳ (Tất cả)';
+    }
+    
+    print('   Table type: $tableType');
+    
+    // ✅ LƯU TẤT CẢ REFERENCES TRƯỚC KHI HIỂN THỊ DIALOG
+    final settingsViewModel = context.read<SettingsViewModel>();
+    final bettingViewModel = context.read<BettingViewModel>();
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Xác nhận'),
         content: Text(
-          'Tạo bảng cược cho số $number?\n\n'
-          'Bảng cược chu kỳ hiện tại sẽ bị xóa và thay thế.',
+          'Tạo bảng cược $tableType cho số $number?\n\n'
+          'Bảng cược hiện tại sẽ bị xóa và thay thế.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () {
+              print('   ❌ User cancelled');
+              Navigator.pop(dialogContext, false);
+            },
             child: const Text('Hủy'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              print('   ✅ User confirmed');
+              Navigator.pop(dialogContext, true);
+            },
             child: const Text('Tạo'),
           ),
         ],
       ),
     );
 
-    if (confirm != true || !context.mounted) return;
+    print('   Confirm result: $confirm');
 
-    final config = context.read<SettingsViewModel>().config;
-    await viewModel.createCycleBettingTableForNumber(number, config);
+    if (confirm != true) {
+      print('   ⚠️ User cancelled');
+      return;
+    }
 
-    if (context.mounted) {
+    print('   💰 Config loaded');
+
+    // ✅ HIỂN THỊ LOADING (DÙNG NAVIGATOR ĐÃ LƯU)
+    print('   📊 Showing loading dialog');
+    navigator.push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierDismissible: false,
+        pageBuilder: (_, __, ___) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      ),
+    );
+
+    try {
+      final config = settingsViewModel.config;
+      
+      // ✅ GỌI HÀM ĐÚNG THEO MIỀN
+      if (selectedMien == 'Bắc') {
+        print('   🎯 Creating Bắc table...');
+        await viewModel.createBacGanBettingTable(number, config);
+      } else if (selectedMien == 'Trung') {
+        print('   🎯 Creating Trung table...');
+        await viewModel.createTrungGanBettingTable(number, config);
+      } else {
+        print('   🎯 Creating Cycle table...');
+        await viewModel.createCycleBettingTableForNumber(number, config);
+      }
+
+      print('   ✅ Table creation completed');
+
+      // ✅ ĐÓNG LOADING
+      print('   🔄 Closing loading dialog');
+      navigator.pop();
+
       if (viewModel.errorMessage == null) {
-        await context.read<BettingViewModel>().loadBettingTables();
+        print('   ✅ No errors, reloading betting tables');
+        await bettingViewModel.loadBettingTables();
         
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('Tạo bảng cược thành công!'),
             backgroundColor: Colors.green,
@@ -1509,17 +1666,31 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         
         await Future.delayed(const Duration(milliseconds: 300));
         
-        if (context.mounted) {
-          mainNavigationKey.currentState?.switchToTab(1);
-        }
+        print('   🔀 Switching to betting tab');
+        mainNavigationKey.currentState?.switchToTab(1);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
+        print('   ❌ Error from viewModel: ${viewModel.errorMessage}');
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text(viewModel.errorMessage!),
             backgroundColor: Colors.red,
           ),
         );
       }
+    } catch (e, stackTrace) {
+      print('   ❌ Exception caught: $e');
+      print('   Stack trace: $stackTrace');
+      
+      // ✅ ĐÓNG LOADING
+      navigator.pop();
+      
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Lỗi tạo bảng: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 }

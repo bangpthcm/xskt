@@ -159,7 +159,7 @@ class BettingTableService {
           print('   💾 Saved first valid table as backup');
         }
         
-        final adjustedProfit = midProfit * 3 / 4.2;
+        final adjustedProfit = midProfit * 3.5 / 4.2;
         final optimizedTable = await _optimizeStartBet(
           targetNumber: targetNumber,
           targetMien: targetMien,
@@ -463,7 +463,7 @@ class BettingTableService {
       );
 
       if (foundTable != null) {
-        final adjustedProfit = midProfit * 3 / 4.2;
+        final adjustedProfit = midProfit * 3.5 / 4.2;
         bestTable = await _optimizeStartBetForBacGan(
           targetNumber: targetNumber,
           startDate: startDate,
@@ -656,7 +656,7 @@ class BettingTableService {
       );
 
       if (foundTable != null) {
-        final adjustedProfit = midProfit * 3 / 4.2;
+        final adjustedProfit = midProfit * 3.5 / 4.2;
         bestTable = await _optimizeStartBetForTrungGan(
           targetNumber: targetNumber,
           startDate: startDate,
