@@ -11,6 +11,9 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Thêm dòng này
+  flutter_launcher_icons: ^0.13.1
+
   # State Management
   provider: ^6.1.1
 
@@ -49,6 +52,18 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true                 # Kích hoạt cho Android
+  ios: true                     # Kích hoạt cho iOS
+  image_path: "icon.png" # Đường dẫn đến file icon của bạn
+  min_sdk_android: 21           # (Tùy chọn) Yêu cầu Android API 21+
+
+flutter_native_splash:
+  # Đây chính là file ảnh gây ra lỗi
+  image: icon.png 
+  android: true
+  ios: true
 
   # Assets (nếu cần)
   # assets:
