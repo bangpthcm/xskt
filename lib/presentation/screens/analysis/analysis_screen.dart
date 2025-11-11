@@ -55,15 +55,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Phân tích'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Đồng bộ RSS và phân tích lại',
-            onPressed: () {
-              context.read<AnalysisViewModel>().loadAnalysis(useCache: false);
-            },
-          ),
-        ],
       ),
       body: Consumer<AnalysisViewModel>(
         builder: (context, viewModel, child) {
@@ -136,7 +127,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOut,
       child: viewModel.hasAnyAlert ? Card(
-        color: const Color(0xFF2C2C2C),
         margin: const EdgeInsets.only(bottom: 16),
         child: InkWell(
           onTap: () => _showAlertDialog(context, viewModel),
@@ -148,7 +138,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   scale: _pulseAnimation,
                   child: Icon(
                     Icons.warning_amber_rounded,
-                    color: Colors.orange.shade400,
+                    color: Theme.of(context).primaryColor,
                     size: 32,
                   ),
                 ),
@@ -156,14 +146,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,  // ✅ THÊM
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         'Có số gan thỏa điều kiện!',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade300,
+                          color: Theme.of(context).primaryColor,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -171,7 +161,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                         'Nhấn để xem chi tiết',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.orange.shade400,
+                          color: Theme.of(context).primaryColor.withOpacity(0.8),
                         ),
                       ),
                     ],
@@ -180,7 +170,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade700,
+                    color: Theme.of(context).primaryColor,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -192,7 +182,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ),
                   ),
                 ),
-                Icon(Icons.chevron_right, color: Colors.orange.shade400),
+                Icon(Icons.chevron_right, color: Theme.of(context).primaryColor),
               ],
             ),
           ),
@@ -208,7 +198,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+            Icon(Icons.warning_amber_rounded, color: Colors.white),
             const SizedBox(width: 8),
             const Text('Thông báo số gan'),
           ],
@@ -315,17 +305,17 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Colors.grey.shade600),
+                      Icon(Icons.info_outline, color: Theme.of(context).primaryColor),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'Hiện chưa có số nào thỏa điều kiện',
-                          style: TextStyle(color: Colors.grey.shade700),
+                          style: TextStyle(color: Theme.of(context).primaryColor),
                         ),
                       ),
                     ],
@@ -648,7 +638,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 // ✅ 3. ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
                 if (viewModel.selectedMien != 'Nam')
                 IconButton(
-                  icon: const Icon(Icons.table_chart, color: Colors.orange),
+                  icon: Icon(Icons.table_chart, color: Theme.of(context).primaryColor.withOpacity(0.9)),
                   tooltip: 'Tạo bảng cược',
                   onPressed: cycleResult != null
                       ? () {
@@ -671,7 +661,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       : null,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blue),
+                  icon: Icon(Icons.send, color: Theme.of(context).primaryColor.withOpacity(0.9)),
                   tooltip: 'Gửi Telegram',
                   onPressed: cycleResult != null
                       ? () => _sendCycleToTelegram(context, viewModel)
@@ -685,7 +675,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             const SizedBox(height: 16),
             
             if (cycleResult == null)
-              const Text('Chưa có dữ liệu phân tích')
+              const Text('Chưa có dữ liệu phân tích') 
             else ...[
               _buildInfoRow('Số ngày gan:', '${cycleResult.maxGanDays} ngày'),
               _buildInfoRow(
@@ -731,15 +721,15 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       number,
                       style: TextStyle(
                         fontWeight: isTarget ? FontWeight.bold : FontWeight.normal,
-                        color: isTarget ? Colors.orange.shade700 : Colors.grey.shade400,
+                        color: isTarget ? Theme.of(context).primaryColor.withOpacity(0.9) : Colors.grey.shade400,
                       ),
                     ),
                     backgroundColor: isTarget 
-                        ? Colors.orange.shade50 
+                        ? Theme.of(context).primaryColor.withOpacity(0.3) 
                         : Colors.grey.shade100,
                     side: BorderSide(
                       color: isTarget 
-                          ? Colors.orange.shade300 
+                          ? Theme.of(context).primaryColor.withOpacity(0.8) 
                           : Colors.grey.shade300,
                     ),
                     onPressed: () => _showNumberDetail(context, viewModel, number),
@@ -851,14 +841,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 ),
                 // ✅ ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
                 IconButton(
-                  icon: const Icon(Icons.table_chart, color: Colors.orange),
+                  icon: Icon(Icons.table_chart, color: Theme.of(context).primaryColor.withOpacity(0.9)),
                   tooltip: 'Tạo bảng cược',
                   onPressed: ganInfo != null
                       ? () => _createXienBettingTable(context, viewModel)
                       : null,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blue),
+                  icon: Icon(Icons.send, color: Theme.of(context).primaryColor.withOpacity(0.9)),
                   tooltip: 'Gửi Telegram',
                   onPressed: ganInfo != null
                       ? () => _sendGanPairToTelegram(context, viewModel)
@@ -1629,6 +1619,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         content: Text(
           'Tạo bảng cược $tableType cho số $number?\n\n'
           'Bảng cược hiện tại sẽ bị xóa và thay thế.',
+          style: TextStyle(color: Theme.of(context).primaryColor.withOpacity(0.9)),
         ),
         actions: [
           TextButton(

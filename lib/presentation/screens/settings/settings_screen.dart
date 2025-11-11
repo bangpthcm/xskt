@@ -489,17 +489,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
           label: 'Lưu và kiểm tra kết nối',
           icon: Icons.save,
-          backgroundColor: Colors.grey,
+          backgroundColor: Theme.of(context).primaryColor,
           onPressed: viewModel.isLoading ? () {} : _saveConfigAndTest,
           isLoading: viewModel.isLoading,
           width: double.infinity,
         ),
         const SizedBox(height: 12),
         
-        AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
+        AnimatedButton(
           label: 'Đồng bộ dữ liệu RSS',
           icon: Icons.sync,
-          backgroundColor: Colors.blue,
+          backgroundColor: Theme.of(context).primaryColor,
           onPressed: viewModel.isLoading ? () {} : () => _syncRSSData(viewModel),
           isLoading: viewModel.isLoading,
           width: double.infinity,
@@ -689,7 +689,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildThemeSection() {
     return Card(
       child: ExpansionTile(
-        leading: const Icon(Icons.palette, color: Colors.purple),
+        leading: Icon(Icons.palette, color: Theme.of(context).primaryColor),
         title: const Text(
           'Giao diện',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -750,12 +750,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Colors.blue,
                         Colors.orange,
-                        Colors.green,
                         Colors.purple,
-                        Colors.red,
-                        Colors.teal,
                         Colors.pink,
                         Colors.indigo,
+                        Colors.grey,
                       ].map((color) {
                         final isSelected = themeProvider.accentColor.value == color.value;
                         return GestureDetector(
