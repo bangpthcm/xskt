@@ -14,6 +14,9 @@ dependencies:
   # Thêm dòng này
   flutter_launcher_icons: ^0.13.1
 
+  shimmer: ^3.0.0
+  fl_chart: ^0.66.0
+  
   # State Management
   provider: ^6.1.1
 

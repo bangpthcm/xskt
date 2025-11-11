@@ -7,6 +7,8 @@ import 'win_history_viewmodel.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/xien_win_history.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class WinHistoryScreen extends StatefulWidget {
   final int initialTab;
@@ -67,7 +69,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
       body: Consumer<WinHistoryViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const ShimmerLoading(type: ShimmerType.table);  // ✅ ĐỔI từ CircularProgressIndicator
           }
 
           if (viewModel.errorMessage != null) {
@@ -135,7 +137,10 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
   // ✅ GIỮ NGUYÊN CÁC METHOD XÂY DỰNG TAB
   Widget _buildCycleTab(WinHistoryViewModel viewModel) {
     if (viewModel.cycleHistory.isEmpty) {
-      return const Center(child: Text('Chưa có lịch sử trúng số chu kỳ'));
+      return EmptyStateWidget(  // ✅ ĐỔI từ Center(child: Text(...))
+        title: 'Chưa có lịch sử',
+        message: 'Lịch sử trúng số sẽ hiển thị ở đây sau khi bạn có kết quả trúng',
+      );
     }
 
     final stats = viewModel.getCycleStats();

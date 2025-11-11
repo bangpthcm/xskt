@@ -12,6 +12,7 @@ import 'data/services/analysis_service.dart';
 import 'data/services/betting_table_service.dart';
 import 'data/services/telegram_service.dart';
 import 'data/models/app_config.dart';
+import 'core/theme/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +29,7 @@ void main() async {
   final analysisService = AnalysisService();
   final bettingService = BettingTableService();
   final telegramService = TelegramService();
+  final themeProvider = ThemeProvider();
 
   // ✅ Load config và khởi tạo services TỰ ĐỘNG
   try {
@@ -86,6 +88,9 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        // ✅ THÊM provider đầu tiên
+        ChangeNotifierProvider.value(value: themeProvider),
+        
         Provider.value(value: storageService),
         Provider.value(value: sheetsService),
         Provider.value(value: rssService),

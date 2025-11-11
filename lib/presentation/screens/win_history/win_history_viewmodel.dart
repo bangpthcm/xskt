@@ -394,6 +394,79 @@ class WinHistoryViewModel extends ChangeNotifier {
       return 1;
     }
   }
+
+  // ✅ THÊM vào class WinHistoryViewModel
+  List<MonthlyProfit> getProfitByMonth() {
+    final allHistories = <dynamic>[
+      ..._cycleHistory,
+      ..._trungHistory,
+      ..._bacHistory,
+      ..._xienHistory,
+    ];
+
+    if (allHistories.isEmpty) return [];
+
+    // Group by month
+    final monthlyData = <String, Map<String, dynamic>>{};
+
+    for (var history in allHistories) {
+      String dateStr;
+      double profit;
+      
+      if (history is CycleWinHistory) {
+        if (!history.isWin) continue;
+        dateStr = history.ngayTrung;
+        profit = history.loiLo;
+      } else if (history is XienWinHistory) {
+        if (!history.isWin) continue;
+        dateStr = history.ngayTrung;
+        profit = history.loiLo;
+      } else {
+        continue;
+      }
+
+      try {
+        final parts = dateStr.split('/');
+        if (parts.length != 3) continue;
+
+        final month = int.parse(parts[1]);
+        final year = int.parse(parts[2]);
+        final key = '$month/$year';
+
+        if (!monthlyData.containsKey(key)) {
+          monthlyData[key] = {
+            'month': month,
+            'year': year,
+            'profit': 0.0,
+            'wins': 0,
+          };
+        }
+
+        monthlyData[key]!['profit'] = monthlyData[key]!['profit'] + profit;
+        monthlyData[key]!['wins'] = monthlyData[key]!['wins'] + 1;
+      } catch (e) {
+        continue;
+      }
+    }
+
+    // Convert to list and sort
+    final result = monthlyData.entries.map((entry) {
+      return MonthlyProfit(
+        month: entry.value['month'],
+        year: entry.value['year'],
+        profit: entry.value['profit'],
+        wins: entry.value['wins'],
+      );
+    }).toList();
+
+    result.sort((a, b) {
+      final dateA = DateTime(a.year, a.month);
+      final dateB = DateTime(b.year, b.month);
+      return dateA.compareTo(dateB);
+    });
+
+    return result;
+  }
 }
 
 // ✅ Class WinStats (GIỮ NGUYÊN)
@@ -418,4 +491,21 @@ class WinStats {
   String toString() {
     return 'WinStats(wins: $totalWins, profit: $totalProfit, avgROI: $avgROI%, profitPerMonth: $profitPerMonth)';
   }
+}
+
+// ✅ THÊM: Method mới để lấy data theo tháng
+class MonthlyProfit {
+  final int month;
+  final int year;
+  final double profit;
+  final int wins;
+
+  MonthlyProfit({
+    required this.month,
+    required this.year,
+    required this.profit,
+    required this.wins,
+  });
+
+  String get monthLabel => '$month/$year';
 }

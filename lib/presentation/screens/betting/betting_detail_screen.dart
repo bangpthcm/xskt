@@ -6,6 +6,8 @@ import 'betting_viewmodel.dart';
 import '../settings/settings_viewmodel.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/models/betting_row.dart';
+import '../../widgets/responsive_data_table.dart';
+import '../../widgets/animated_button.dart';
 
 class BettingDetailScreen extends StatefulWidget {
   final int initialTab;
@@ -248,121 +250,16 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
   }
 
   Widget _buildCycleDataTable(List<BettingRow> table) {
-    return Card(
-      margin: const EdgeInsets.all(16),
-      color: const Color(0xFF1E1E1E),
-      child: SizedBox(
-        height: 400, // ✅ FIX: Thêm chiều cao cố định
-        child: DataTable2(
-          columnSpacing: 12,
-          horizontalMargin: 12,
-          minWidth: 600,
-          headingTextStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-            color: Colors.white,
-          ),
-          dataTextStyle: const TextStyle(
-            fontSize: 13,
-            color: Colors.white,
-          ),
-          headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
-          dataRowColor: MaterialStateProperty.resolveWith<Color?>(
-            (Set<MaterialState> states) {
-              if (states.contains(MaterialState.selected)) {
-                return const Color(0xFF2C2C2C);
-              }
-              return null;
-            },
-          ),
-          decoration: const BoxDecoration(
-            color: Color(0xFF1E1E1E),
-          ),
-          columns: [
-            DataColumn2(label: Center(child: Text('STT')), size: ColumnSize.S, fixedWidth: 30),
-            DataColumn2(label: Center(child: Text('Ngày')), size: ColumnSize.M, fixedWidth: 90),
-            DataColumn2(label: Center(child: Text('Miền')), size: ColumnSize.S, fixedWidth: 60),
-            DataColumn2(label: Center(child: Text('Số')), size: ColumnSize.S, fixedWidth: 50),
-            DataColumn2(label: Center(child: Text('Cược/Số')), size: ColumnSize.S, fixedWidth: 65),
-            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Cược/miền')), size: ColumnSize.M),
-            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Tổng tiền')), size: ColumnSize.M),
-            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Lời (1 số)')), size: ColumnSize.M),
-            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Lời (2 số)')), size: ColumnSize.M),
-          ],
-          rows: table.asMap().entries.map((entry) {
-            final index = entry.key;
-            final row = entry.value;
-            final isEven = index % 2 == 0;
-            
-            return DataRow2(
-              color: MaterialStateProperty.all(
-                isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525),
-              ),
-              cells: [
-                DataCell(Center(child: Text(row.stt.toString()))),
-                DataCell(Center(child: Text(row.ngay))),
-                DataCell(Center(child: Text(row.mien))),
-                DataCell(Center(child: Text(row.so,style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)))),
-                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocSo), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))),
-                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocMien)))),
-                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.tongTien)))),
-                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So), style: TextStyle(color: row.loi1So > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
-                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi2So ?? 0), style: TextStyle(color: (row.loi2So ?? 0) > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
-              ],
-            );
-          }).toList(),
-        ),
-      ),
+    return ResponsiveDataTable(  // ✅ ĐỔI từ Card + DataTable2
+      rows: table,
+      isCycleTable: true,
     );
   }
 
   Widget _buildXienDataTable(List<BettingRow> table) {
-    return Card(
-      margin: const EdgeInsets.all(16),
-      color: const Color(0xFF1E1E1E),
-      child: SizedBox(
-        height: 400, // ✅ FIX: Thêm chiều cao cố định
-        child: DataTable2(
-          columnSpacing: 12,
-          horizontalMargin: 12,
-          minWidth: 600,
-          headingTextStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
-          dataTextStyle: const TextStyle(fontSize: 13, color: Colors.white),
-          headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
-          dataRowColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
-            if (states.contains(MaterialState.selected)) return const Color(0xFF2C2C2C);
-            return null;
-          }),
-          decoration: const BoxDecoration(color: Color(0xFF1E1E1E)),
-          columns: [
-            DataColumn2(label: Center(child: Text('STT')), size: ColumnSize.S, fixedWidth: 30),
-            DataColumn2(label: Center(child: Text('Ngày')), size: ColumnSize.M, fixedWidth: 90),
-            DataColumn2(label: Center(child: Text('Miền')), size: ColumnSize.S, fixedWidth: 60),
-            DataColumn2(label: Center(child: Text('Số')), size: ColumnSize.S, fixedWidth: 50),
-            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Cược')), size: ColumnSize.M, fixedWidth: 70),
-            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Tổng tiền')), size: ColumnSize.M),
-            DataColumn2(label: Align(alignment: Alignment.centerRight, child: Text('Lời')), size: ColumnSize.M),
-          ],
-          rows: table.asMap().entries.map((entry) {
-            final index = entry.key;
-            final row = entry.value;
-            final isEven = index % 2 == 0;
-
-            return DataRow2(
-              color: MaterialStateProperty.all(isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525)),
-              cells: [
-                DataCell(Center(child: Text(row.stt.toString()))),
-                DataCell(Center(child: Text(row.ngay))),
-                DataCell(Center(child: Text(row.mien))),
-                DataCell(Center(child: Text(row.so,style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)))),
-                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocMien), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))),
-                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.tongTien)))),
-                DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So), style: TextStyle(color: row.loi1So > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
-              ],
-            );
-          }).toList(),
-        ),
-      ),
+    return ResponsiveDataTable(  // ✅ ĐỔI từ Card + DataTable2
+      rows: table,
+      isCycleTable: false,
     );
   }
 
@@ -370,8 +267,14 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFF121212),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, -2))],
+        color: const Color(0xFF121212),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -379,33 +282,31 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
+                child: AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
+                  label: 'Tạo lại',
+                  icon: Icons.refresh,
+                  backgroundColor: Colors.orange,
                   onPressed: () => _showRegenerateDialog(context, viewModel, type),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Tạo lại', style: TextStyle(color: Colors.white)),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: Colors.orange),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton.icon(
+                child: AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
+                  label: 'Gửi Telegram',
+                  icon: Icons.send,
+                  backgroundColor: Colors.blue,
                   onPressed: () => _showSendTelegramDialog(context, viewModel, type),
-                  icon: const Icon(Icons.send),
-                  label: const Text('Gửi Telegram', style: TextStyle(color: Colors.white)),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: Colors.blue),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
+          AnimatedButton(  // ✅ ĐỔI từ OutlinedButton
+            label: 'Xóa bảng cược',
+            icon: Icons.delete_outline,
+            backgroundColor: Colors.red,
+            onPressed: () => _showDeleteDialog(context, viewModel, type),
             width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _showDeleteDialog(context, viewModel, type),
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              label: const Text('Xóa bảng cược', style: TextStyle(color: Colors.red)),
-              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: Colors.red)),
-            ),
           ),
         ],
       ),

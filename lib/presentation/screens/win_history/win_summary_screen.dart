@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 import 'win_history_viewmodel.dart';
 import 'win_history_screen.dart';
 import '../../../core/utils/number_utils.dart';
+import 'package:flutter/services.dart';
 import '../home/home_screen.dart';  // ✅ THÊM DÒNG NÀY
+import '../../widgets/shimmer_loading.dart';
+import '../../widgets/profit_chart.dart';
 
 class WinSummaryScreen extends StatefulWidget {
   const WinSummaryScreen({Key? key}) : super(key: key);
@@ -48,7 +51,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
       body: Consumer<WinHistoryViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const ShimmerLoading(type: ShimmerType.stats);
           }
 
           if (viewModel.errorMessage != null) {
@@ -81,6 +84,10 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                // ✅ THÊM: Biểu đồ ở đầu
+                ProfitChart(data: viewModel.getProfitByMonth()),
+                const SizedBox(height: 16),
+                
                 _buildCombinedCard(viewModel),
                 const SizedBox(height: 16),
                 _buildCycleCard(viewModel),

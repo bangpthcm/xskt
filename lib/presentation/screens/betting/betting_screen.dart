@@ -1,11 +1,15 @@
 // lib/presentation/screens/betting/betting_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'betting_viewmodel.dart';
 import 'betting_detail_screen.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/models/betting_row.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../navigation/main_navigation.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class BettingScreen extends StatefulWidget {
   const BettingScreen({Key? key}) : super(key: key);
@@ -32,7 +36,7 @@ class _BettingScreenState extends State<BettingScreen> {
       body: Consumer<BettingViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const ShimmerLoading(type: ShimmerType.card);  // ✅ ĐỔI từ CircularProgressIndicator
           }
 
           if (viewModel.errorMessage != null) {
@@ -62,8 +66,17 @@ class _BettingScreenState extends State<BettingScreen> {
 
           return RefreshIndicator(
             onRefresh: () async {
+              HapticFeedback.mediumImpact();
               await viewModel.loadBettingTables();
+              if (viewModel.errorMessage == null) {
+                HapticFeedback.lightImpact();
+              }
             },
+
+            color: Colors.grey.shade200,
+            backgroundColor: const Color(0xFF1E1E1E),
+            strokeWidth: 3.0,
+            displacement: 40,
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -212,17 +225,15 @@ class _BettingScreenState extends State<BettingScreen> {
             
             // ✅ NẾU KHÔNG CÓ BẢNG
             if (!hasAnyTable)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                    'Chưa có bảng cược chu kỳ',
-                    style: TextStyle(
-                      color: Colors.grey.shade400,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
+              EmptyStateWidget(  // ✅ ĐỔI từ Center(child: Text(...))
+                title: 'Chưa có bảng cược',
+                message: 'Hãy phân tích và tạo bảng cược chu kỳ đầu tiên',
+                onAction: () {
+                  // Navigate to analysis tab
+                  final mainNav = context.findAncestorStateOfType<MainNavigationState>();
+                  mainNav?.switchToTab(0);
+                },
+                actionLabel: 'Đi đến Phân tích',
               )
             else ...[
               _buildInfoRow(
@@ -361,17 +372,14 @@ class _BettingScreenState extends State<BettingScreen> {
             
             // ✅ NẾU KHÔNG CÓ BẢNG
             if (!hasXienTable)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                    'Chưa có bảng cược xiên',
-                    style: TextStyle(
-                      color: Colors.grey.shade400,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
+              EmptyStateWidget(
+                title: 'Chưa có bảng xiên',
+                message: 'Hãy phân tích và tạo bảng cược xiên đầu tiên',
+                onAction: () {
+                  final mainNav = context.findAncestorStateOfType<MainNavigationState>();
+                  mainNav?.switchToTab(0);
+                },
+                actionLabel: 'Đi đến Phân tích',
               )
             else ...[
               _buildInfoRow(

@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'settings_viewmodel.dart';
 import '../../../data/models/app_config.dart';
 import '../../../core/utils/number_utils.dart';
+import '../../widgets/animated_button.dart';
+import '../../../core/theme/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -66,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  // ✅ SỬA: build() method - thêm _buildThemeSection()
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,6 +82,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                _buildThemeSection(),  // ✅ THÊM DÒNG NÀY Ở ĐẦU
+                const SizedBox(height: 24),
                 _buildGoogleSheetsSection(),
                 const SizedBox(height: 24),
                 _buildTelegramSection(),
@@ -99,71 +104,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildGoogleSheetsSection() {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: ExpansionTile(  // ✅ ĐỔI từ Padding
+        leading: const Icon(Icons.cloud, color: Colors.blue),
+        title: const Text(
+          'Google Sheets',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text(
+          'Cấu hình kết nối',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        initiallyExpanded: false,  // ✅ THÊM: Mở mặc định
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.cloud, color: Colors.blue),
-                const SizedBox(width: 8),
-                Text(
-                  'Google Sheets',
-                  style: Theme.of(context).textTheme.titleLarge,
+                const Text(
+                  'Credentials đã được cấu hình sẵn trong code',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontStyle: FontStyle.italic,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _sheetNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Sheet ID',
+                    hintText: 'XSKT hoặc 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+                    helperText: 'ID của Google Sheet',
+                    prefixIcon: Icon(Icons.description),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Vui lòng nhập Sheet ID';
+                    }
+                    return null;
+                  },
                 ),
               ],
             ),
-            const Divider(),
-            const Text(
-              'Credentials đã được cấu hình sẵn trong code',
-              style: TextStyle(
-                color: Colors.grey,
-                fontStyle: FontStyle.italic,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _sheetNameController,
-              decoration: const InputDecoration(
-                labelText: 'Sheet ID',
-                hintText: 'XSKT hoặc 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-                helperText: 'ID của Google Sheet',
-                prefixIcon: Icon(Icons.description),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập Sheet ID';
-                }
-                return null;
-              },
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
+  // ✅ SỬA: _buildTelegramSection
   Widget _buildTelegramSection() {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.telegram, color: Colors.blue),
-                const SizedBox(width: 8),
-                Text(
-                  'Telegram',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
-            ),
-            const Divider(),
-            TextFormField(
+      child: ExpansionTile(  // ✅ ĐỔI từ Padding
+        leading: const Icon(Icons.telegram, color: Colors.blue),
+        title: const Text(
+          'Telegram',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text(
+          'Cấu hình thông báo',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        initiallyExpanded: false,  // ✅ THÊM
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextFormField(
               controller: _chatIdsController,
               decoration: const InputDecoration(
                 labelText: 'Chat IDs',
@@ -178,174 +185,175 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 return null;
               },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // ✅ BUDGET SECTION MỚI
+  // ✅ SỬA: _buildBudgetSection
   Widget _buildBudgetSection() {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: ExpansionTile(  // ✅ ĐỔI từ Padding
+        leading: const Icon(Icons.attach_money, color: Colors.green),
+        title: const Text(
+          'Ngân sách',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text(
+          'Phân bổ vốn',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        initiallyExpanded: false,  // ✅ THÊM
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.attach_money, color: Colors.green),
-                const SizedBox(width: 8),
-                Text(
-                  'Ngân sách',
-                  style: Theme.of(context).textTheme.titleLarge,
+                // TỔNG VỐN
+                const Text(
+                  'Tổng vốn:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
                 ),
-              ],
-            ),
-            const Divider(),
-            
-            // TỔNG VỐN
-            const Text(
-              'Tổng vốn:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 8),
-            
-            TextFormField(
-              controller: _totalCapitalController,
-              decoration: const InputDecoration(
-                labelText: 'Tổng vốn khả dụng',
-                hintText: '600000',
-                suffixText: 'VNĐ',
-                helperText: 'Tổng vốn bạn muốn sử dụng',
-                prefixIcon: Icon(Icons.account_balance_wallet),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) => setState(() {}),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập tổng vốn';
-                }
-                final number = double.tryParse(value);
-                if (number == null || number <= 0) {
-                  return 'Số tiền không hợp lệ';
-                }
-                return null;
-              },
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // PHÂN BỔ HEADER
-            const Text(
-              '── Phân bổ theo bảng ──',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            // ✅ INFO - Đặt TRƯỚC các input (giống screenshot)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: Colors.grey, width: 1),
+                const SizedBox(height: 8),
+                
+                TextFormField(
+                  controller: _totalCapitalController,
+                  decoration: const InputDecoration(
+                    labelText: 'Tổng vốn khả dụng',
+                    hintText: '600000',
+                    suffixText: 'VNĐ',
+                    helperText: 'Tổng vốn bạn muốn sử dụng',
+                    prefixIcon: Icon(Icons.account_balance_wallet),
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => setState(() {}),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Vui lòng nhập tổng vốn';
+                    }
+                    final number = double.tryParse(value);
+                    if (number == null || number <= 0) {
+                      return 'Số tiền không hợp lệ';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.grey.shade300, size: 24),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Budget "Tất cả" sẽ tự động tính:',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade300,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Tổng vốn - (Tổng tiền dòng thứ 5 của 3 bảng)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ],
+                
+                const SizedBox(height: 16),
+                
+                // PHÂN BỔ HEADER
+                const Text(
+                  '── Phân bổ theo bảng ──',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // INFO
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey, width: 1),
                     ),
                   ),
-                ],
-              ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.grey.shade300, size: 24),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Budget "Tất cả" sẽ tự động tính:',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade300,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Tổng vốn - (Tổng tiền dòng thứ 5 của 3 bảng)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Miền Trung
+                TextFormField(
+                  controller: _trungBudgetController,
+                  decoration: const InputDecoration(
+                    labelText: 'Miền Trung',
+                    hintText: '200000',
+                    suffixText: 'VNĐ',
+                    prefixIcon: Icon(Icons.filter_1),
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => setState(() {}),
+                  validator: (value) => _validateBudgetField(value, 'Miền Trung'),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Miền Bắc
+                TextFormField(
+                  controller: _bacBudgetController,
+                  decoration: const InputDecoration(
+                    labelText: 'Miền Bắc',
+                    hintText: '200000',
+                    suffixText: 'VNĐ',
+                    prefixIcon: Icon(Icons.filter_2),
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => setState(() {}),
+                  validator: (value) => _validateBudgetField(value, 'Miền Bắc'),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Xiên
+                TextFormField(
+                  controller: _xienBudgetController,
+                  decoration: const InputDecoration(
+                    labelText: 'Xiên',
+                    hintText: '150000',
+                    suffixText: 'VNĐ',
+                    prefixIcon: Icon(Icons.favorite_border),
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => setState(() {}),
+                  validator: (value) => _validateBudgetField(value, 'Xiên'),
+                ),
+
+                const SizedBox(height: 16),
+
+                // SUMMARY
+                _buildBudgetSummary(),
+              ],
             ),
-
-            const SizedBox(height: 16),
-
-            // Miền Trung
-            TextFormField(
-              controller: _trungBudgetController,
-              decoration: const InputDecoration(
-                labelText: 'Miền Trung',
-                hintText: '200000',
-                suffixText: 'VNĐ',
-                prefixIcon: Icon(Icons.filter_1),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) => setState(() {}),
-              validator: (value) => _validateBudgetField(value, 'Miền Trung'),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Miền Bắc
-            TextFormField(
-              controller: _bacBudgetController,
-              decoration: const InputDecoration(
-                labelText: 'Miền Bắc',
-                hintText: '200000',
-                suffixText: 'VNĐ',
-                prefixIcon: Icon(Icons.filter_2),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) => setState(() {}),
-              validator: (value) => _validateBudgetField(value, 'Miền Bắc'),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Xiên
-            TextFormField(
-              controller: _xienBudgetController,
-              decoration: const InputDecoration(
-                labelText: 'Xiên',
-                hintText: '150000',
-                suffixText: 'VNĐ',
-                prefixIcon: Icon(Icons.favorite_border),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) => setState(() {}),
-              validator: (value) => _validateBudgetField(value, 'Xiên'),
-            ),
-
-            const SizedBox(height: 16),
-
-            // SUMMARY
-            _buildBudgetSummary(),
-            
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -478,42 +486,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildActionButtons(SettingsViewModel viewModel) {
     return Column(
       children: [
-        SizedBox(
+        AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
+          label: 'Lưu và kiểm tra kết nối',
+          icon: Icons.save,
+          backgroundColor: Colors.grey,
+          onPressed: viewModel.isLoading ? () {} : _saveConfigAndTest,
+          isLoading: viewModel.isLoading,
           width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: viewModel.isLoading ? null : _saveConfigAndTest,
-            icon: viewModel.isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save),
-            label: const Text('Lưu và kiểm tra kết nối'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
         ),
         const SizedBox(height: 12),
         
-        SizedBox(
+        AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
+          label: 'Đồng bộ dữ liệu RSS',
+          icon: Icons.sync,
+          backgroundColor: Colors.blue,
+          onPressed: viewModel.isLoading ? () {} : () => _syncRSSData(viewModel),
+          isLoading: viewModel.isLoading,
           width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: viewModel.isLoading ? null : () => _syncRSSData(viewModel),
-            icon: viewModel.isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.sync),
-            label: const Text('Đồng bộ dữ liệu RSS'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Colors.blue,
-            ),
-          ),
         ),
         const SizedBox(height: 12),
         
@@ -695,5 +684,120 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
+  }
+
+  Widget _buildThemeSection() {
+    return Card(
+      child: ExpansionTile(
+        leading: const Icon(Icons.palette, color: Colors.purple),
+        title: const Text(
+          'Giao diện',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text(
+          'Tùy chỉnh chủ đề',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Consumer<ThemeProvider>(
+              builder: (context, themeProvider, child) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Theme mode selector
+                    const Text(
+                      'Chủ đề:',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    SegmentedButton<ThemeMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: ThemeMode.light,
+                          label: Text('Sáng'),
+                          icon: Icon(Icons.light_mode),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.dark,
+                          label: Text('Tối'),
+                          icon: Icon(Icons.dark_mode),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.system,
+                          label: Text('Hệ thống'),
+                          icon: Icon(Icons.brightness_auto),
+                        ),
+                      ],
+                      selected: {themeProvider.themeMode},
+                      onSelectionChanged: (Set<ThemeMode> newSelection) {
+                        themeProvider.setThemeMode(newSelection.first);
+                      },
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Accent color selector
+                    const Text(
+                      'Màu chủ đạo:',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        Colors.blue,
+                        Colors.orange,
+                        Colors.green,
+                        Colors.purple,
+                        Colors.red,
+                        Colors.teal,
+                        Colors.pink,
+                        Colors.indigo,
+                      ].map((color) {
+                        final isSelected = themeProvider.accentColor.value == color.value;
+                        return GestureDetector(
+                          onTap: () => themeProvider.setAccentColor(color),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: isSelected
+                                  ? Border.all(color: Colors.white, width: 4)
+                                  : null,
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: color.withOpacity(0.5),
+                                        blurRadius: 8,
+                                        spreadRadius: 2,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: isSelected
+                                ? const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 28,
+                                  )
+                                : null,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

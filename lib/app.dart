@@ -26,6 +26,8 @@ import 'presentation/screens/win_history/win_history_viewmodel.dart';
 // Screens
 import 'presentation/navigation/main_navigation.dart';
 
+import 'core/theme/theme_provider.dart';
+
 // ✅ Global key for navigation
 final GlobalKey<MainNavigationState> mainNavigationKey = GlobalKey<MainNavigationState>();
 
@@ -109,93 +111,59 @@ class _MyAppState extends State<MyApp> {
       backfillService: backfillService,
     );
 
-    return MultiProvider(
-      providers: [
-        // Existing providers
-        ChangeNotifierProvider(
-          create: (_) => HomeViewModel(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => AnalysisViewModel(
-            sheetsService: googleSheetsService,
-            analysisService: analysisService,
-            storageService: storageService,
-            telegramService: telegramService,
-            bettingService: bettingService,
-            rssService: rssService,
+  return Consumer<ThemeProvider>(  // ✅ THÊM Consumer
+    builder: (context, themeProvider, child) {
+      return MultiProvider(
+        providers: [
+          // Existing providers
+          ChangeNotifierProvider(
+            create: (_) => HomeViewModel(),
           ),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => BettingViewModel(
-            sheetsService: googleSheetsService,
-            bettingService: bettingService,
-            telegramService: telegramService,
-            analysisService: analysisService,
-          ),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => SettingsViewModel(
-            storageService: storageService,
-            sheetsService: googleSheetsService,
-            telegramService: telegramService,
-            rssService: rssService,
-          ),
-        ),
-        
-        // ✅ Provider cho win history
-        ChangeNotifierProvider(
-          create: (_) => WinHistoryViewModel(
-            trackingService: winTrackingService,
-            autoCheckService: autoCheckService,
-          ),
-        ),
-      ],
-      child: MaterialApp(
-        title: 'XSKT Bot',
-        theme: ThemeData(
-          brightness: Brightness.light,
-          primarySwatch: Colors.blue,
-          useMaterial3: true,
-        ),
-        darkTheme: ThemeData(
-          brightness: Brightness.dark,
-          primarySwatch: Colors.blue,
-          scaffoldBackgroundColor: const Color(0xFF121212),
-          cardColor: const Color(0xFF1E1E1E),
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFF1E1E1E),
-            foregroundColor: Colors.white,
-          ),
-          cardTheme: const CardThemeData(  // ✅ Sửa: CardTheme → CardThemeData
-            color: Color(0xFF1E1E1E),
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
+          ChangeNotifierProvider(
+            create: (_) => AnalysisViewModel(
+              sheetsService: googleSheetsService,
+              analysisService: analysisService,
+              storageService: storageService,
+              telegramService: telegramService,
+              bettingService: bettingService,
+              rssService: rssService,
             ),
           ),
-          dataTableTheme: DataTableThemeData(
-            headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
-            dataRowColor: MaterialStateProperty.resolveWith<Color?>(
-              (Set<MaterialState> states) {
-                if (states.contains(MaterialState.selected)) {
-                  return Colors.blue.withOpacity(0.2);
-                }
-                return null;
-              },
+          ChangeNotifierProvider(
+            create: (_) => BettingViewModel(
+              sheetsService: googleSheetsService,
+              bettingService: bettingService,
+              telegramService: telegramService,
+              analysisService: analysisService,
             ),
           ),
-          textTheme: const TextTheme(
-            bodyLarge: TextStyle(color: Colors.white),
-            bodyMedium: TextStyle(color: Colors.white),
-            bodySmall: TextStyle(color: Colors.grey),
-            titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ChangeNotifierProvider(
+            create: (_) => SettingsViewModel(
+              storageService: storageService,
+              sheetsService: googleSheetsService,
+              telegramService: telegramService,
+              rssService: rssService,
+            ),
           ),
-          useMaterial3: true,
-        ),
-        themeMode: ThemeMode.dark, // ✅ Force dark mode
-        home: MainNavigation(key: mainNavigationKey),
-        debugShowCheckedModeBanner: false,
-      ),
+          
+          // ✅ Provider cho win history
+          ChangeNotifierProvider(
+            create: (_) => WinHistoryViewModel(
+              trackingService: winTrackingService,
+              autoCheckService: autoCheckService,
+            ),
+          ),
+        ],
+        child: MaterialApp(
+            title: 'XSKT Bot',
+            theme: themeProvider.getLightTheme(),  // ✅ ĐỔI
+            darkTheme: themeProvider.getDarkTheme(),  // ✅ ĐỔI
+            themeMode: themeProvider.themeMode,  // ✅ ĐỔI
+            home: MainNavigation(key: mainNavigationKey),
+            debugShowCheckedModeBanner: false,
+          ),
+        );
+      },
     );
   }
 }

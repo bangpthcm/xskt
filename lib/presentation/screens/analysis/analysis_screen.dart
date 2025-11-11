@@ -1,12 +1,14 @@
 // lib/presentation/screens/analysis/analysis_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'analysis_viewmodel.dart';
 import '../settings/settings_viewmodel.dart';
 import '../betting/betting_viewmodel.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../app.dart';
 import '../../../data/models/cycle_analysis_result.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({Key? key}) : super(key: key);
@@ -17,13 +19,35 @@ class AnalysisScreen extends StatefulWidget {
 
 enum AlertType { xien, tatCa, trung, bac }
 
-class _AnalysisScreenState extends State<AnalysisScreen> {
+class _AnalysisScreenState extends State<AnalysisScreen> 
+    with SingleTickerProviderStateMixin {
+
+  late AnimationController _pulseController;  // ✅ THÊM
+  late Animation<double> _pulseAnimation; 
+
   @override
   void initState() {
     super.initState();
+
+    // ✅ THÊM: Setup animation
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..repeat(reverse: true);
+    
+    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AnalysisViewModel>().loadAnalysis();
     });
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();  // ✅ THÊM
+    super.dispose();
   }
 
   @override
@@ -44,19 +68,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       body: Consumer<AnalysisViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Đang đồng bộ dữ liệu và phân tích...',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            );
+            return const ShimmerLoading(type: ShimmerType.card); 
           }
 
           if (viewModel.errorMessage != null) {
@@ -85,7 +97,21 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           }
 
           return RefreshIndicator(
-            onRefresh: () => viewModel.loadAnalysis(useCache: false),
+            onRefresh: ()  async {
+              // ✅ THÊM: Haptic feedback
+              HapticFeedback.mediumImpact();
+              
+              await viewModel.loadAnalysis(useCache: false);
+              
+              // ✅ THÊM: Success feedback
+              if (viewModel.errorMessage == null) {
+                HapticFeedback.lightImpact();
+              }
+            },
+            color: Colors.grey.shade200,
+            backgroundColor: const Color(0xFF1E1E1E),
+            strokeWidth: 3.0,
+            displacement: 40,
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -104,47 +130,74 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     );
   }
 
-  // ✅ THÊM: Alert banner
+  // ✅ SỬA: _buildAlertBanner method
   Widget _buildAlertBanner(AnalysisViewModel viewModel) {
-    return Card(
-      color: const Color(0xFF2C2C2C), // ✅ Dark background
-      margin: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        onTap: () => _showAlertDialog(context, viewModel),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange.shade400, size: 32),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Có số gan thỏa điều kiện!',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange.shade300, // ✅ Lighter orange
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Nhấn để xem chi tiết',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.orange.shade400,
-                      ),
-                    ),
-                  ],
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+      child: viewModel.hasAnyAlert ? Card(
+        color: const Color(0xFF2C2C2C),
+        margin: const EdgeInsets.only(bottom: 16),
+        child: InkWell(
+          onTap: () => _showAlertDialog(context, viewModel),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.orange.shade400,
+                    size: 32,
+                  ),
                 ),
-              ),
-              Icon(Icons.chevron_right, color: Colors.orange.shade400),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,  // ✅ THÊM
+                    children: [
+                      Text(
+                        'Có số gan thỏa điều kiện!',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade300,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Nhấn để xem chi tiết',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.orange.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade700,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _getAlertCount(viewModel).toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Colors.orange.shade400),
+              ],
+            ),
           ),
         ),
-      ),
+      ) : const SizedBox.shrink(),
     );
   }
 
@@ -1678,5 +1731,39 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         ),
       );
     }
+  }
+  // ✅ THÊM: Helper method
+  int _getAlertCount(AnalysisViewModel viewModel) {
+    int count = 0;
+    if (viewModel.hasXienAlert) count++;
+    if (viewModel.tatCaAlertCache == true) count++;
+    if (viewModel.trungAlertCache == true) count++;
+    if (viewModel.bacAlertCache == true) count++;
+    return count;
+  }
+}
+
+// ✅ THÊM: Custom painter cho ripple effect
+class RipplePainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  RipplePainter(this.progress, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withOpacity((1 - progress) * 0.3)
+      ..style = PaintingStyle.fill;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width * 0.8) * progress;
+
+    canvas.drawCircle(center, radius, paint);
+  }
+
+  @override
+  bool shouldRepaint(RipplePainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }
