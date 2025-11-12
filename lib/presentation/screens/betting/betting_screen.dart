@@ -76,7 +76,7 @@ class _BettingScreenState extends State<BettingScreen> {
             strokeWidth: 3.0,
             displacement: 40,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 25, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 _buildWarningCard(context, viewModel),
                 const SizedBox(height: 16),
@@ -195,22 +195,6 @@ class _BettingScreenState extends State<BettingScreen> {
           children: [
             Row(
               children: [
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Center(
-                    child: Text(
-                      'C',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                        height: 1.0,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Chu kỳ 00-99',
@@ -239,7 +223,7 @@ class _BettingScreenState extends State<BettingScreen> {
                 ),
               ],
             ),
-            const Divider(),
+            const Divider(color: Colors.grey),
             
             // ✅ NẾU KHÔNG CÓ BẢNG
             if (!hasAnyTable)
@@ -278,7 +262,7 @@ class _BettingScreenState extends State<BettingScreen> {
 
               // ✅ HIỂN THỊ BẢNG HÔM NAY (LUÔN HIỂN THỊ, KHÔNG CẦN CHECK isEmpty)
               const SizedBox(height: 16),
-              const Divider(),
+              const Divider(color: Colors.grey),
               const SizedBox(height: 8),
               Text(
                 'Bảng cược hôm nay ($today):',
@@ -362,22 +346,6 @@ class _BettingScreenState extends State<BettingScreen> {
           children: [
             Row(
               children: [
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Center(
-                    child: Text(
-                      'X',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                        height: 1.0,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Cặp xiên Bắc',
@@ -386,7 +354,7 @@ class _BettingScreenState extends State<BettingScreen> {
                 ),
               ],
             ),
-            const Divider(),
+            const Divider(color: Colors.grey),
             
             // ✅ NẾU KHÔNG CÓ BẢNG
             if (!hasXienTable)
@@ -409,7 +377,7 @@ class _BettingScreenState extends State<BettingScreen> {
 
               // ✅ HIỂN THỊ BẢNG HÔM NAY (LUÔN HIỂN THỊ)
               const SizedBox(height: 16),
-              const Divider(),
+              const Divider(color: Colors.grey),
               const SizedBox(height: 8),
               Text(
                 'Bảng cược hôm nay ($today):',

@@ -101,7 +101,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             strokeWidth: 3.0,
             displacement: 40,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 25, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 // ✅ THÊM: Alert banner nếu có
                 if (viewModel.hasAnyAlert)
@@ -666,7 +666,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 ),
               ],
             ),
-            const Divider(),
+            const Divider(color: Colors.grey),
             
             _buildMienFilter(viewModel),
             const SizedBox(height: 16),
@@ -854,7 +854,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 ),
               ],
             ),
-            const Divider(),
+            const Divider(color: Colors.grey),
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[

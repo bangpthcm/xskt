@@ -77,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 25, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 _buildThemeSection(),  // ✅ THÊM DÒNG NÀY Ở ĐẦU
                 const SizedBox(height: 24),
@@ -102,14 +102,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildGoogleSheetsSection() {
     return Card(
       child: ExpansionTile(  // ✅ ĐỔI từ Padding
-        leading: Icon(Icons.cloud, color: Theme.of(context).primaryColor.withOpacity(0.8)),
+        leading: Icon(Icons.cloud, color: Theme.of(context).primaryColor.withOpacity(0.7)),
         title: const Text(
           'Google Sheets',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         subtitle: const Text(
           'Cấu hình kết nối',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         initiallyExpanded: false,  // ✅ THÊM: Mở mặc định
         children: [
@@ -154,7 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildTelegramSection() {
     return Card(
       child: ExpansionTile(  // ✅ ĐỔI từ Padding
-        leading: Icon(Icons.telegram, color: Theme.of(context).primaryColor.withOpacity(0.8)),
+        leading: Icon(Icons.telegram, color: Theme.of(context).primaryColor.withOpacity(0.7)),
         title: const Text(
           'Telegram',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -192,7 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildBudgetSection() {
     return Card(
       child: ExpansionTile(  // ✅ ĐỔI từ Padding
-        leading: Icon(Icons.attach_money, color: Theme.of(context).primaryColor.withOpacity(0.8)),
+        leading: Icon(Icons.attach_money, color: Theme.of(context).primaryColor.withOpacity(0.7)),
         title: const Text(
           'Ngân sách',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -486,7 +486,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
           label: 'Lưu và kiểm tra kết nối',
           icon: Icons.save,
-          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.8),
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.7),
           onPressed: viewModel.isLoading ? () {} : _saveConfigAndTest,
           isLoading: viewModel.isLoading,
           width: double.infinity,
@@ -496,7 +496,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AnimatedButton(
           label: 'Đồng bộ dữ liệu RSS',
           icon: Icons.sync,
-          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.8),
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.7),
           onPressed: viewModel.isLoading ? () {} : () => _syncRSSData(viewModel),
           isLoading: viewModel.isLoading,
           width: double.infinity,
@@ -535,7 +535,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Icon(
               icon,
-              color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.8) : Colors.grey,
+              color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.7) : Colors.grey,
               size: 20,
             ),
             const SizedBox(width: 8),
@@ -550,7 +550,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             Icon(
               isConnected ? Icons.check_circle : Icons.cancel,
-              color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.8) : Colors.grey,
+              color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.7) : Colors.grey,
               size: 18,
             ),
           ],
@@ -686,7 +686,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildThemeSection() {
     return Card(
       child: ExpansionTile(
-        leading: Icon(Icons.palette, color: Theme.of(context).primaryColor.withOpacity(0.8)),
+        leading: Icon(Icons.palette, color: Theme.of(context).primaryColor.withOpacity(0.7)),
         title: const Text(
           'Giao diện',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -748,7 +748,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Colors.blue,
                         Colors.orange,
                         Colors.purple,
-                        Colors.pink,
                         Colors.grey,
                       ].map((color) {
                         final isSelected = themeProvider.accentColor.value == color.value;

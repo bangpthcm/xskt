@@ -64,7 +64,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
           return RefreshIndicator(
             onRefresh: () => viewModel.loadHistory(),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 25, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 // ✅ THÊM: Biểu đồ ở đầu
                 ProfitChart(data: viewModel.getProfitByMonth()),
@@ -100,11 +100,6 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
           children: [
             Row(
               children: [
-                const Text(
-                  '📊',
-                  style: TextStyle(fontSize: 22),
-                ),
-                const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
                     'TỔNG HỢP TẤT CẢ',
@@ -163,22 +158,6 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
           children: [
             Row(
               children: [
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Center(
-                    child: Text(
-                      'C',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFEE5A5A),
-                        height: 1.0,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
                     'CHU KỲ 00-99',
@@ -260,22 +239,6 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
           children: [
             Row(
               children: [
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Center(
-                    child: Text(
-                      'X',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF45B7B7),
-                        height: 1.0,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
                     'CẶP XIÊN BẮC',

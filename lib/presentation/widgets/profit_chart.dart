@@ -28,7 +28,7 @@ class ProfitChart extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '📈 Biểu đồ lợi nhuận theo tháng',
+              'Biểu đồ lợi nhuận theo tháng',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,

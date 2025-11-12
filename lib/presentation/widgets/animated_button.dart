@@ -101,27 +101,27 @@ class _AnimatedButtonState extends State<AnimatedButton>
                 children: [
                   if (widget.isLoading)
                     SizedBox(
-                      width: 20,
-                      height: 20,
+                      width: 15,
+                      height: 15,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          widget.foregroundColor ?? Colors.white,
+                          widget.foregroundColor ?? Colors.grey.shade400,
                         ),
                       ),
                     )
                   else if (widget.icon != null) ...[
                     Icon(
                       widget.icon,
-                      color: widget.foregroundColor ?? Colors.white,
+                      color: widget.foregroundColor ?? Colors.grey.shade400,
                       size: 20,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                   ],
                   Text(
                     widget.label,
                     style: TextStyle(
-                      color: widget.foregroundColor ?? Colors.white,
+                      color: widget.foregroundColor ?? Colors.grey.shade400,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
