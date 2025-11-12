@@ -13,6 +13,7 @@ import 'data/services/betting_table_service.dart';
 import 'data/services/telegram_service.dart';
 import 'data/models/app_config.dart';
 import 'core/theme/theme_provider.dart';
+import 'data/services/cached_data_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +31,9 @@ void main() async {
   final bettingService = BettingTableService();
   final telegramService = TelegramService();
   final themeProvider = ThemeProvider();
+  final cachedDataService = CachedDataService(
+    sheetsService: sheetsService,
+  );
 
   // ✅ Load config và khởi tạo services TỰ ĐỘNG
   try {
@@ -97,6 +101,7 @@ void main() async {
         Provider.value(value: analysisService),
         Provider.value(value: bettingService),
         Provider.value(value: telegramService),
+        Provider.value(value: cachedDataService),
       ],
       child: const MyApp(),
     ),

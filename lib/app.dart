@@ -15,6 +15,7 @@ import 'data/services/win_calculation_service.dart';
 import 'data/services/win_tracking_service.dart';
 import 'data/services/auto_check_service.dart';
 import 'data/models/app_config.dart';
+import 'data/services/cached_data_service.dart';
 
 // ViewModels
 import 'presentation/screens/home/home_viewmodel.dart';
@@ -120,14 +121,20 @@ class _MyAppState extends State<MyApp> {
             create: (_) => HomeViewModel(),
           ),
           ChangeNotifierProvider(
-            create: (_) => AnalysisViewModel(
-              sheetsService: googleSheetsService,
-              analysisService: analysisService,
-              storageService: storageService,
-              telegramService: telegramService,
-              bettingService: bettingService,
-              rssService: rssService,
-            ),
+            create: (_) {
+              // ✅ Pass cached service vào AnalysisViewModel
+              final cachedService = context.read<CachedDataService>();
+              
+              return AnalysisViewModel(
+                cachedDataService: cachedService,  // ✅ ADD
+                sheetsService: googleSheetsService,
+                analysisService: analysisService,
+                storageService: storageService,
+                telegramService: telegramService,
+                bettingService: bettingService,
+                rssService: rssService,
+              );
+            },
           ),
           ChangeNotifierProvider(
             create: (_) => BettingViewModel(

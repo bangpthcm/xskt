@@ -18,8 +18,10 @@ import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../data/services/budget_calculation_service.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/services/budget_calculation_service.dart';
+import '../../../data/services/cached_data_service.dart';
 
 class AnalysisViewModel extends ChangeNotifier {
+  final CachedDataService _cachedDataService;
   final GoogleSheetsService _sheetsService;
   final AnalysisService _analysisService;
   final StorageService _storageService;
@@ -28,13 +30,15 @@ class AnalysisViewModel extends ChangeNotifier {
   final RssParserService _rssService;
 
   AnalysisViewModel({
+    required CachedDataService cachedDataService,
     required GoogleSheetsService sheetsService,
     required AnalysisService analysisService,
     required StorageService storageService,
     required TelegramService telegramService,
     required BettingTableService bettingService,
     required RssParserService rssService,
-  })  : _sheetsService = sheetsService,
+  })  : _cachedDataService = cachedDataService, 
+        _sheetsService = sheetsService,
         _analysisService = analysisService,
         _storageService = storageService,
         _telegramService = telegramService,
@@ -75,48 +79,29 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // BƯỚC 1: ĐỒNG BỘ RSS
+      // ✅ THAY ĐỔI: Dùng cached service
       if (!useCache) {
-        print('🔄 Starting RSS sync...');
+        // Backfill trước
+        final backfillService = BackfillService(
+          sheetsService: _sheetsService,
+          rssService: _rssService,
+        );
         
-        try {
-          final backfillService = BackfillService(
-            sheetsService: _sheetsService,
-            rssService: _rssService,
-          );
-          
-          final syncResult = await backfillService.syncAllFromRSS();
-          print('📊 RSS sync result: ${syncResult.message}');
-          
-          if (syncResult.hasError) {
-            print('⚠️ RSS sync had errors: ${syncResult.message}');
-            _errorMessage = 'Cảnh báo: ${syncResult.message}';
-            notifyListeners();
-          }
-        } catch (syncError) {
-          print('❌ RSS sync failed: $syncError');
-          _errorMessage = 'Cảnh báo: Không thể đồng bộ RSS - $syncError';
-          notifyListeners();
-        }
+        final syncResult = await backfillService.syncAllFromRSS();
+        print('📊 RSS sync result: ${syncResult.message}');
       }
 
-      // BƯỚC 2: LẤY DỮ LIỆU
-      final allValues = await _sheetsService.getAllValues('KQXS');
-      
-      if (allValues.length < 2) {
-        throw Exception('Không có dữ liệu trong sheet');
-      }
+      // ✅ Load KQXS với caching
+      _allResults = await _cachedDataService.loadKQXS(
+        forceRefresh: !useCache,
+        incrementalOnly: useCache,
+      );
 
-      _allResults = [];
-      for (int i = 1; i < allValues.length; i++) {
-        try {
-          _allResults.add(LotteryResult.fromSheetRow(allValues[i]));
-        } catch (e) {
-          // Skip invalid rows
-        }
-      }
+      // ✅ Show cache status
+      final cacheStatus = await _cachedDataService.getCacheStatus();
+      print('📊 Cache status: $cacheStatus');
 
-      // BƯỚC 3: PHÂN TÍCH
+      // Phân tích như cũ
       _ganPairInfo = await _analysisService.findGanPairsMienBac(_allResults);
 
       if (_selectedMien == 'Tất cả') {
@@ -128,20 +113,16 @@ class AnalysisViewModel extends ChangeNotifier {
         _cycleResult = await _analysisService.analyzeCycle(filteredResults);
       }
 
-      // BƯỚC 4: LƯU LỊCH SỬ
+      // Save history và cache alerts
       if (!useCache) {
-        print('💾 Saving analysis history...');
-        
-        if (_cycleResult != null && _allResults.isNotEmpty) {
+        if (_cycleResult != null) {
           await _saveAnalysisHistory();
         }
-        
-        if (_ganPairInfo != null && _allResults.isNotEmpty) {
+        if (_ganPairInfo != null) {
           await _saveXienAnalysisHistory();
         }
       }
       
-      // BƯỚC 5: CACHE ALERT
       await _cacheAllAlerts();
 
       _isLoading = false;
@@ -151,6 +132,12 @@ class AnalysisViewModel extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  // ✅ ADD: Method clear cache
+  Future<void> clearCacheAndReload() async {
+    await _cachedDataService.clearCache();
+    await loadAnalysis(useCache: false);
   }
   
   Future<void> _cacheAllAlerts() async {

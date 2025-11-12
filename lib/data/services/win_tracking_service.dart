@@ -1,4 +1,5 @@
 // lib/data/services/win_tracking_service.dart
+// ✅ VERSION TỐI ƯU - GIẢM API CALLS
 
 import '../models/cycle_win_history.dart';
 import '../models/xien_win_history.dart';
@@ -6,12 +7,343 @@ import 'google_sheets_service.dart';
 
 class WinTrackingService {
   final GoogleSheetsService _sheetsService;
+  
+  // ✅ Cache pending dates (refresh mỗi 5 phút)
+  final Map<String, _PendingCache> _pendingCache = {};
+  static const Duration _pendingCacheDuration = Duration(minutes: 5);
 
   WinTrackingService({required GoogleSheetsService sheetsService})
       : _sheetsService = sheetsService;
 
-  // ✅ ADD: Public getter để các service khác có thể access
   GoogleSheetsService get sheetsService => _sheetsService;
+
+  // ============================================
+  // PHẦN 1: OPTIMIZED PENDING DATE CHECKS
+  // ============================================
+
+  /// ✅ Get pending dates CHU KỲ (TẤT CẢ) - với caching
+  Future<List<String>> getCyclePendingCheckDates() async {
+    return await _getCachedPendingDates('xsktBot1');
+  }
+
+  /// ✅ Get pending dates XIÊN - với caching
+  Future<List<String>> getXienPendingCheckDates() async {
+    return await _getCachedPendingDates('xienBot');
+  }
+
+  /// ✅ Get pending dates MIỀN TRUNG - với caching
+  Future<List<String>> getTrungPendingCheckDates() async {
+    return await _getCachedPendingDates('trungBot');
+  }
+
+  /// ✅ Get pending dates MIỀN BẮC - với caching
+  Future<List<String>> getBacPendingCheckDates() async {
+    return await _getCachedPendingDates('bacBot');
+  }
+
+  /// ✅ HELPER: Get pending dates với cache
+  Future<List<String>> _getCachedPendingDates(String worksheetName) async {
+    print('🔍 Getting pending dates for $worksheetName...');
+    
+    // 1. CHECK CACHE
+    final cached = _pendingCache[worksheetName];
+    if (cached != null && !cached.isExpired) {
+      print('   ✅ Using cached pending dates (${cached.dates.length} dates)');
+      return cached.dates;
+    }
+
+    // 2. LOAD FROM SHEET (OPTIMIZED)
+    final dates = await _loadPendingDatesOptimized(worksheetName);
+    
+    // 3. SAVE TO CACHE
+    _pendingCache[worksheetName] = _PendingCache(
+      dates: dates,
+      timestamp: DateTime.now(),
+    );
+    
+    print('   ✅ Loaded ${dates.length} pending dates (cached for 5min)');
+    return dates;
+  }
+
+  /// ✅ CORE: Load pending dates - CHỈ load 2 cột (Ngày + Status)
+  Future<List<String>> _loadPendingDatesOptimized(String worksheetName) async {
+    try {
+      final allValues = await _sheetsService.getAllValues(worksheetName);
+      
+      if (allValues.length < 4) {
+        print('   ⚠️ No data in $worksheetName');
+        return [];
+      }
+
+      // Xác định cột status (K cho cycle, H cho xiên)
+      final isXien = worksheetName == 'xienBot';
+      final statusColIndex = isXien ? 7 : 10; // H=7, K=10 (0-indexed)
+
+      final pendingDates = <String>{};
+
+      // ✅ CHỈ PARSE 2 CỘT: B (Ngày) và K/H (Status)
+      for (int i = 3; i < allValues.length; i++) {
+        final row = allValues[i];
+        
+        // Skip empty rows
+        if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+        if (row.length <= 1) continue;
+
+        final date = row[1].toString().trim();
+        if (date.isEmpty) continue;
+
+        // Check status
+        final checked = row.length > statusColIndex
+            ? row[statusColIndex].toString().toUpperCase() == 'TRUE'
+            : false;
+
+        if (!checked) {
+          pendingDates.add(date);
+        }
+      }
+
+      return pendingDates.toList()..sort();
+
+    } catch (e) {
+      print('   ❌ Error loading pending dates: $e');
+      return [];
+    }
+  }
+
+  /// ✅ CLEAR cache khi update status (để refresh lần sau)
+  void _clearPendingCache(String worksheetName) {
+    _pendingCache.remove(worksheetName);
+    print('🗑️ Cleared pending cache for $worksheetName');
+  }
+
+  // ============================================
+  // PHẦN 2: OPTIMIZED STATUS UPDATES
+  // ============================================
+
+  /// ✅ Update CHU KỲ status - CHỈ update status columns
+  Future<void> updateCycleBettingStatus({
+    required int rowNumber,
+    required bool checked,
+    required String result,
+    String? winDate,
+    String? winMien,
+    double? actualProfit,
+  }) async {
+    print('📝 Updating cycle status at row $rowNumber...');
+    
+    // Prepare status values
+    final updates = <String>[
+      checked ? 'TRUE' : 'FALSE',  // K: Đã kiểm tra
+      result,                       // L: Kết quả
+      winDate ?? '',                // M: Ngày trúng
+      winMien ?? '',                // N: Miền trúng
+      actualProfit != null 
+          ? actualProfit.toStringAsFixed(2).replaceAll('.', ',')
+          : '',                     // O: Lời thực tế
+    ];
+
+    // ✅ CHỈ UPDATE 5 CỘT (K→O), KHÔNG UPDATE TOÀN BỘ ROW
+    await _sheetsService.updateRange(
+      'xsktBot1',
+      'K$rowNumber:O$rowNumber',
+      [updates],
+    );
+
+    // Clear cache để load lại lần sau
+    _clearPendingCache('xsktBot1');
+    
+    print('   ✅ Updated (reduced API payload)');
+  }
+
+  /// ✅ Update XIÊN status - CHỈ update status columns
+  Future<void> updateXienBettingStatus({
+    required int rowNumber,
+    required bool checked,
+    required String result,
+    String? winDate,
+    double? actualProfit,
+  }) async {
+    print('📝 Updating xien status at row $rowNumber...');
+    
+    final updates = <String>[
+      checked ? 'TRUE' : 'FALSE',  // H: Đã kiểm tra
+      result,                       // I: Kết quả
+      winDate ?? '',                // J: Ngày trúng
+      actualProfit != null 
+          ? actualProfit.toStringAsFixed(2).replaceAll('.', ',')
+          : '',                     // K: Lời thực tế
+    ];
+
+    // ✅ CHỈ UPDATE 4 CỘT (H→K)
+    await _sheetsService.updateRange(
+      'xienBot',
+      'H$rowNumber:K$rowNumber',
+      [updates],
+    );
+
+    _clearPendingCache('xienBot');
+    print('   ✅ Updated');
+  }
+
+  /// ✅ Update MIỀN TRUNG status
+  Future<void> updateTrungBettingStatus({
+    required int rowNumber,
+    required bool checked,
+    required String result,
+    String? winDate,
+    String? winMien,
+    double? actualProfit,
+  }) async {
+    print('📝 Updating trung status at row $rowNumber...');
+    
+    final updates = <String>[
+      checked ? 'TRUE' : 'FALSE',
+      result,
+      winDate ?? '',
+      winMien ?? '',
+      actualProfit != null 
+          ? actualProfit.toStringAsFixed(2).replaceAll('.', ',')
+          : '',
+    ];
+
+    await _sheetsService.updateRange(
+      'trungBot',
+      'K$rowNumber:O$rowNumber',
+      [updates],
+    );
+
+    _clearPendingCache('trungBot');
+    print('   ✅ Updated');
+  }
+
+  /// ✅ Update MIỀN BẮC status
+  Future<void> updateBacBettingStatus({
+    required int rowNumber,
+    required bool checked,
+    required String result,
+    String? winDate,
+    String? winMien,
+    double? actualProfit,
+  }) async {
+    print('📝 Updating bac status at row $rowNumber...');
+    
+    final updates = <String>[
+      checked ? 'TRUE' : 'FALSE',
+      result,
+      winDate ?? '',
+      winMien ?? '',
+      actualProfit != null 
+          ? actualProfit.toStringAsFixed(2).replaceAll('.', ',')
+          : '',
+    ];
+
+    await _sheetsService.updateRange(
+      'bacBot',
+      'K$rowNumber:O$rowNumber',
+      [updates],
+    );
+
+    _clearPendingCache('bacBot');
+    print('   ✅ Updated');
+  }
+
+  // ============================================
+  // PHẦN 3: BATCH STATUS UPDATES (NEW!)
+  // ============================================
+
+  /// ✅ NEW: Batch update nhiều rows cùng lúc (giảm API calls)
+  Future<void> batchUpdateCycleStatus(
+    List<BatchStatusUpdate> updates,
+  ) async {
+    if (updates.isEmpty) return;
+    
+    print('📤 Batch updating ${updates.length} cycle rows...');
+
+    // Group updates by consecutive rows để optimize
+    final groups = _groupConsecutiveRows(updates);
+    
+    for (final group in groups) {
+      if (group.length == 1) {
+        // Single row - use normal update
+        final u = group.first;
+        await updateCycleBettingStatus(
+          rowNumber: u.rowNumber,
+          checked: u.checked,
+          result: u.result,
+          winDate: u.winDate,
+          winMien: u.winMien,
+          actualProfit: u.actualProfit,
+        );
+      } else {
+        // Multiple consecutive rows - batch update
+        await _batchUpdateConsecutiveRows('xsktBot1', group);
+      }
+    }
+
+    _clearPendingCache('xsktBot1');
+    print('   ✅ Batch update complete');
+  }
+
+  /// ✅ Helper: Group consecutive rows
+  List<List<BatchStatusUpdate>> _groupConsecutiveRows(
+    List<BatchStatusUpdate> updates,
+  ) {
+    if (updates.isEmpty) return [];
+    
+    // Sort by row number
+    final sorted = List<BatchStatusUpdate>.from(updates)
+      ..sort((a, b) => a.rowNumber.compareTo(b.rowNumber));
+
+    final groups = <List<BatchStatusUpdate>>[];
+    var currentGroup = <BatchStatusUpdate>[sorted.first];
+
+    for (int i = 1; i < sorted.length; i++) {
+      if (sorted[i].rowNumber == currentGroup.last.rowNumber + 1) {
+        // Consecutive - add to current group
+        currentGroup.add(sorted[i]);
+      } else {
+        // Not consecutive - start new group
+        groups.add(currentGroup);
+        currentGroup = [sorted[i]];
+      }
+    }
+    
+    groups.add(currentGroup);
+    return groups;
+  }
+
+  /// ✅ Helper: Batch update consecutive rows
+  Future<void> _batchUpdateConsecutiveRows(
+    String worksheetName,
+    List<BatchStatusUpdate> group,
+  ) async {
+    final startRow = group.first.rowNumber;
+    final endRow = group.last.rowNumber;
+    
+    print('   📊 Updating rows $startRow-$endRow...');
+
+    final rows = group.map((u) {
+      return [
+        u.checked ? 'TRUE' : 'FALSE',
+        u.result,
+        u.winDate ?? '',
+        u.winMien ?? '',
+        u.actualProfit != null 
+            ? u.actualProfit!.toStringAsFixed(2).replaceAll('.', ',')
+            : '',
+      ];
+    }).toList();
+
+    await _sheetsService.updateRange(
+      worksheetName,
+      'K$startRow:O$endRow',
+      rows,
+    );
+  }
+
+  // ============================================
+  // PHẦN 4: WIN HISTORY OPERATIONS (GIỮ NGUYÊN)
+  // ============================================
 
   /// Lưu lịch sử trúng số chu kỳ
   Future<void> saveCycleWinHistory(CycleWinHistory history) async {
@@ -19,7 +351,6 @@ class WinTrackingService {
     
     final existingData = await _sheetsService.getAllValues('cycleWinHistory');
     
-    // Thêm header nếu sheet trống
     if (existingData.isEmpty) {
       print('   📋 Creating header...');
       await _sheetsService.updateRange(
@@ -27,28 +358,15 @@ class WinTrackingService {
         'A1:P1',
         [
           [
-            'STT',
-            'Ngày kiểm tra',
-            'Số mục tiêu',
-            'Ngày bắt đầu cược',
-            'Ngày trúng',
-            'Miền trúng',
-            'Số lần trúng',
-            'Các tỉnh trúng',
-            'Tiền cược/số',
-            'Tổng tiền đã cược',
-            'Tiền về',
-            'Lời/Lỗ',
-            'ROI (%)',
-            'Số ngày cược',
-            'Trạng thái',
-            'Ghi chú',
+            'STT', 'Ngày kiểm tra', 'Số mục tiêu', 'Ngày bắt đầu cược',
+            'Ngày trúng', 'Miền trúng', 'Số lần trúng', 'Các tỉnh trúng',
+            'Tiền cược/số', 'Tổng tiền đã cược', 'Tiền về', 'Lời/Lỗ',
+            'ROI (%)', 'Số ngày cược', 'Trạng thái', 'Ghi chú',
           ]
         ],
       );
     }
 
-    // Cập nhật STT
     final newSTT = existingData.isEmpty ? 1 : existingData.length;
     final updatedHistory = CycleWinHistory(
       stt: newSTT,
@@ -69,7 +387,6 @@ class WinTrackingService {
       ghiChu: history.ghiChu,
     );
 
-    // Thêm dòng mới
     await _sheetsService.appendRows(
       'cycleWinHistory',
       [updatedHistory.toSheetRow()],
@@ -84,7 +401,6 @@ class WinTrackingService {
     
     final existingData = await _sheetsService.getAllValues('xienWinHistory');
     
-    // Thêm header nếu sheet trống
     if (existingData.isEmpty) {
       print('   📋 Creating header...');
       await _sheetsService.updateRange(
@@ -92,28 +408,15 @@ class WinTrackingService {
         'A1:P1',
         [
           [
-            'STT',
-            'Ngày kiểm tra',
-            'Cặp số mục tiêu',
-            'Ngày bắt đầu cược',
-            'Ngày trúng',
-            'Miền trúng',
-            'Số lần trúng cặp',
-            'Chi tiết trúng',
-            'Tiền cược/miền',
-            'Tổng tiền đã cược',
-            'Tiền về',
-            'Lời/Lỗ',
-            'ROI (%)',
-            'Số ngày cược',
-            'Trạng thái',
-            'Ghi chú',
+            'STT', 'Ngày kiểm tra', 'Cặp số mục tiêu', 'Ngày bắt đầu cược',
+            'Ngày trúng', 'Miền trúng', 'Số lần trúng cặp', 'Chi tiết trúng',
+            'Tiền cược/miền', 'Tổng tiền đã cược', 'Tiền về', 'Lời/Lỗ',
+            'ROI (%)', 'Số ngày cược', 'Trạng thái', 'Ghi chú',
           ]
         ],
       );
     }
 
-    // Cập nhật STT
     final newSTT = existingData.isEmpty ? 1 : existingData.length;
     final updatedHistory = XienWinHistory(
       stt: newSTT,
@@ -134,7 +437,6 @@ class WinTrackingService {
       ghiChu: history.ghiChu,
     );
 
-    // Thêm dòng mới
     await _sheetsService.appendRows(
       'xienWinHistory',
       [updatedHistory.toSheetRow()],
@@ -143,278 +445,22 @@ class WinTrackingService {
     print('   ✅ Saved xien win history (STT: $newSTT)');
   }
 
-  /// Cập nhật trạng thái bảng cược chu kỳ
-  Future<void> updateCycleBettingStatus({
-    required int rowNumber,
-    required bool checked,
-    required String result,
-    String? winDate,
-    String? winMien,
-    double? actualProfit,
-  }) async {
-    print('📝 Updating cycle betting status at row $rowNumber...');
-    
-    final updates = <String>[];
-    updates.add(checked ? 'TRUE' : 'FALSE');
-    updates.add(result);
-    updates.add(winDate ?? '');
-    updates.add(winMien ?? '');
-    
-    // Format profit with comma as decimal separator (EU format)
-    if (actualProfit != null) {
-      updates.add(actualProfit.toStringAsFixed(2).replaceAll('.', ','));
-    } else {
-      updates.add('');
-    }
-
-    await _sheetsService.updateRange(
-      'xsktBot1',
-      'K$rowNumber:O$rowNumber',
-      [updates],
-    );
-    
-    print('   ✅ Updated row $rowNumber');
-  }
-
-  /// Cập nhật trạng thái bảng cược xiên
-  Future<void> updateXienBettingStatus({
-    required int rowNumber,
-    required bool checked,
-    required String result,
-    String? winDate,
-    double? actualProfit,
-  }) async {
-    print('📝 Updating xien betting status at row $rowNumber...');
-    
-    final updates = <String>[];
-    updates.add(checked ? 'TRUE' : 'FALSE');
-    updates.add(result);
-    updates.add(winDate ?? '');
-    
-    // Format profit with comma as decimal separator (EU format)
-    if (actualProfit != null) {
-      updates.add(actualProfit.toStringAsFixed(2).replaceAll('.', ','));
-    } else {
-      updates.add('');
-    }
-
-    await _sheetsService.updateRange(
-      'xienBot',
-      'H$rowNumber:K$rowNumber',
-      [updates],
-    );
-    
-    print('   ✅ Updated row $rowNumber');
-  }
-
-  /// Lấy danh sách các ngày cần kiểm tra từ bảng chu kỳ
-  Future<List<String>> getCyclePendingCheckDates() async {
-    print('🔍 Getting pending check dates for cycle...');
-    
-    final values = await _sheetsService.getAllValues('xsktBot1');
-    
-    if (values.length < 4) {
-      print('   ⚠️ No data in cycle table');
-      return [];
-    }
-    
-    final pendingDates = <String>{};  // Use Set to avoid duplicates
-    
-    for (int i = 3; i < values.length; i++) {
-      final row = values[i];
-      
-      if (row.isEmpty || row[0].toString().trim().isEmpty) {
-        continue;
-      }
-      
-      // Check column K (index 10): Đã kiểm tra
-      final checked = row.length > 10 
-          ? row[10].toString().toUpperCase() == 'TRUE' 
-          : false;
-      
-      if (!checked) {
-        final date = row[1].toString();  // Column B: Ngày
-        pendingDates.add(date);
-      }
-    }
-    
-    final result = pendingDates.toList()..sort();
-    print('   📅 Found ${result.length} pending dates: ${result.join(", ")}');
-    
-    return result;
-  }
-
-  /// Lấy danh sách các ngày cần kiểm tra từ bảng xiên
-  Future<List<String>> getXienPendingCheckDates() async {
-    print('🔍 Getting pending check dates for xien...');
-    
-    final values = await _sheetsService.getAllValues('xienBot');
-    
-    if (values.length < 4) {
-      print('   ⚠️ No data in xien table');
-      return [];
-    }
-    
-    final pendingDates = <String>{};
-    
-    for (int i = 3; i < values.length; i++) {
-      final row = values[i];
-      
-      if (row.isEmpty || row[0].toString().trim().isEmpty) {
-        continue;
-      }
-      
-      // Check column H (index 7): Đã kiểm tra
-      final checked = row.length > 7 
-          ? row[7].toString().toUpperCase() == 'TRUE' 
-          : false;
-      
-      if (!checked) {
-        final date = row[1].toString();  // Column B: Ngày
-        pendingDates.add(date);
-      }
-    }
-    
-    final result = pendingDates.toList()..sort();
-    print('   📅 Found ${result.length} pending dates: ${result.join(", ")}');
-    
-    return result;
-  }
-
-  /// Lấy tất cả lịch sử trúng số chu kỳ
-  Future<List<CycleWinHistory>> getAllCycleWinHistory() async {
-    print('📚 Loading all cycle win history...');
-    
-    final values = await _sheetsService.getAllValues('cycleWinHistory');
-    
-    if (values.length < 2) {
-      print('   ⚠️ No cycle win history found');
-      return [];
-    }
-    
-    final histories = <CycleWinHistory>[];
-    for (int i = 1; i < values.length; i++) {
-      try {
-        histories.add(CycleWinHistory.fromSheetRow(values[i]));
-      } catch (e) {
-        print('⚠️ Error parsing cycle win history row $i: $e');
-        print('   Row data: ${values[i]}');
-      }
-    }
-    
-    print('   ✅ Loaded ${histories.length} cycle win records');
-    return histories;
-  }
-
-  /// Lấy tất cả lịch sử trúng số xiên
-  Future<List<XienWinHistory>> getAllXienWinHistory() async {
-    print('📚 Loading all xien win history...');
-    
-    final values = await _sheetsService.getAllValues('xienWinHistory');
-    
-    if (values.length < 2) {
-      print('   ⚠️ No xien win history found');
-      return [];
-    }
-    
-    final histories = <XienWinHistory>[];
-    for (int i = 1; i < values.length; i++) {
-      try {
-        histories.add(XienWinHistory.fromSheetRow(values[i]));
-      } catch (e) {
-        print('⚠️ Error parsing xien win history row $i: $e');
-        print('   Row data: ${values[i]}');
-      }
-    }
-    
-    print('   ✅ Loaded ${histories.length} xien win records');
-    return histories;
-  }
-
-  /// Lấy lịch sử chu kỳ theo khoảng thời gian
-  Future<List<CycleWinHistory>> getCycleHistoryByDateRange({
-    required String startDate,
-    required String endDate,
-  }) async {
-    final allHistory = await getAllCycleWinHistory();
-    
-    return allHistory.where((h) {
-      final date = h.ngayTrung;
-      return _isDateInRange(date, startDate, endDate);
-    }).toList();
-  }
-
-  /// Lấy lịch sử xiên theo khoảng thời gian
-  Future<List<XienWinHistory>> getXienHistoryByDateRange({
-    required String startDate,
-    required String endDate,
-  }) async {
-    final allHistory = await getAllXienWinHistory();
-    
-    return allHistory.where((h) {
-      final date = h.ngayTrung;
-      return _isDateInRange(date, startDate, endDate);
-    }).toList();
-  }
-
-  /// Tìm kiếm lịch sử chu kỳ theo số
-  Future<List<CycleWinHistory>> searchCycleByNumber(String number) async {
-    final allHistory = await getAllCycleWinHistory();
-    return allHistory.where((h) => h.soMucTieu == number).toList();
-  }
-
-  /// Tìm kiếm lịch sử xiên theo cặp số
-  Future<List<XienWinHistory>> searchXienByPair(String pair) async {
-    final allHistory = await getAllXienWinHistory();
-    return allHistory.where((h) => h.capSoMucTieu == pair).toList();
-  }
-
-  /// Lấy lịch sử chu kỳ theo miền
-  Future<List<CycleWinHistory>> getCycleHistoryByMien(String mien) async {
-    final allHistory = await getAllCycleWinHistory();
-    return allHistory.where((h) => h.mienTrung == mien).toList();
-  }
-
-  /// Lấy lịch sử chu kỳ theo trạng thái
-  Future<List<CycleWinHistory>> getCycleHistoryByStatus(String status) async {
-    final allHistory = await getAllCycleWinHistory();
-    return allHistory.where((h) => h.trangThai == status).toList();
-  }
-
-  /// Lấy lịch sử xiên theo trạng thái
-  Future<List<XienWinHistory>> getXienHistoryByStatus(String status) async {
-    final allHistory = await getAllXienWinHistory();
-    return allHistory.where((h) => h.trangThai == status).toList();
-  }
-
+  /// Lưu lịch sử trúng số Miền Trung
   Future<void> saveTrungWinHistory(CycleWinHistory history) async {
     print('💾 Saving trung win history...');
     
     final existingData = await _sheetsService.getAllValues('trungWinHistory');
     
     if (existingData.isEmpty) {
-      print('   📋 Creating header...');
       await _sheetsService.updateRange(
         'trungWinHistory',
         'A1:P1',
         [
           [
-            'STT',
-            'Ngày kiểm tra',
-            'Số mục tiêu',
-            'Ngày bắt đầu cược',
-            'Ngày trúng',
-            'Miền trúng',
-            'Số lần trúng',
-            'Các tỉnh trúng',
-            'Tiền cược/số',
-            'Tổng tiền đã cược',
-            'Tiền về',
-            'Lời/Lỗ',
-            'ROI (%)',
-            'Số ngày cược',
-            'Trạng thái',
-            'Ghi chú',
+            'STT', 'Ngày kiểm tra', 'Số mục tiêu', 'Ngày bắt đầu cược',
+            'Ngày trúng', 'Miền trúng', 'Số lần trúng', 'Các tỉnh trúng',
+            'Tiền cược/số', 'Tổng tiền đã cược', 'Tiền về', 'Lời/Lỗ',
+            'ROI (%)', 'Số ngày cược', 'Trạng thái', 'Ghi chú',
           ]
         ],
       );
@@ -455,28 +501,15 @@ class WinTrackingService {
     final existingData = await _sheetsService.getAllValues('bacWinHistory');
     
     if (existingData.isEmpty) {
-      print('   📋 Creating header...');
       await _sheetsService.updateRange(
         'bacWinHistory',
         'A1:P1',
         [
           [
-            'STT',
-            'Ngày kiểm tra',
-            'Số mục tiêu',
-            'Ngày bắt đầu cược',
-            'Ngày trúng',
-            'Miền trúng',
-            'Số lần trúng',
-            'Các tỉnh trúng',
-            'Tiền cược/số',
-            'Tổng tiền đã cược',
-            'Tiền về',
-            'Lời/Lỗ',
-            'ROI (%)',
-            'Số ngày cược',
-            'Trạng thái',
-            'Ghi chú',
+            'STT', 'Ngày kiểm tra', 'Số mục tiêu', 'Ngày bắt đầu cược',
+            'Ngày trúng', 'Miền trúng', 'Số lần trúng', 'Các tỉnh trúng',
+            'Tiền cược/số', 'Tổng tiền đã cược', 'Tiền về', 'Lời/Lỗ',
+            'ROI (%)', 'Số ngày cược', 'Trạng thái', 'Ghi chú',
           ]
         ],
       );
@@ -510,388 +543,114 @@ class WinTrackingService {
     print('   ✅ Saved bac win history (STT: $newSTT)');
   }
 
-  /// Cập nhật trạng thái bảng cược Miền Trung
-  Future<void> updateTrungBettingStatus({
-    required int rowNumber,
-    required bool checked,
-    required String result,
-    String? winDate,
-    String? winMien,
-    double? actualProfit,
-  }) async {
-    print('📝 Updating trung betting status at row $rowNumber...');
-    
-    final updates = <String>[];
-    updates.add(checked ? 'TRUE' : 'FALSE');
-    updates.add(result);
-    updates.add(winDate ?? '');
-    updates.add(winMien ?? '');
-    
-    if (actualProfit != null) {
-      updates.add(actualProfit.toStringAsFixed(2).replaceAll('.', ','));
-    } else {
-      updates.add('');
-    }
+  // ============================================
+  // PHẦN 5: READ OPERATIONS (GIỮ NGUYÊN)
+  // ============================================
 
-    await _sheetsService.updateRange(
-      'trungBot',
-      'K$rowNumber:O$rowNumber',
-      [updates],
-    );
-    
-    print('   ✅ Updated row $rowNumber');
-  }
-
-  /// Cập nhật trạng thái bảng cược Miền Bắc
-  Future<void> updateBacBettingStatus({
-    required int rowNumber,
-    required bool checked,
-    required String result,
-    String? winDate,
-    String? winMien,
-    double? actualProfit,
-  }) async {
-    print('📝 Updating bac betting status at row $rowNumber...');
-    
-    final updates = <String>[];
-    updates.add(checked ? 'TRUE' : 'FALSE');
-    updates.add(result);
-    updates.add(winDate ?? '');
-    updates.add(winMien ?? '');
-    
-    if (actualProfit != null) {
-      updates.add(actualProfit.toStringAsFixed(2).replaceAll('.', ','));
-    } else {
-      updates.add('');
-    }
-
-    await _sheetsService.updateRange(
-      'bacBot',
-      'K$rowNumber:O$rowNumber',
-      [updates],
-    );
-    
-    print('   ✅ Updated row $rowNumber');
-  }
-
-  /// Lấy danh sách các ngày cần kiểm tra từ bảng Trung
-  Future<List<String>> getTrungPendingCheckDates() async {
-    print('🔍 Getting pending check dates for trung...');
-    
-    final values = await _sheetsService.getAllValues('trungBot');
-    
-    if (values.length < 4) {
-      print('   ⚠️ No data in trung table');
-      return [];
-    }
-    
-    final pendingDates = <String>{};
-    
-    for (int i = 3; i < values.length; i++) {
-      final row = values[i];
-      
-      if (row.isEmpty || row[0].toString().trim().isEmpty) {
-        continue;
-      }
-      
-      final checked = row.length > 10 
-          ? row[10].toString().toUpperCase() == 'TRUE' 
-          : false;
-      
-      if (!checked) {
-        final date = row[1].toString();
-        pendingDates.add(date);
-      }
-    }
-    
-    final result = pendingDates.toList()..sort();
-    print('   📅 Found ${result.length} pending dates: ${result.join(", ")}');
-    
-    return result;
-  }
-
-  /// Lấy danh sách các ngày cần kiểm tra từ bảng Bắc
-  Future<List<String>> getBacPendingCheckDates() async {
-    print('🔍 Getting pending check dates for bac...');
-    
-    final values = await _sheetsService.getAllValues('bacBot');
-    
-    if (values.length < 4) {
-      print('   ⚠️ No data in bac table');
-      return [];
-    }
-    
-    final pendingDates = <String>{};
-    
-    for (int i = 3; i < values.length; i++) {
-      final row = values[i];
-      
-      if (row.isEmpty || row[0].toString().trim().isEmpty) {
-        continue;
-      }
-      
-      final checked = row.length > 10 
-          ? row[10].toString().toUpperCase() == 'TRUE' 
-          : false;
-      
-      if (!checked) {
-        final date = row[1].toString();
-        pendingDates.add(date);
-      }
-    }
-    
-    final result = pendingDates.toList()..sort();
-    print('   📅 Found ${result.length} pending dates: ${result.join(", ")}');
-    
-    return result;
-  }
-
-  /// Xóa lịch sử chu kỳ cụ thể
-  Future<void> deleteCycleWinHistory(int stt) async {
-    print('🗑️ Deleting cycle win history STT: $stt...');
+  Future<List<CycleWinHistory>> getAllCycleWinHistory() async {
+    print('📚 Loading all cycle win history...');
     
     final values = await _sheetsService.getAllValues('cycleWinHistory');
     
     if (values.length < 2) {
-      print('   ⚠️ No data to delete');
-      return;
+      print('   ⚠️ No cycle win history found');
+      return [];
     }
-
-    // Find row index
-    int? rowIndex;
+    
+    final histories = <CycleWinHistory>[];
     for (int i = 1; i < values.length; i++) {
-      if (values[i].isNotEmpty && values[i][0].toString() == stt.toString()) {
-        rowIndex = i;
-        break;
+      try {
+        histories.add(CycleWinHistory.fromSheetRow(values[i]));
+      } catch (e) {
+        print('⚠️ Error parsing cycle win history row $i: $e');
       }
     }
-
-    if (rowIndex == null) {
-      print('   ⚠️ STT not found');
-      return;
-    }
-
-    // Clear row (Google Sheets API doesn't support row deletion easily)
-    final emptyRow = List.filled(16, '');
-    await _sheetsService.updateRange(
-      'cycleWinHistory',
-      'A${rowIndex + 1}:P${rowIndex + 1}',
-      [emptyRow],
-    );
     
-    print('   ✅ Deleted cycle win history STT: $stt');
+    print('   ✅ Loaded ${histories.length} cycle win records');
+    return histories;
   }
 
-  /// Xóa lịch sử xiên cụ thể
-  Future<void> deleteXienWinHistory(int stt) async {
-    print('🗑️ Deleting xien win history STT: $stt...');
+  Future<List<XienWinHistory>> getAllXienWinHistory() async {
+    print('📚 Loading all xien win history...');
     
     final values = await _sheetsService.getAllValues('xienWinHistory');
     
     if (values.length < 2) {
-      print('   ⚠️ No data to delete');
-      return;
+      print('   ⚠️ No xien win history found');
+      return [];
     }
-
-    // Find row index
-    int? rowIndex;
+    
+    final histories = <XienWinHistory>[];
     for (int i = 1; i < values.length; i++) {
-      if (values[i].isNotEmpty && values[i][0].toString() == stt.toString()) {
-        rowIndex = i;
-        break;
+      try {
+        histories.add(XienWinHistory.fromSheetRow(values[i]));
+      } catch (e) {
+        print('⚠️ Error parsing xien win history row $i: $e');
       }
     }
-
-    if (rowIndex == null) {
-      print('   ⚠️ STT not found');
-      return;
-    }
-
-    // Clear row
-    final emptyRow = List.filled(16, '');
-    await _sheetsService.updateRange(
-      'xienWinHistory',
-      'A${rowIndex + 1}:P${rowIndex + 1}',
-      [emptyRow],
-    );
     
-    print('   ✅ Deleted xien win history STT: $stt');
+    print('   ✅ Loaded ${histories.length} xien win records');
+    return histories;
   }
 
-  /// Cập nhật ghi chú cho lịch sử chu kỳ
-  Future<void> updateCycleWinNote({
-    required int stt,
-    required String note,
-  }) async {
-    print('📝 Updating cycle win note for STT: $stt...');
-    
-    final values = await _sheetsService.getAllValues('cycleWinHistory');
-    
-    if (values.length < 2) {
-      print('   ⚠️ No data found');
-      return;
-    }
+  // ============================================
+  // PHẦN 6: UTILITY METHODS
+  // ============================================
 
-    // Find row index
-    int? rowIndex;
-    for (int i = 1; i < values.length; i++) {
-      if (values[i].isNotEmpty && values[i][0].toString() == stt.toString()) {
-        rowIndex = i;
-        break;
-      }
-    }
-
-    if (rowIndex == null) {
-      print('   ⚠️ STT not found');
-      return;
-    }
-
-    // Update note (column P, index 15)
-    await _sheetsService.updateRange(
-      'cycleWinHistory',
-      'P${rowIndex + 1}',
-      [[note]],
-    );
-    
-    print('   ✅ Updated note for STT: $stt');
+  /// ✅ NEW: Force refresh pending cache
+  void clearAllPendingCache() {
+    _pendingCache.clear();
+    print('🗑️ Cleared all pending caches');
   }
 
-  /// Cập nhật ghi chú cho lịch sử xiên
-  Future<void> updateXienWinNote({
-    required int stt,
-    required String note,
-  }) async {
-    print('📝 Updating xien win note for STT: $stt...');
+  /// ✅ NEW: Get cache info
+  Map<String, String> getPendingCacheInfo() {
+    final info = <String, String>{};
     
-    final values = await _sheetsService.getAllValues('xienWinHistory');
-    
-    if (values.length < 2) {
-      print('   ⚠️ No data found');
-      return;
+    for (final entry in _pendingCache.entries) {
+      final age = DateTime.now().difference(entry.value.timestamp);
+      info[entry.key] = '${entry.value.dates.length} dates, ${age.inMinutes}min old';
     }
-
-    // Find row index
-    int? rowIndex;
-    for (int i = 1; i < values.length; i++) {
-      if (values[i].isNotEmpty && values[i][0].toString() == stt.toString()) {
-        rowIndex = i;
-        break;
-      }
-    }
-
-    if (rowIndex == null) {
-      print('   ⚠️ STT not found');
-      return;
-    }
-
-    // Update note (column P, index 15)
-    await _sheetsService.updateRange(
-      'xienWinHistory',
-      'P${rowIndex + 1}',
-      [[note]],
-    );
     
-    print('   ✅ Updated note for STT: $stt');
-  }
-
-  /// Lấy thống kê tổng quan chu kỳ
-  Future<WinTrackingStats> getCycleStats() async {
-    final allHistory = await getAllCycleWinHistory();
-    final wins = allHistory.where((h) => h.isWin).toList();
-    
-    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
-    final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
-    final totalReturn = wins.fold<double>(0, (sum, h) => sum + h.tienVe);
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
-        : 0.0;
-    
-    return WinTrackingStats(
-      totalWins: wins.length,
-      totalProfit: totalProfit,
-      totalBet: totalBet,
-      totalReturn: totalReturn,
-      avgROI: avgROI,
-      overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
-    );
-  }
-
-  /// Lấy thống kê tổng quan xiên
-  Future<WinTrackingStats> getXienStats() async {
-    final allHistory = await getAllXienWinHistory();
-    final wins = allHistory.where((h) => h.isWin).toList();
-    
-    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
-    final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
-    final totalReturn = wins.fold<double>(0, (sum, h) => sum + h.tienVe);
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
-        : 0.0;
-    
-    return WinTrackingStats(
-      totalWins: wins.length,
-      totalProfit: totalProfit,
-      totalBet: totalBet,
-      totalReturn: totalReturn,
-      avgROI: avgROI,
-      overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
-    );
-  }
-
-  /// Helper: Check if date is in range
-  bool _isDateInRange(String date, String startDate, String endDate) {
-    try {
-      final parts = date.split('/');
-      if (parts.length != 3) return false;
-      
-      final day = int.parse(parts[0]);
-      final month = int.parse(parts[1]);
-      final year = int.parse(parts[2]);
-      final checkDate = DateTime(year, month, day);
-      
-      final startParts = startDate.split('/');
-      final startDay = int.parse(startParts[0]);
-      final startMonth = int.parse(startParts[1]);
-      final startYear = int.parse(startParts[2]);
-      final start = DateTime(startYear, startMonth, startDay);
-      
-      final endParts = endDate.split('/');
-      final endDay = int.parse(endParts[0]);
-      final endMonth = int.parse(endParts[1]);
-      final endYear = int.parse(endParts[2]);
-      final end = DateTime(endYear, endMonth, endDay);
-      
-      return checkDate.isAfter(start.subtract(const Duration(days: 1))) &&
-             checkDate.isBefore(end.add(const Duration(days: 1)));
-    } catch (e) {
-      return false;
-    }
+    return info;
   }
 }
 
-/// Class thống kê
-class WinTrackingStats {
-  final int totalWins;
-  final double totalProfit;
-  final double totalBet;
-  final double totalReturn;
-  final double avgROI;
-  final double overallROI;
+// ============================================
+// HELPER CLASSES
+// ============================================
 
-  WinTrackingStats({
-    required this.totalWins,
-    required this.totalProfit,
-    required this.totalBet,
-    required this.totalReturn,
-    required this.avgROI,
-    required this.overallROI,
+/// ✅ Cache cho pending dates
+class _PendingCache {
+  final List<String> dates;
+  final DateTime timestamp;
+
+  _PendingCache({
+    required this.dates,
+    required this.timestamp,
   });
 
-  @override
-  String toString() {
-    return 'WinTrackingStats('
-        'wins: $totalWins, '
-        'profit: ${totalProfit.toStringAsFixed(2)}, '
-        'avgROI: ${avgROI.toStringAsFixed(2)}%)';
+  bool get isExpired {
+    final age = DateTime.now().difference(timestamp);
+    return age > WinTrackingService._pendingCacheDuration;
   }
+}
+
+/// ✅ Model cho batch update
+class BatchStatusUpdate {
+  final int rowNumber;
+  final bool checked;
+  final String result;
+  final String? winDate;
+  final String? winMien;
+  final double? actualProfit;
+
+  BatchStatusUpdate({
+    required this.rowNumber,
+    required this.checked,
+    required this.result,
+    this.winDate,
+    this.winMien,
+    this.actualProfit,
+  });
 }

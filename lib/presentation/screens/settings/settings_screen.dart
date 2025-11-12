@@ -6,6 +6,8 @@ import '../../../data/models/app_config.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../widgets/animated_button.dart';
 import '../../../core/theme/theme_provider.dart';
+import '../../../data/services/cached_data_service.dart';
+import '../analysis/analysis_viewmodel.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -347,6 +349,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 // SUMMARY
                 _buildBudgetSummary(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvancedSection() {
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(Icons.storage, color: Theme.of(context).primaryColor.withOpacity(0.7)),
+        title: const Text('Nâng cao'),
+        subtitle: const Text('Quản lý cache và tối ưu'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Show cache status
+                FutureBuilder<CacheStatus>(
+                  future: context.read<CachedDataService>().getCacheStatus(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const CircularProgressIndicator();
+                    }
+                    
+                    final status = snapshot.data!;
+                    return ListTile(
+                      leading: Icon(
+                        status.isValid ? Icons.check_circle : Icons.error,
+                        color: status.isValid ? Colors.green : Colors.orange,
+                      ),
+                      title: Text(
+                        status.isValid ? 'Cache hợp lệ' : 'Cache hết hạn',
+                      ),
+                      subtitle: Text(
+                        '${status.rowCount} rows - ${status.age.inMinutes} phút',
+                      ),
+                    );
+                  },
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Clear cache button
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Xóa cache'),
+                        content: const Text(
+                          'Xóa cache sẽ tải lại toàn bộ dữ liệu từ Google Sheets. '
+                          'Bạn có chắc chắn?'
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Hủy'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Xóa'),
+                          ),
+                        ],
+                      ),
+                    );
+                    
+                    if (confirm == true && context.mounted) {
+                      await context.read<AnalysisViewModel>().clearCacheAndReload();
+                      
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Đã xóa cache và tải lại dữ liệu'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.delete_sweep),
+                  label: const Text('Xóa cache'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                  ),
+                ),
               ],
             ),
           ),
