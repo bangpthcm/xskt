@@ -77,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 25, 16, 16)
               children: [
                 _buildThemeSection(),  // ✅ THÊM DÒNG NÀY Ở ĐẦU
                 const SizedBox(height: 24),

@@ -76,7 +76,7 @@ class _BettingScreenState extends State<BettingScreen> {
             strokeWidth: 3.0,
             displacement: 40,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 25, 16, 16),
               children: [
                 _buildWarningCard(context, viewModel),
                 const SizedBox(height: 16),

@@ -64,7 +64,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
           return RefreshIndicator(
             onRefresh: () => viewModel.loadHistory(),
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 25, 16, 16)
               children: [
                 // ✅ THÊM: Biểu đồ ở đầu
                 ProfitChart(data: viewModel.getProfitByMonth()),
