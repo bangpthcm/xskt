@@ -101,7 +101,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             strokeWidth: 3.0,
             displacement: 40,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 25, 16, 16)
+              padding: const EdgeInsets.fromLTRB(16, 25, 16, 16),
               children: [
                 // ✅ THÊM: Alert banner nếu có
                 if (viewModel.hasAnyAlert)
