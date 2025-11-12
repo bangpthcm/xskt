@@ -85,10 +85,10 @@ class ThemeProvider extends ChangeNotifier {
         ),
       ),
       textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: Colors.white),
-        bodyMedium: TextStyle(color: Colors.white),
+        bodyLarge: TextStyle(color: Colors.grey),
+        bodyMedium: TextStyle(color: Colors.grey),
         bodySmall: TextStyle(color: Colors.grey),
-        titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        titleLarge: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
       ),
       colorScheme: ColorScheme.dark(
         primary: _accentColor,

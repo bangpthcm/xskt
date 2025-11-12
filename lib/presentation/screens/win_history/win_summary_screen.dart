@@ -30,24 +30,6 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text('Kết quả trúng số'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.live_tv),
-            tooltip: 'Xem Live',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const HomeScreen(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
       body: Consumer<WinHistoryViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {

@@ -10,6 +10,7 @@ import '../../../data/models/betting_row.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../navigation/main_navigation.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../home/home_screen.dart'; 
 
 class BettingScreen extends StatefulWidget {
   const BettingScreen({Key? key}) : super(key: key);
@@ -30,9 +31,6 @@ class _BettingScreenState extends State<BettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bảng cược'),
-      ),
       body: Consumer<BettingViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
@@ -126,7 +124,7 @@ class _BettingScreenState extends State<BettingScreen> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange.shade400, size: 32),
+              Icon(Icons.warning_amber_rounded, color: Theme.of(context).primaryColor, size: 32),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -137,7 +135,7 @@ class _BettingScreenState extends State<BettingScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.orange.shade400,
+                        color: Theme.of(context).primaryColor,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -145,13 +143,13 @@ class _BettingScreenState extends State<BettingScreen> {
                       'Nhấn để xem chi tiết',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.orange.shade400,
+                        color: Theme.of(context).primaryColor.withOpacity(0.8),
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: Colors.orange.shade400),
+              Icon(Icons.chevron_right, color: Theme.of(context).primaryColor),
             ],
           ),
         ),
@@ -206,7 +204,7 @@ class _BettingScreenState extends State<BettingScreen> {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFEE5A5A),
+                        color: Colors.grey,
                         height: 1.0,
                       ),
                     ),
@@ -217,6 +215,26 @@ class _BettingScreenState extends State<BettingScreen> {
                   child: Text(
                     'Chu kỳ 00-99',
                     style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HomeScreen(),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.live_tv,
+                        color: Theme.of(context).primaryColor.withOpacity(0.8),
+                        size: 33,
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -240,7 +258,7 @@ class _BettingScreenState extends State<BettingScreen> {
                 icon: Icons.monetization_on,
                 label: 'Tổng tiền Chu kỳ',
                 value: NumberUtils.formatCurrency(tongTienChuKy),
-                valueColor: Colors.white,
+                valueColor: Colors.grey,
               ),
               const SizedBox(height: 8),
               Padding(
@@ -249,11 +267,11 @@ class _BettingScreenState extends State<BettingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('• Tất cả: ${NumberUtils.formatCurrency(tongTienTatCa)}',
-                        style: const TextStyle(fontSize: 14)),
+                        style: const TextStyle(color: Colors.grey, fontSize: 14)),
                     Text('• Miền Trung: ${NumberUtils.formatCurrency(tongTienTrung)}',
-                        style: const TextStyle(fontSize: 14)),
+                        style: const TextStyle(color: Colors.grey, fontSize: 14)),
                     Text('• Miền Bắc: ${NumberUtils.formatCurrency(tongTienBac)}',
-                        style: const TextStyle(fontSize: 14)),
+                        style: const TextStyle(color: Colors.grey, fontSize: 14)),
                   ],
                 ),
               ),
@@ -353,7 +371,7 @@ class _BettingScreenState extends State<BettingScreen> {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF45B7B7),
+                        color: Colors.grey,
                         height: 1.0,
                       ),
                     ),
@@ -386,7 +404,7 @@ class _BettingScreenState extends State<BettingScreen> {
                 icon: Icons.monetization_on,
                 label: 'Tổng tiền Xiên',
                 value: NumberUtils.formatCurrency(tongTienXien),
-                valueColor: Colors.white,
+                valueColor: Colors.grey,
               ),
 
               // ✅ HIỂN THỊ BẢNG HÔM NAY (LUÔN HIỂN THỊ)
@@ -527,7 +545,7 @@ class _BettingScreenState extends State<BettingScreen> {
                   ),
                   Expanded(
                     flex: 3,
-                    child: Text(row.so, style: const TextStyle(fontSize: 13, color: Colors.orange)),
+                    child: Text(row.so, style: TextStyle(fontSize: 13, color: Colors.white)),
                   ),
                   Expanded(
                     flex: 3,
@@ -538,7 +556,7 @@ class _BettingScreenState extends State<BettingScreen> {
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: Colors.red,
+                        color: Colors.white,
                       ),
                       textAlign: TextAlign.right,
                     ),

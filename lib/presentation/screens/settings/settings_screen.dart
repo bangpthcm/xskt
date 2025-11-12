@@ -72,9 +72,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cài đặt'),
-      ),
       body: Consumer<SettingsViewModel>(
         builder: (context, viewModel, child) {
           return Form(
@@ -105,7 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildGoogleSheetsSection() {
     return Card(
       child: ExpansionTile(  // ✅ ĐỔI từ Padding
-        leading: const Icon(Icons.cloud, color: Colors.blue),
+        leading: Icon(Icons.cloud, color: Theme.of(context).primaryColor.withOpacity(0.8)),
         title: const Text(
           'Google Sheets',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -157,7 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildTelegramSection() {
     return Card(
       child: ExpansionTile(  // ✅ ĐỔI từ Padding
-        leading: const Icon(Icons.telegram, color: Colors.blue),
+        leading: Icon(Icons.telegram, color: Theme.of(context).primaryColor.withOpacity(0.8)),
         title: const Text(
           'Telegram',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -195,7 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildBudgetSection() {
     return Card(
       child: ExpansionTile(  // ✅ ĐỔI từ Padding
-        leading: const Icon(Icons.attach_money, color: Colors.green),
+        leading: Icon(Icons.attach_money, color: Theme.of(context).primaryColor.withOpacity(0.8)),
         title: const Text(
           'Ngân sách',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -387,7 +384,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Tổng phân bổ:',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  color: isValid ? Colors.orange.shade300 : Colors.red.shade700,
+                  color: isValid ? Theme.of(context).primaryColor : Colors.red.shade700,
                 ),
               ),
               Text(
@@ -395,7 +392,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
-                  color: isValid ? Colors.orange.shade300 : Colors.red.shade700,
+                  color: isValid ? Theme.of(context).primaryColor : Colors.red.shade700,
                 ),
               ),
             ],
@@ -408,7 +405,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Vốn còn lại:',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  color: isValid ? Colors.orange.shade300 : Colors.red.shade700,
+                  color: isValid ? Theme.of(context).primaryColor : Colors.red.shade700,
                 ),
               ),
               Text(
@@ -416,7 +413,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
-                  color: isValid ? Colors.orange.shade300 : Colors.red.shade700,
+                  color: isValid ? Theme.of(context).primaryColor : Colors.red.shade700,
                 ),
               ),
             ],
@@ -429,7 +426,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    '⚠️ Tổng phân bổ vượt quá tổng vốn!',
+                    'Tổng phân bổ vượt quá tổng vốn!',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.red.shade700,
@@ -489,7 +486,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
           label: 'Lưu và kiểm tra kết nối',
           icon: Icons.save,
-          backgroundColor: Theme.of(context).primaryColor,
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.8),
           onPressed: viewModel.isLoading ? () {} : _saveConfigAndTest,
           isLoading: viewModel.isLoading,
           width: double.infinity,
@@ -499,7 +496,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AnimatedButton(
           label: 'Đồng bộ dữ liệu RSS',
           icon: Icons.sync,
-          backgroundColor: Theme.of(context).primaryColor,
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.8),
           onPressed: viewModel.isLoading ? () {} : () => _syncRSSData(viewModel),
           isLoading: viewModel.isLoading,
           width: double.infinity,
@@ -531,14 +528,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildConnectionStatus(String label, bool isConnected, IconData icon) {
     return Card(
-      color: isConnected ? Colors.green.shade50 : Colors.grey.shade100,
+      color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.1) : Colors.grey.shade100,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
             Icon(
               icon,
-              color: isConnected ? Colors.green : Colors.grey,
+              color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.8) : Colors.grey,
               size: 20,
             ),
             const SizedBox(width: 8),
@@ -547,13 +544,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: isConnected ? Colors.green.shade700 : Colors.grey,
+                  color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.4) : Colors.grey,
                 ),
               ),
             ),
             Icon(
               isConnected ? Icons.check_circle : Icons.cancel,
-              color: isConnected ? Colors.green : Colors.grey,
+              color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.8) : Colors.grey,
               size: 18,
             ),
           ],
@@ -575,7 +572,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (trungBudget + bacBudget + xienBudget > totalCapital) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Tổng phân bổ vượt quá tổng vốn!'),
+          content: Text('Tổng phân bổ vượt quá tổng vốn!'),
           backgroundColor: Colors.red,
         ),
       );
@@ -689,7 +686,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildThemeSection() {
     return Card(
       child: ExpansionTile(
-        leading: Icon(Icons.palette, color: Theme.of(context).primaryColor),
+        leading: Icon(Icons.palette, color: Theme.of(context).primaryColor.withOpacity(0.8)),
         title: const Text(
           'Giao diện',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -752,7 +749,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Colors.orange,
                         Colors.purple,
                         Colors.pink,
-                        Colors.indigo,
                         Colors.grey,
                       ].map((color) {
                         final isSelected = themeProvider.accentColor.value == color.value;

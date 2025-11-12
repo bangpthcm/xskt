@@ -53,9 +53,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Phân tích'),
-      ),
       body: Consumer<AnalysisViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
@@ -226,7 +223,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       context: context,
                       viewModel: viewModel,
                       icon: Icons.text_fields,  // ✅ GIỮ NGUYÊN
-                      color: const Color(0xFFEE5A5A),
+                      color: Colors.grey,
                       title: 'Chu kỳ (Tất cả)',
                       subtitle: 'Số: ${result.targetNumber}',
                       days: result.maxGanDays,
@@ -288,7 +285,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   context: context,
                   viewModel: viewModel,
                   icon: Icons.text_fields,  // ✅ GẠCH CHÉO - hoặc dùng custom
-                  color: const Color(0xFF45B7B7),
+                  color: Colors.grey,
                   title: 'Cặp số gan (Xiên)',
                   subtitle: 'Cặp: ${viewModel.ganPairInfo!.randomPair.display}',
                   days: viewModel.ganPairInfo!.daysGan,
@@ -606,7 +603,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFFBEE5A5A),
+                            color: Colors.grey,
                             height: 1.0,
                           ),
                         ),
@@ -689,7 +686,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               const SizedBox(height: 8),
               const Text(
                 'Nhóm số gan nhất:',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               
@@ -721,16 +718,16 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       number,
                       style: TextStyle(
                         fontWeight: isTarget ? FontWeight.bold : FontWeight.normal,
-                        color: isTarget ? Theme.of(context).primaryColor.withOpacity(0.9) : Colors.grey.shade400,
+                        color: isTarget ? Theme.of(context).primaryColor.withOpacity(0.9) : Colors.grey.shade500,
                       ),
                     ),
                     backgroundColor: isTarget 
                         ? Theme.of(context).primaryColor.withOpacity(0.3) 
-                        : Colors.grey.shade100,
+                        : const Color(0xFF2C2C2C),
                     side: BorderSide(
                       color: isTarget 
                           ? Theme.of(context).primaryColor.withOpacity(0.8) 
-                          : Colors.grey.shade300,
+                          : Colors.grey.shade600,
                     ),
                     onPressed: () => _showNumberDetail(context, viewModel, number),
                   );
@@ -743,7 +740,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 const SizedBox(height: 16),
                 const Text(
                   'Phân bổ theo miền:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
 
@@ -763,6 +760,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                           child: Text(
                             'Miền $mien:',
                             style: const TextStyle(
+                              color: Colors.grey,
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
                             ),
@@ -771,7 +769,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                         Expanded(
                           child: Text(
                             cycleResult.mienGroups[mien]!.join(', '),
-                            style: const TextStyle(fontSize: 14),
+                            style: const TextStyle(color: Colors.grey, fontSize: 14),
                           ),
                         ),
                       ],
@@ -810,7 +808,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF45B7B7),
+                            color: Colors.grey,
                             height: 1.0,
                           ),
                         ),
@@ -860,7 +858,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/185 ngày'),
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
@@ -868,7 +866,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               const SizedBox(height: 8),
               const Text(
                 'Các cặp gan nhất:',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               // Hiển thị dạng text thường
@@ -879,7 +877,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
                     '${index + 1}. ${pairWithDays.pair.display} (${pairWithDays.daysGan} ngày)',
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(color: Colors.grey, fontSize: 16),
                   ),
                 );
               }).toList(),
@@ -897,7 +895,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         children: ['Tất cả', 'Nam', 'Trung', 'Bắc'].map((mien) {
           final isSelected = viewModel.selectedMien == mien;
           
-          // ✅ CHECK alert từ cache (LUÔN HIỆN dù đang chọn filter khác)
+          // ✅ CHECK alert từ cache
           bool hasAlert = false;
           if (mien== 'Tất cả') {
             hasAlert = viewModel.tatCaAlertCache ?? false;
@@ -914,19 +912,30 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               children: [
                 FilterChip(
                   label: SizedBox(
-                    width: 38,
+                    width: 45,
                     child: Text(
                       mien,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? Colors.white : Colors.grey.shade300,
+                        color: isSelected 
+                            ? Theme.of(context).primaryColor.withOpacity(0.9)  // ✅ Text trắng khi selected
+                            : Colors.grey.shade500,  // ✅ Text xám tối khi chưa selected
                       ),
-                      textAlign: TextAlign.center, // ✅ THÊM DÒNG NÀY
+                      textAlign: TextAlign.center,
                     ),
                   ),
                   selected: isSelected,
-                  backgroundColor: const Color(0xFF2C2C2C),
+                  backgroundColor: const Color(0xFF2C2C2C),  // ✅ Nền xám rất tối khi chưa selected
+                  selectedColor: Theme.of(context).primaryColor.withOpacity(0.3),  // ✅ Nền xanh dương khi selected
+                  side: BorderSide(
+                    color: isSelected 
+                        ? Theme.of(context).primaryColor.withOpacity(0.8)   // ✅ Viền xanh khi selected
+                        : Colors.grey.shade600,  // ✅ Viền xám tối khi chưa selected
+                    width: 1,
+                  ),
+                  checkmarkColor: Colors.transparent,
+                  showCheckmark: false,
                   onSelected: (selected) {
                     if (selected) {
                       viewModel.setSelectedMien(mien);
@@ -940,8 +949,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 ),
                 if (hasAlert)
                   Positioned(
-                    right: 2,
-                    top: 2,
+                    right: 1,
+                    top: 1,
                     child: Container(
                       width: 8,
                       height: 8,
@@ -967,7 +976,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         children: [
           Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
           ),
           const SizedBox(width: 8),
           Expanded(
