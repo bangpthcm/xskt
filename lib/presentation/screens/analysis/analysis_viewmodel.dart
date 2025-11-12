@@ -79,52 +79,12 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // ✅ THAY ĐỔI: Dùng cached service
-      if (!useCache) {
-        // Backfill trước
-        final backfillService = BackfillService(
-          sheetsService: _sheetsService,
-          rssService: _rssService,
-        );
-        
-        final syncResult = await backfillService.syncAllFromRSS();
-        print('📊 RSS sync result: ${syncResult.message}');
-      }
-
-      // ✅ Load KQXS với caching
-      _allResults = await _cachedDataService.loadKQXS(
-        forceRefresh: !useCache,
-        incrementalOnly: useCache,
-      );
-
-      // ✅ Show cache status
-      final cacheStatus = await _cachedDataService.getCacheStatus();
-      print('📊 Cache status: $cacheStatus');
-
-      // Phân tích như cũ
-      _ganPairInfo = await _analysisService.findGanPairsMienBac(_allResults);
-
-      if (_selectedMien == 'Tất cả') {
-        _cycleResult = await _analysisService.analyzeCycle(_allResults);
-      } else {
-        final filteredResults = _allResults
-            .where((r) => r.mien == _selectedMien)
-            .toList();
-        _cycleResult = await _analysisService.analyzeCycle(filteredResults);
-      }
-
-      // Save history và cache alerts
-      if (!useCache) {
-        if (_cycleResult != null) {
-          await _saveAnalysisHistory();
-        }
-        if (_ganPairInfo != null) {
-          await _saveXienAnalysisHistory();
-        }
-      }
+      // ✅ STEP 1: Load data (với cache hoặc không)
+      await _loadData(useCache: useCache);
       
-      await _cacheAllAlerts();
-
+      // ✅ STEP 2: Analyze in background (không block UI)
+      _analyzeInBackground();
+      
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -132,6 +92,57 @@ class AnalysisViewModel extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _loadData({required bool useCache}) async {
+    print('📊 Loading KQXS data...');
+    
+    if (!useCache) {
+      // Backfill trước
+      final backfillService = BackfillService(
+        sheetsService: _sheetsService,
+        rssService: _rssService,
+      );
+      
+      final syncResult = await backfillService.syncAllFromRSS();
+      print('📊 RSS sync result: ${syncResult.message}');
+    }
+
+    // Load KQXS với caching
+    _allResults = await _cachedDataService.loadKQXS(
+      forceRefresh: !useCache,
+      incrementalOnly: useCache,
+    );
+
+    final cacheStatus = await _cachedDataService.getCacheStatus();
+    print('📊 Cache status: $cacheStatus');
+    print('📊 Loaded ${_allResults.length} results');
+  }
+
+  // ✅ LAZY: Analyze in background
+  Future<void> _analyzeInBackground() async {
+    print('🔄 Analyzing in background...');
+    
+    // Phân tích Xiên (nhanh)
+    _ganPairInfo = await _analysisService.findGanPairsMienBac(_allResults);
+    notifyListeners(); // ✅ Update UI ngay khi có kết quả Xiên
+    
+    // Phân tích Chu kỳ (chậm hơn)
+    if (_selectedMien == 'Tất cả') {
+      _cycleResult = await _analysisService.analyzeCycle(_allResults);
+    } else {
+      final filteredResults = _allResults
+          .where((r) => r.mien == _selectedMien)
+          .toList();
+      _cycleResult = await _analysisService.analyzeCycle(filteredResults);
+    }
+    notifyListeners(); // ✅ Update UI khi có kết quả Chu kỳ
+    
+    // Cache alerts (không block UI)
+    await _cacheAllAlerts();
+    notifyListeners();
+    
+    print('✅ Background analysis completed');
   }
 
   // ✅ ADD: Method clear cache

@@ -20,46 +20,58 @@ class WinHistoryViewModel extends ChangeNotifier {
   String? _errorMessage;
   List<CycleWinHistory> _cycleHistory = [];
   List<XienWinHistory> _xienHistory = [];
-  List<CycleWinHistory> _trungHistory = [];  // ✅ ADD
-  List<CycleWinHistory> _bacHistory = [];    // ✅ ADD
+  List<CycleWinHistory> _trungHistory = [];
+  List<CycleWinHistory> _bacHistory = [];
   CheckDailyResult? _lastCheckResult;
+  
+  // ✅ PAGINATION
+  static const int _pageSize = 50;
+  bool _hasMoreCycle = true;
+  bool _hasMoreXien = true;
+  bool _hasMoreTrung = true;
+  bool _hasMoreBac = true;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   List<CycleWinHistory> get cycleHistory => _cycleHistory;
   List<XienWinHistory> get xienHistory => _xienHistory;
-  List<CycleWinHistory> get trungHistory => _trungHistory;  // ✅ ADD
-  List<CycleWinHistory> get bacHistory => _bacHistory;      // ✅ ADD
+  List<CycleWinHistory> get trungHistory => _trungHistory;
+  List<CycleWinHistory> get bacHistory => _bacHistory;
   CheckDailyResult? get lastCheckResult => _lastCheckResult;
+  bool get hasMoreCycle => _hasMoreCycle;
+  bool get hasMoreXien => _hasMoreXien;
+  bool get hasMoreTrung => _hasMoreTrung;
+  bool get hasMoreBac => _hasMoreBac;
 
-  /// Load lịch sử từ Google Sheets
+  /// ✅ LAZY: Load initial data (chỉ page đầu)
   Future<void> loadHistory() async {
-    print('📚 Loading win history...');
+    print('📚 Loading win history (initial page)...');
     
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      // Load song song nhưng chỉ lấy page đầu
       final results = await Future.wait([
-        _trackingService.getAllCycleWinHistory(),
-        _trackingService.getAllXienWinHistory(),
-        _loadTrungHistory(),  // ✅ ADD
-        _loadBacHistory(),    // ✅ ADD
+        _loadCyclePage(0),
+        _loadXienPage(0),
+        _loadTrungPage(0),
+        _loadBacPage(0),
       ]);
 
       _cycleHistory = results[0] as List<CycleWinHistory>;
       _xienHistory = results[1] as List<XienWinHistory>;
-      _trungHistory = results[2] as List<CycleWinHistory>;  // ✅ ADD
-      _bacHistory = results[3] as List<CycleWinHistory>;    // ✅ ADD
+      _trungHistory = results[2] as List<CycleWinHistory>;
+      _bacHistory = results[3] as List<CycleWinHistory>;
 
-      _cycleHistory.sort((a, b) => b.stt.compareTo(a.stt));
-      _xienHistory.sort((a, b) => b.stt.compareTo(a.stt));
-      _trungHistory.sort((a, b) => b.stt.compareTo(a.stt));  // ✅ ADD
-      _bacHistory.sort((a, b) => b.stt.compareTo(a.stt));    // ✅ ADD
+      _hasMoreCycle = _cycleHistory.length >= _pageSize;
+      _hasMoreXien = _xienHistory.length >= _pageSize;
+      _hasMoreTrung = _trungHistory.length >= _pageSize;
+      _hasMoreBac = _bacHistory.length >= _pageSize;
 
-      print('✅ Loaded ${_cycleHistory.length} cycle, ${_xienHistory.length} xien, '
-            '${_trungHistory.length} trung, ${_bacHistory.length} bac wins');
+      print('✅ Loaded initial: Cycle=${_cycleHistory.length}, Xien=${_xienHistory.length}, '
+            'Trung=${_trungHistory.length}, Bac=${_bacHistory.length}');
 
       _isLoading = false;
       notifyListeners();
@@ -68,6 +80,146 @@ class WinHistoryViewModel extends ChangeNotifier {
       _errorMessage = 'Lỗi tải lịch sử: $e';
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// ✅ LAZY: Load more cycle history
+  Future<void> loadMoreCycle() async {
+    if (!_hasMoreCycle || _isLoading) return;
+    
+    print('📄 Loading more cycle history...');
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final currentPage = (_cycleHistory.length / _pageSize).floor();
+      final newData = await _loadCyclePage(currentPage);
+      
+      _cycleHistory.addAll(newData);
+      _hasMoreCycle = newData.length >= _pageSize;
+      
+      print('✅ Loaded ${newData.length} more cycle records');
+    } catch (e) {
+      print('❌ Error loading more cycle: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// ✅ Helper: Load một page của cycle history
+  Future<List<CycleWinHistory>> _loadCyclePage(int page) async {
+    try {
+      final values = await _trackingService.sheetsService.getAllValues('cycleWinHistory');
+      
+      if (values.length < 2) return [];
+      
+      final startIndex = 1 + (page * _pageSize);
+      final endIndex = (startIndex + _pageSize).clamp(0, values.length);
+      
+      if (startIndex >= values.length) return [];
+      
+      final histories = <CycleWinHistory>[];
+      for (int i = startIndex; i < endIndex; i++) {
+        try {
+          histories.add(CycleWinHistory.fromSheetRow(values[i]));
+        } catch (e) {
+          print('⚠️ Error parsing cycle row $i: $e');
+        }
+      }
+      
+      histories.sort((a, b) => b.stt.compareTo(a.stt));
+      return histories;
+    } catch (e) {
+      print('❌ Error loading cycle page: $e');
+      return [];
+    }
+  }
+
+  /// ✅ Helper: Load một page của xien history
+  Future<List<XienWinHistory>> _loadXienPage(int page) async {
+    try {
+      final values = await _trackingService.sheetsService.getAllValues('xienWinHistory');
+      
+      if (values.length < 2) return [];
+      
+      final startIndex = 1 + (page * _pageSize);
+      final endIndex = (startIndex + _pageSize).clamp(0, values.length);
+      
+      if (startIndex >= values.length) return [];
+      
+      final histories = <XienWinHistory>[];
+      for (int i = startIndex; i < endIndex; i++) {
+        try {
+          histories.add(XienWinHistory.fromSheetRow(values[i]));
+        } catch (e) {
+          print('⚠️ Error parsing xien row $i: $e');
+        }
+      }
+      
+      histories.sort((a, b) => b.stt.compareTo(a.stt));
+      return histories;
+    } catch (e) {
+      print('❌ Error loading xien page: $e');
+      return [];
+    }
+  }
+
+  /// ✅ Helper: Load một page của trung history
+  Future<List<CycleWinHistory>> _loadTrungPage(int page) async {
+    try {
+      final values = await _trackingService.sheetsService.getAllValues('trungWinHistory');
+      
+      if (values.length < 2) return [];
+      
+      final startIndex = 1 + (page * _pageSize);
+      final endIndex = (startIndex + _pageSize).clamp(0, values.length);
+      
+      if (startIndex >= values.length) return [];
+      
+      final histories = <CycleWinHistory>[];
+      for (int i = startIndex; i < endIndex; i++) {
+        try {
+          histories.add(CycleWinHistory.fromSheetRow(values[i]));
+        } catch (e) {
+          print('⚠️ Error parsing trung row $i: $e');
+        }
+      }
+      
+      histories.sort((a, b) => b.stt.compareTo(a.stt));
+      return histories;
+    } catch (e) {
+      print('❌ Error loading trung page: $e');
+      return [];
+    }
+  }
+
+  /// ✅ Helper: Load một page của bac history
+  Future<List<CycleWinHistory>> _loadBacPage(int page) async {
+    try {
+      final values = await _trackingService.sheetsService.getAllValues('bacWinHistory');
+      
+      if (values.length < 2) return [];
+      
+      final startIndex = 1 + (page * _pageSize);
+      final endIndex = (startIndex + _pageSize).clamp(0, values.length);
+      
+      if (startIndex >= values.length) return [];
+      
+      final histories = <CycleWinHistory>[];
+      for (int i = startIndex; i < endIndex; i++) {
+        try {
+          histories.add(CycleWinHistory.fromSheetRow(values[i]));
+        } catch (e) {
+          print('⚠️ Error parsing bac row $i: $e');
+        }
+      }
+      
+      histories.sort((a, b) => b.stt.compareTo(a.stt));
+      return histories;
+    } catch (e) {
+      print('❌ Error loading bac page: $e');
+      return [];
     }
   }
 

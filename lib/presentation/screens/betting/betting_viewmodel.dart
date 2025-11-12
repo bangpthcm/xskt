@@ -117,10 +117,23 @@ class BettingViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _loadXienTable();
-      await _loadCycleTable();
-      await _loadTrungTable();  // ✅ ADD
-      await _loadBacTable();     // ✅ ADD
+      // ✅ LAZY: Load từng bảng song song nhưng notify sau mỗi bảng
+      final futures = <Future<void>>[];
+      
+      // Load Xiên (thường nhanh nhất)
+      futures.add(_loadXienTable().then((_) => notifyListeners()));
+      
+      // Load Chu kỳ (Tất cả)
+      futures.add(_loadCycleTable().then((_) => notifyListeners()));
+      
+      // Load Trung
+      futures.add(_loadTrungTable().then((_) => notifyListeners()));
+      
+      // Load Bắc
+      futures.add(_loadBacTable().then((_) => notifyListeners()));
+      
+      // Đợi tất cả complete
+      await Future.wait(futures);
 
       _isLoading = false;
       notifyListeners();
