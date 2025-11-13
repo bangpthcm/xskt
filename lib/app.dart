@@ -1,7 +1,7 @@
-// lib/app.dart
-
+// lib/app.dart - OPTIMIZED VERSION
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 
 // Services
 import 'data/services/google_sheets_service.dart';
@@ -26,7 +26,6 @@ import 'presentation/screens/win_history/win_history_viewmodel.dart';
 
 // Screens
 import 'presentation/navigation/main_navigation.dart';
-
 import 'core/theme/theme_provider.dart';
 
 // ✅ Global key for navigation
@@ -40,51 +39,88 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  // ✅ Track initialization state
+  bool _servicesInitialized = false;
+  
   @override
   void initState() {
     super.initState();
     
-    // ✅ CHỈ INITIALIZE SERVICES, KHÔNG BACKFILL
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        print('📱 MyApp: Post-frame callback executing...');
-        
-        // Get services từ context
-        final storageService = context.read<StorageService>();
-        final sheetsService = context.read<GoogleSheetsService>();
-        final telegramService = context.read<TelegramService>();
-        
-        // Load config
-        var config = await storageService.loadConfig();
-        
-        if (config == null) {
-          print('⚠️ MyApp: No config found, using default');
-          config = AppConfig.defaultConfig();
-          await storageService.saveConfig(config);
-        }
-        
-        // Reinitialize services (đảm bảo kết nối được thiết lập)
-        print('🔄 MyApp: Reinitializing services...');
-        await sheetsService.initialize(config.googleSheets);
-        telegramService.initialize(config.telegram);
-        
-        // Test connections
-        final sheetsOk = await sheetsService.testConnection();
-        final telegramOk = await telegramService.testConnection();
-        
-        print('✅ MyApp: Services initialized');
-        print('   - Google Sheets: ${sheetsOk ? "✓" : "✗"}');
-        print('   - Telegram: ${telegramOk ? "✓" : "✗"}');
-        
-      } catch (e) {
-        print('⚠️ MyApp: Error initializing on startup: $e');
-      }
+    // ✅ OPTIMIZATION: Initialize services AFTER first frame
+    // Không block UI rendering
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeServicesInBackground();
     });
+  }
+
+  /// ✅ OPTIMIZATION: Background initialization (không block UI)
+  Future<void> _initializeServicesInBackground() async {
+    // Không await, không block
+    unawaited(_initServices());
+  }
+
+  /// ✅ Initialize services với error handling
+  Future<void> _initServices() async {
+    try {
+      print('🔄 Background: Starting service initialization...');
+      
+      final storageService = context.read<StorageService>();
+      final sheetsService = context.read<GoogleSheetsService>();
+      final telegramService = context.read<TelegramService>();
+      
+      // ✅ STEP 1: Load config (fast - from SharedPreferences)
+      var config = await storageService.loadConfig();
+      
+      if (config == null) {
+        print('⚠️ Background: No config found, using default');
+        config = AppConfig.defaultConfig();
+        await storageService.saveConfig(config);
+      }
+      
+      // ✅ STEP 2: Initialize services in parallel (fast)
+      print('🔄 Background: Initializing services in parallel...');
+      await Future.wait([
+        sheetsService.initialize(config!.googleSheets),
+        Future(() => telegramService.initialize(config!.telegram)),
+      ], eagerError: false);
+      
+      _servicesInitialized = true;
+      print('✅ Background: Core services initialized');
+      
+      // ✅ STEP 3: Test connections (non-critical, không block)
+      unawaited(_testConnections(sheetsService, telegramService));
+      
+    } catch (e) {
+      print('⚠️ Background: Error initializing services: $e');
+      // Không throw, app vẫn chạy được
+    }
+  }
+
+  /// ✅ Test connections sau khi init (non-blocking)
+  Future<void> _testConnections(
+    GoogleSheetsService sheetsService,
+    TelegramService telegramService,
+  ) async {
+    try {
+      print('🔄 Background: Testing connections...');
+      
+      final results = await Future.wait([
+        sheetsService.testConnection(),
+        telegramService.testConnection(),
+      ], eagerError: false);
+      
+      print('✅ Background: Connection test complete');
+      print('   - Google Sheets: ${results[0] ? "✓" : "✗"}');
+      print('   - Telegram: ${results[1] ? "✓" : "✗"}');
+      
+    } catch (e) {
+      print('⚠️ Background: Error testing connections: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Lấy services từ Provider (đã được khởi tạo trong main.dart)
+    // ✅ Lấy services từ Provider
     final googleSheetsService = context.read<GoogleSheetsService>();
     final analysisService = context.read<AnalysisService>();
     final storageService = context.read<StorageService>();
@@ -98,7 +134,6 @@ class _MyAppState extends State<MyApp> {
       sheetsService: googleSheetsService,
     );
 
-    // ✅ Thêm BackfillService
     final backfillService = BackfillService(
       sheetsService: googleSheetsService,
       rssService: rssService,
@@ -112,60 +147,56 @@ class _MyAppState extends State<MyApp> {
       backfillService: backfillService,
     );
 
-  return Consumer<ThemeProvider>(  // ✅ THÊM Consumer
-    builder: (context, themeProvider, child) {
-      return MultiProvider(
-        providers: [
-          // Existing providers
-          ChangeNotifierProvider(
-            create: (_) => HomeViewModel(),
-          ),
-          ChangeNotifierProvider(
-            create: (_) {
-              // ✅ Pass cached service vào AnalysisViewModel
-              final cachedService = context.read<CachedDataService>();
-              
-              return AnalysisViewModel(
-                cachedDataService: cachedService,  // ✅ ADD
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MultiProvider(
+          providers: [
+            ChangeNotifierProvider(
+              create: (_) => HomeViewModel(),
+            ),
+            ChangeNotifierProvider(
+              create: (_) {
+                final cachedService = context.read<CachedDataService>();
+                
+                return AnalysisViewModel(
+                  cachedDataService: cachedService,
+                  sheetsService: googleSheetsService,
+                  analysisService: analysisService,
+                  storageService: storageService,
+                  telegramService: telegramService,
+                  bettingService: bettingService,
+                  rssService: rssService,
+                );
+              },
+            ),
+            ChangeNotifierProvider(
+              create: (_) => BettingViewModel(
                 sheetsService: googleSheetsService,
-                analysisService: analysisService,
-                storageService: storageService,
-                telegramService: telegramService,
                 bettingService: bettingService,
+                telegramService: telegramService,
+                analysisService: analysisService,
+              ),
+            ),
+            ChangeNotifierProvider(
+              create: (_) => SettingsViewModel(
+                storageService: storageService,
+                sheetsService: googleSheetsService,
+                telegramService: telegramService,
                 rssService: rssService,
-              );
-            },
-          ),
-          ChangeNotifierProvider(
-            create: (_) => BettingViewModel(
-              sheetsService: googleSheetsService,
-              bettingService: bettingService,
-              telegramService: telegramService,
-              analysisService: analysisService,
+              ),
             ),
-          ),
-          ChangeNotifierProvider(
-            create: (_) => SettingsViewModel(
-              storageService: storageService,
-              sheetsService: googleSheetsService,
-              telegramService: telegramService,
-              rssService: rssService,
+            ChangeNotifierProvider(
+              create: (_) => WinHistoryViewModel(
+                trackingService: winTrackingService,
+                autoCheckService: autoCheckService,
+              ),
             ),
-          ),
-          
-          // ✅ Provider cho win history
-          ChangeNotifierProvider(
-            create: (_) => WinHistoryViewModel(
-              trackingService: winTrackingService,
-              autoCheckService: autoCheckService,
-            ),
-          ),
-        ],
-        child: MaterialApp(
+          ],
+          child: MaterialApp(
             title: 'XSKT Bot',
-            theme: themeProvider.getLightTheme(),  // ✅ ĐỔI
-            darkTheme: themeProvider.getDarkTheme(),  // ✅ ĐỔI
-            themeMode: themeProvider.themeMode,  // ✅ ĐỔI
+            theme: themeProvider.getLightTheme(),
+            darkTheme: themeProvider.getDarkTheme(),
+            themeMode: themeProvider.themeMode,
             home: MainNavigation(key: mainNavigationKey),
             debugShowCheckedModeBanner: false,
           ),
