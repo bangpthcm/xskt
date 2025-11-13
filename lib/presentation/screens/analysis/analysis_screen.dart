@@ -9,6 +9,7 @@ import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../app.dart';
 import '../../../data/models/cycle_analysis_result.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../../data/services/service_manager.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({Key? key}) : super(key: key);
@@ -29,7 +30,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   void initState() {
     super.initState();
 
-    // ✅ THÊM: Setup animation
+    // ✅ Setup animation
     _pulseController = AnimationController(
       duration: const Duration(seconds: 1),
       vsync: this,
@@ -39,8 +40,20 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AnalysisViewModel>().loadAnalysis();
+    // ✅ FIX: Use ServiceManager
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        print('📊 AnalysisScreen: Waiting for services...');
+        
+        // ✅ Use ServiceManager.waitForReady()
+        await ServiceManager.waitForReady();
+        
+        if (mounted) {
+          context.read<AnalysisViewModel>().loadAnalysis();
+        }
+      } catch (e) {
+        print('❌ AnalysisScreen: Error: $e');
+      }
     });
   }
 

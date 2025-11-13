@@ -10,7 +10,8 @@ import '../../../data/models/betting_row.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../navigation/main_navigation.dart';
 import '../../widgets/shimmer_loading.dart';
-import '../home/home_screen.dart'; 
+import '../home/home_screen.dart';
+import '../../../data/services/service_manager.dart'; 
 
 class BettingScreen extends StatefulWidget {
   const BettingScreen({Key? key}) : super(key: key);
@@ -24,24 +25,35 @@ class _BettingScreenState extends State<BettingScreen> {
   void initState() {
     super.initState();
     
-    // ✅ FIX: Đợi services init xong rồi mới load
+    // ✅ FIX: Use ServiceManager
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final viewModel = context.read<BettingViewModel>();
-      
-      // ✅ Đợi 500ms cho services init (từ app.dart)
-      await Future.delayed(const Duration(milliseconds: 800));
-      
-      // ✅ Check xem services đã init chưa
       try {
-        await viewModel.loadBettingTables();
-      } catch (e) {
-        print('⚠️ First load failed (services not ready), retrying...');
+        print('📊 BettingScreen: Waiting for services...');
         
-        // ✅ Retry sau 1s nữa
-        await Future.delayed(const Duration(seconds: 1));
+        // ✅ Use ServiceManager.waitForReady()
+        await ServiceManager.waitForReady();
+        
+        print('📊 BettingScreen: Services ready, loading tables...');
         
         if (mounted) {
-          viewModel.loadBettingTables();
+          await context.read<BettingViewModel>().loadBettingTables();
+        }
+        
+      } catch (e) {
+        print('❌ BettingScreen: Error loading: $e');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Không thể kết nối. Vui lòng pull-to-refresh'),
+              action: SnackBarAction(
+                label: 'Thử lại',
+                onPressed: () {
+                  context.read<BettingViewModel>().loadBettingTables();
+                },
+              ),
+            ),
+          );
         }
       }
     });

@@ -1,4 +1,4 @@
-// lib/app.dart - OPTIMIZED VERSION
+// lib/app.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
@@ -16,6 +16,9 @@ import 'data/services/win_tracking_service.dart';
 import 'data/services/auto_check_service.dart';
 import 'data/models/app_config.dart';
 import 'data/services/cached_data_service.dart';
+
+// ✅ ADD: Import ServiceManager
+import 'data/services/service_manager.dart';
 
 // ViewModels
 import 'presentation/screens/home/home_viewmodel.dart';
@@ -39,8 +42,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  // ✅ Track initialization state
-  bool _servicesInitialized = false;
+  // ✅ REMOVE: Local _servicesInitialized flag (dùng ServiceManager thay thế)
   
   @override
   void initState() {
@@ -84,7 +86,8 @@ class _MyAppState extends State<MyApp> {
         Future(() => telegramService.initialize(config!.telegram)),
       ], eagerError: false);
       
-      _servicesInitialized = true;
+      // ✅ CHANGE: Use ServiceManager
+      ServiceManager.markReady();
       print('✅ Background: Core services initialized');
       
       // ✅ STEP 3: Test connections (non-critical, không block)
@@ -92,7 +95,7 @@ class _MyAppState extends State<MyApp> {
       
     } catch (e) {
       print('⚠️ Background: Error initializing services: $e');
-      // Không throw, app vẫn chạy được
+      ServiceManager.markNotReady(); // ✅ Mark as not ready on error
     }
   }
 
