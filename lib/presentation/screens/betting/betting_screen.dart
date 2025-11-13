@@ -23,8 +23,27 @@ class _BettingScreenState extends State<BettingScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BettingViewModel>().loadBettingTables();
+    
+    // ✅ FIX: Đợi services init xong rồi mới load
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final viewModel = context.read<BettingViewModel>();
+      
+      // ✅ Đợi 500ms cho services init (từ app.dart)
+      await Future.delayed(const Duration(milliseconds: 800));
+      
+      // ✅ Check xem services đã init chưa
+      try {
+        await viewModel.loadBettingTables();
+      } catch (e) {
+        print('⚠️ First load failed (services not ready), retrying...');
+        
+        // ✅ Retry sau 1s nữa
+        await Future.delayed(const Duration(seconds: 1));
+        
+        if (mounted) {
+          viewModel.loadBettingTables();
+        }
+      }
     });
   }
 
