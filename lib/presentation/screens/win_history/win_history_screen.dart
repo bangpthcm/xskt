@@ -25,6 +25,12 @@ class WinHistoryScreen extends StatefulWidget {
 class _WinHistoryScreenState extends State<WinHistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  
+  // ✅ ScrollControllers cho từng tab
+  final _cycleScrollController = ScrollController();
+  final _trungScrollController = ScrollController();
+  final _bacScrollController = ScrollController();
+  final _xienScrollController = ScrollController();
 
   @override
   void initState() {
@@ -32,17 +38,54 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     _tabController = TabController(
       length: 4,
       vsync: this,
-      initialIndex: widget.initialTab,  // ✅ SỬ DỤNG initialTab
+      initialIndex: widget.initialTab,
     );
+    
+    // ✅ Setup scroll listeners
+    _setupScrollListeners();
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<WinHistoryViewModel>().loadHistory();
     });
   }
 
+  // ✅ Setup scroll listeners cho tất cả tabs
+  void _setupScrollListeners() {
+    _cycleScrollController.addListener(() => _onScroll(
+      _cycleScrollController,
+      () => context.read<WinHistoryViewModel>().loadMoreCycle(),
+    ));
+    
+    _trungScrollController.addListener(() => _onScroll(
+      _trungScrollController,
+      () => context.read<WinHistoryViewModel>().loadMoreTrung(),
+    ));
+    
+    _bacScrollController.addListener(() => _onScroll(
+      _bacScrollController,
+      () => context.read<WinHistoryViewModel>().loadMoreBac(),
+    ));
+    
+    _xienScrollController.addListener(() => _onScroll(
+      _xienScrollController,
+      () => context.read<WinHistoryViewModel>().loadMoreXien(),
+    ));
+  }
+
+  // ✅ Detect khi scroll gần đến cuối (còn 200px)
+  void _onScroll(ScrollController controller, VoidCallback loadMore) {
+    if (controller.position.pixels >= controller.position.maxScrollExtent - 200) {
+      loadMore();
+    }
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
+    _cycleScrollController.dispose();
+    _trungScrollController.dispose();
+    _bacScrollController.dispose();
+    _xienScrollController.dispose();
     super.dispose();
   }
 
@@ -51,7 +94,6 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lịch sử trúng số'),
-        // ✅ BỎ bottom: TabBar (KHÔNG CÒN TAB TRÊN)
         actions: [
           IconButton(
             icon: const Icon(Icons.play_arrow),
@@ -68,11 +110,11 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
       ),
       body: Consumer<WinHistoryViewModel>(
         builder: (context, viewModel, child) {
-          if (viewModel.isLoading) {
-            return const ShimmerLoading(type: ShimmerType.table);  // ✅ ĐỔI từ CircularProgressIndicator
+          if (viewModel.isLoading && viewModel.cycleHistory.isEmpty) {
+            return const ShimmerLoading(type: ShimmerType.table);
           }
 
-          if (viewModel.errorMessage != null) {
+          if (viewModel.errorMessage != null && viewModel.cycleHistory.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -97,7 +139,6 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
             );
           }
 
-          // ✅ LAYOUT MỚI: CHỈ 1 LEVEL TAB
           return Column(
             children: [
               Container(
@@ -112,7 +153,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
                     Tab(text: 'Tất cả'),
                     Tab(text: 'Trung'),
                     Tab(text: 'Bắc'),
-                    Tab(text: 'Xiên'),  // ✅ THÊM XIÊN
+                    Tab(text: 'Xiên'),
                   ],
                 ),
               ),
@@ -120,10 +161,10 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildCycleTab(viewModel),   // Tất cả
-                    _buildTrungTab(viewModel),   // Trung
-                    _buildBacTab(viewModel),     // Bắc
-                    _buildXienTab(viewModel),    // ✅ Xiên
+                    _buildCycleTab(viewModel),
+                    _buildTrungTab(viewModel),
+                    _buildBacTab(viewModel),
+                    _buildXienTab(viewModel),
                   ],
                 ),
               ),
@@ -134,78 +175,101 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     );
   }
 
-  // ✅ GIỮ NGUYÊN CÁC METHOD XÂY DỰNG TAB
+  // ✅ Cycle Tab với ScrollController
   Widget _buildCycleTab(WinHistoryViewModel viewModel) {
-    if (viewModel.cycleHistory.isEmpty) {
-      return EmptyStateWidget(  // ✅ ĐỔI từ Center(child: Text(...))
+    if (viewModel.cycleHistory.isEmpty && !viewModel.isLoading) {
+      return EmptyStateWidget(
         title: 'Chưa có lịch sử',
         message: 'Lịch sử trúng số sẽ hiển thị ở đây sau khi bạn có kết quả trúng',
       );
     }
 
     final stats = viewModel.getCycleStats();
-    return Column(
+    return ListView(
+      controller: _cycleScrollController,
       children: [
         _buildStatsCard(
           wins: stats.totalWins,
           totalProfit: stats.totalProfit,
           avgROI: stats.avgROI,
         ),
-        Expanded(child: _buildCycleDataTable(viewModel.cycleHistory)),
-      ],
-    );
-  }
-
-  Widget _buildXienTab(WinHistoryViewModel viewModel) {
-    if (viewModel.xienHistory.isEmpty) {
-      return const Center(child: Text('Chưa có lịch sử trúng số xiên'));
-    }
-
-    final stats = viewModel.getXienStats();
-    return Column(
-      children: [
-        _buildStatsCard(
-          wins: stats.totalWins,
-          totalProfit: stats.totalProfit,
-          avgROI: stats.avgROI,
+        _buildCycleDataTable(viewModel.cycleHistory),
+        _buildLoadingFooter(
+          hasMore: viewModel.hasMoreCycle,
+          isLoading: viewModel.isLoadingMore,
         ),
-        Expanded(child: _buildXienDataTable(viewModel.xienHistory)),
       ],
     );
   }
 
+  // ✅ Trung Tab với ScrollController
   Widget _buildTrungTab(WinHistoryViewModel viewModel) {
-    if (viewModel.trungHistory.isEmpty) {
+    if (viewModel.trungHistory.isEmpty && !viewModel.isLoading) {
       return const Center(child: Text('Chưa có lịch sử trúng số Miền Trung'));
     }
 
     final stats = viewModel.getTrungStats();
-    return Column(
+    return ListView(
+      controller: _trungScrollController,
       children: [
         _buildStatsCard(
           wins: stats.totalWins,
           totalProfit: stats.totalProfit,
           avgROI: stats.avgROI,
         ),
-        Expanded(child: _buildCycleDataTable(viewModel.trungHistory)),
+        _buildCycleDataTable(viewModel.trungHistory),
+        _buildLoadingFooter(
+          hasMore: viewModel.hasMoreTrung,
+          isLoading: viewModel.isLoadingMore,
+        ),
       ],
     );
   }
 
+  // ✅ Bac Tab với ScrollController
   Widget _buildBacTab(WinHistoryViewModel viewModel) {
-    if (viewModel.bacHistory.isEmpty) {
+    if (viewModel.bacHistory.isEmpty && !viewModel.isLoading) {
       return const Center(child: Text('Chưa có lịch sử trúng số Miền Bắc'));
     }
 
     final stats = viewModel.getBacStats();
-    return Column(
+    return ListView(
+      controller: _bacScrollController,
       children: [
         _buildStatsCard(
           wins: stats.totalWins,
           totalProfit: stats.totalProfit,
           avgROI: stats.avgROI,
         ),
-        Expanded(child: _buildCycleDataTable(viewModel.bacHistory)),
+        _buildCycleDataTable(viewModel.bacHistory),
+        _buildLoadingFooter(
+          hasMore: viewModel.hasMoreBac,
+          isLoading: viewModel.isLoadingMore,
+        ),
+      ],
+    );
+  }
+
+  // ✅ Xien Tab với ScrollController
+  Widget _buildXienTab(WinHistoryViewModel viewModel) {
+    if (viewModel.xienHistory.isEmpty && !viewModel.isLoading) {
+      return const Center(child: Text('Chưa có lịch sử trúng số xiên'));
+    }
+
+    final stats = viewModel.getXienStats();
+    return ListView(
+      controller: _xienScrollController,
+      children: [
+        _buildStatsCard(
+          wins: stats.totalWins,
+          totalProfit: stats.totalProfit,
+          avgROI: stats.avgROI,
+        ),
+        _buildXienDataTable(viewModel.xienHistory),
+        _buildLoadingFooter(
+          hasMore: viewModel.hasMoreXien,
+          isLoading: viewModel.isLoadingMore,
+        ),
       ],
     );
   }
@@ -230,7 +294,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
             ),
             _buildStatItem(
               icon: Icons.monetization_on,
-              label: 'Tổng lời',
+              label: 'Tổng lợi',
               value: NumberUtils.formatCurrency(totalProfit),
               color: totalProfit > 0 ? Colors.green : Colors.red,
             ),
@@ -266,106 +330,161 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
     );
   }
 
+  // ✅ Loading footer widget
+  Widget _buildLoadingFooter({
+    required bool hasMore,
+    required bool isLoading,
+  }) {
+    if (hasMore && isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    if (hasMore && !isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(
+          child: Text(
+            'Kéo xuống để tải thêm...',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+    
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Center(
+        child: Text(
+          'Đã hiển thị tất cả',
+          style: TextStyle(color: Colors.grey),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCycleDataTable(List<CycleWinHistory> history) {
+    // ✅ Tính chiều cao dựa trên số dòng (tối đa 10 dòng mỗi lần)
+    final rowHeight = 52.0;
+    final headerHeight = 56.0;
+    final visibleRows = history.length.clamp(0, 10);
+    final tableHeight = headerHeight + (rowHeight * visibleRows);
+    
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: DataTable2(
-        columnSpacing: 8,
-        horizontalMargin: 8,
-        minWidth: 800,
-        columns: const [
-          DataColumn2(label: Text('STT'), size: ColumnSize.S),
-          DataColumn2(label: Text('Ngày trúng'), size: ColumnSize.M),
-          DataColumn2(label: Text('Số'), size: ColumnSize.S),
-          DataColumn2(label: Text('Miền'), size: ColumnSize.S),
-          DataColumn2(label: Text('Lần'), size: ColumnSize.S),
-          DataColumn2(label: Text('Tổng cược'), size: ColumnSize.M),
-          DataColumn2(label: Text('Lời/Lỗ'), size: ColumnSize.M),
-          DataColumn2(label: Text('ROI'), size: ColumnSize.S),
-          DataColumn2(label: Text('Số ngày'), size: ColumnSize.S),
-        ],
-        rows: history.map((h) {
-          return DataRow2(
-            cells: [
-              DataCell(Text(h.stt.toString())),
-              DataCell(Text(h.ngayTrung)),
-              DataCell(Text(h.soMucTieu)),
-              DataCell(Text(h.mienTrung ?? '-')),
-              DataCell(Text(h.soLanTrung.toString())),
-              DataCell(Text(NumberUtils.formatCurrency(h.tongTienCuoc))),
-              DataCell(
-                Text(
-                  NumberUtils.formatCurrency(h.loiLo),
-                  style: TextStyle(
-                    color: h.loiLo > 0 ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.bold,
+      child: SizedBox(
+        height: tableHeight,
+        child: DataTable2(
+          columnSpacing: 8,
+          horizontalMargin: 8,
+          minWidth: 800,
+          columns: const [
+            DataColumn2(label: Text('STT'), size: ColumnSize.S),
+            DataColumn2(label: Text('Ngày trúng'), size: ColumnSize.M),
+            DataColumn2(label: Text('Số'), size: ColumnSize.S),
+            DataColumn2(label: Text('Miền'), size: ColumnSize.S),
+            DataColumn2(label: Text('Lần'), size: ColumnSize.S),
+            DataColumn2(label: Text('Tổng cược'), size: ColumnSize.M),
+            DataColumn2(label: Text('Lời/Lỗ'), size: ColumnSize.M),
+            DataColumn2(label: Text('ROI'), size: ColumnSize.S),
+            DataColumn2(label: Text('Số ngày'), size: ColumnSize.S),
+          ],
+          rows: history.map((h) {
+            return DataRow2(
+              cells: [
+                DataCell(Text(h.stt.toString())),
+                DataCell(Text(h.ngayTrung)),
+                DataCell(Text(h.soMucTieu)),
+                DataCell(Text(h.mienTrung ?? '-')),
+                DataCell(Text(h.soLanTrung.toString())),
+                DataCell(Text(NumberUtils.formatCurrency(h.tongTienCuoc))),
+                DataCell(
+                  Text(
+                    NumberUtils.formatCurrency(h.loiLo),
+                    style: TextStyle(
+                      color: h.loiLo > 0 ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-              DataCell(
-                Text(
-                  '${h.roi.toStringAsFixed(2)}%',
-                  style: TextStyle(
-                    color: h.roi > 0 ? Colors.green : Colors.red,
+                DataCell(
+                  Text(
+                    '${h.roi.toStringAsFixed(2)}%',
+                    style: TextStyle(
+                      color: h.roi > 0 ? Colors.green : Colors.red,
+                    ),
                   ),
                 ),
-              ),
-              DataCell(Text(h.soNgayCuoc.toString())),
-            ],
-          );
-        }).toList(),
+                DataCell(Text(h.soNgayCuoc.toString())),
+              ],
+            );
+          }).toList(),
+        ),
       ),
     );
   }
 
   Widget _buildXienDataTable(List<XienWinHistory> history) {
+    // ✅ Tính chiều cao dựa trên số dòng
+    final rowHeight = 52.0;
+    final headerHeight = 56.0;
+    final visibleRows = history.length.clamp(0, 10);
+    final tableHeight = headerHeight + (rowHeight * visibleRows);
+    
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: DataTable2(
-        columnSpacing: 8,
-        horizontalMargin: 12,
-        minWidth: 1000,
-        columns: const [
-          DataColumn2(label: Text('STT'), size: ColumnSize.S),
-          DataColumn2(label: Text('Ngày trúng'), size: ColumnSize.M),
-          DataColumn2(label: Text('Cặp số'), size: ColumnSize.M),
-          DataColumn2(label: Text('Lần'), size: ColumnSize.S),
-          DataColumn2(label: Text('Chi tiết'), size: ColumnSize.L),
-          DataColumn2(label: Text('Tổng cược'), size: ColumnSize.M),
-          DataColumn2(label: Text('Lời/Lỗ'), size: ColumnSize.M),
-          DataColumn2(label: Text('ROI'), size: ColumnSize.S),
-          DataColumn2(label: Text('Số ngày'), size: ColumnSize.S),
-        ],
-        rows: history.map((h) {
-          return DataRow2(
-            cells: [
-              DataCell(Text(h.stt.toString())),
-              DataCell(Text(h.ngayTrung)),
-              DataCell(Text(h.capSoMucTieu)),
-              DataCell(Text(h.soLanTrungCap.toString())),
-              DataCell(Text(h.chiTietTrung, overflow: TextOverflow.ellipsis)),
-              DataCell(Text(NumberUtils.formatCurrency(h.tongTienCuoc))),
-              DataCell(
-                Text(
-                  NumberUtils.formatCurrency(h.loiLo),
-                  style: TextStyle(
-                    color: h.loiLo > 0 ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.bold,
+      child: SizedBox(
+        height: tableHeight,
+        child: DataTable2(
+          columnSpacing: 8,
+          horizontalMargin: 12,
+          minWidth: 1000,
+          columns: const [
+            DataColumn2(label: Text('STT'), size: ColumnSize.S),
+            DataColumn2(label: Text('Ngày trúng'), size: ColumnSize.M),
+            DataColumn2(label: Text('Cặp số'), size: ColumnSize.M),
+            DataColumn2(label: Text('Lần'), size: ColumnSize.S),
+            DataColumn2(label: Text('Chi tiết'), size: ColumnSize.L),
+            DataColumn2(label: Text('Tổng cược'), size: ColumnSize.M),
+            DataColumn2(label: Text('Lời/Lỗ'), size: ColumnSize.M),
+            DataColumn2(label: Text('ROI'), size: ColumnSize.S),
+            DataColumn2(label: Text('Số ngày'), size: ColumnSize.S),
+          ],
+          rows: history.map((h) {
+            return DataRow2(
+              cells: [
+                DataCell(Text(h.stt.toString())),
+                DataCell(Text(h.ngayTrung)),
+                DataCell(Text(h.capSoMucTieu)),
+                DataCell(Text(h.soLanTrungCap.toString())),
+                DataCell(Text(h.chiTietTrung, overflow: TextOverflow.ellipsis)),
+                DataCell(Text(NumberUtils.formatCurrency(h.tongTienCuoc))),
+                DataCell(
+                  Text(
+                    NumberUtils.formatCurrency(h.loiLo),
+                    style: TextStyle(
+                      color: h.loiLo > 0 ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-              DataCell(
-                Text(
-                  '${h.roi.toStringAsFixed(2)}%',
-                  style: TextStyle(
-                    color: h.roi > 0 ? Colors.green : Colors.red,
+                DataCell(
+                  Text(
+                    '${h.roi.toStringAsFixed(2)}%',
+                    style: TextStyle(
+                      color: h.roi > 0 ? Colors.green : Colors.red,
+                    ),
                   ),
                 ),
-              ),
-              DataCell(Text(h.soNgayCuoc.toString())),
-            ],
-          );
-        }).toList(),
+                DataCell(Text(h.soNgayCuoc.toString())),
+              ],
+            );
+          }).toList(),
+        ),
       ),
     );
   }

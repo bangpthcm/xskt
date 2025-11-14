@@ -17,6 +17,7 @@ class WinHistoryViewModel extends ChangeNotifier {
         _autoCheckService = autoCheckService;
 
   bool _isLoading = false;
+  bool _isLoadingMore = false;
   String? _errorMessage;
   List<CycleWinHistory> _cycleHistory = [];
   List<XienWinHistory> _xienHistory = [];
@@ -24,7 +25,6 @@ class WinHistoryViewModel extends ChangeNotifier {
   List<CycleWinHistory> _bacHistory = [];
   CheckDailyResult? _lastCheckResult;
   
-  // ✅ PAGINATION
   static const int _pageSize = 50;
   bool _hasMoreCycle = true;
   bool _hasMoreXien = true;
@@ -32,6 +32,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   bool _hasMoreBac = true;
 
   bool get isLoading => _isLoading;
+  bool get isLoadingMore => _isLoadingMore;
   String? get errorMessage => _errorMessage;
   List<CycleWinHistory> get cycleHistory => _cycleHistory;
   List<XienWinHistory> get xienHistory => _xienHistory;
@@ -52,7 +53,6 @@ class WinHistoryViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load song song nhưng chỉ lấy page đầu
       final results = await Future.wait([
         _loadCyclePage(0),
         _loadXienPage(0),
@@ -83,12 +83,12 @@ class WinHistoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// ✅ LAZY: Load more cycle history
+  /// ✅ Load more cycle history
   Future<void> loadMoreCycle() async {
-    if (!_hasMoreCycle || _isLoading) return;
+    if (!_hasMoreCycle || _isLoadingMore) return;
     
-    print('📄 Loading more cycle history...');
-    _isLoading = true;
+    print('🔄 Loading more cycle history...');
+    _isLoadingMore = true;
     notifyListeners();
 
     try {
@@ -102,12 +102,84 @@ class WinHistoryViewModel extends ChangeNotifier {
     } catch (e) {
       print('❌ Error loading more cycle: $e');
     } finally {
-      _isLoading = false;
+      _isLoadingMore = false;
       notifyListeners();
     }
   }
 
-  /// ✅ Helper: Load một page của cycle history
+  /// ✅ Load more xien history
+  Future<void> loadMoreXien() async {
+    if (!_hasMoreXien || _isLoadingMore) return;
+    
+    print('🔄 Loading more xien history...');
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final currentPage = (_xienHistory.length / _pageSize).floor();
+      final newData = await _loadXienPage(currentPage);
+      
+      _xienHistory.addAll(newData);
+      _hasMoreXien = newData.length >= _pageSize;
+      
+      print('✅ Loaded ${newData.length} more xien records');
+    } catch (e) {
+      print('❌ Error loading more xien: $e');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  /// ✅ Load more trung history
+  Future<void> loadMoreTrung() async {
+    if (!_hasMoreTrung || _isLoadingMore) return;
+    
+    print('🔄 Loading more trung history...');
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final currentPage = (_trungHistory.length / _pageSize).floor();
+      final newData = await _loadTrungPage(currentPage);
+      
+      _trungHistory.addAll(newData);
+      _hasMoreTrung = newData.length >= _pageSize;
+      
+      print('✅ Loaded ${newData.length} more trung records');
+    } catch (e) {
+      print('❌ Error loading more trung: $e');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  /// ✅ Load more bac history
+  Future<void> loadMoreBac() async {
+    if (!_hasMoreBac || _isLoadingMore) return;
+    
+    print('🔄 Loading more bac history...');
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final currentPage = (_bacHistory.length / _pageSize).floor();
+      final newData = await _loadBacPage(currentPage);
+      
+      _bacHistory.addAll(newData);
+      _hasMoreBac = newData.length >= _pageSize;
+      
+      print('✅ Loaded ${newData.length} more bac records');
+    } catch (e) {
+      print('❌ Error loading more bac: $e');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  /// Helper: Load một page của cycle history
   Future<List<CycleWinHistory>> _loadCyclePage(int page) async {
     try {
       final values = await _trackingService.sheetsService.getAllValues('cycleWinHistory');
@@ -136,7 +208,7 @@ class WinHistoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// ✅ Helper: Load một page của xien history
+  /// Helper: Load một page của xien history
   Future<List<XienWinHistory>> _loadXienPage(int page) async {
     try {
       final values = await _trackingService.sheetsService.getAllValues('xienWinHistory');
@@ -165,7 +237,7 @@ class WinHistoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// ✅ Helper: Load một page của trung history
+  /// Helper: Load một page của trung history
   Future<List<CycleWinHistory>> _loadTrungPage(int page) async {
     try {
       final values = await _trackingService.sheetsService.getAllValues('trungWinHistory');
@@ -194,7 +266,7 @@ class WinHistoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// ✅ Helper: Load một page của bac history
+  /// Helper: Load một page của bac history
   Future<List<CycleWinHistory>> _loadBacPage(int page) async {
     try {
       final values = await _trackingService.sheetsService.getAllValues('bacWinHistory');
@@ -219,60 +291,6 @@ class WinHistoryViewModel extends ChangeNotifier {
       return histories;
     } catch (e) {
       print('❌ Error loading bac page: $e');
-      return [];
-    }
-  }
-
-  // ✅ ADD: Load Trung history from trungWinHistory sheet
-  Future<List<CycleWinHistory>> _loadTrungHistory() async {
-    try {
-      final values = await _trackingService.sheetsService.getAllValues('trungWinHistory');
-      
-      if (values.length < 2) {
-        print('   ⚠️ No trung win history found');
-        return [];
-      }
-      
-      final histories = <CycleWinHistory>[];
-      for (int i = 1; i < values.length; i++) {
-        try {
-          histories.add(CycleWinHistory.fromSheetRow(values[i]));
-        } catch (e) {
-          print('⚠️ Error parsing trung win history row $i: $e');
-        }
-      }
-      
-      print('   ✅ Loaded ${histories.length} trung win records');
-      return histories;
-    } catch (e) {
-      print('❌ Error loading trung history: $e');
-      return [];
-    }
-  }
-
-  // ✅ ADD: Load Bac history from bacWinHistory sheet
-  Future<List<CycleWinHistory>> _loadBacHistory() async {
-    try {
-      final values = await _trackingService.sheetsService.getAllValues('bacWinHistory');
-      
-      if (values.length < 2) {
-        print('   ⚠️ No bac win history found');
-        return [];
-      }
-      
-      final histories = <CycleWinHistory>[];
-      for (int i = 1; i < values.length; i++) {
-        try {
-          histories.add(CycleWinHistory.fromSheetRow(values[i]));
-        } catch (e) {
-          print('⚠️ Error parsing bac win history row $i: $e');
-        }
-      }
-      
-      print('   ✅ Loaded ${histories.length} bac win records');
-      return histories;
-    } catch (e) {
-      print('❌ Error loading bac history: $e');
       return [];
     }
   }
@@ -322,10 +340,7 @@ class WinHistoryViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-// ✅ TRONG FILE win_history_viewmodel.dart
-// THAY THẾ CÁC METHODS (từ dòng getCycleStats đến hết)
-
-  /// Tính tổng thống kê chu kỳ (CHỈ cycleHistory - tab "Tất cả" trong detail)
+  /// Tính tổng thống kê chu kỳ
   WinStats getCycleStats() {
     final wins = _cycleHistory.where((h) => h.isWin).toList();
     final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
@@ -415,12 +430,11 @@ class WinHistoryViewModel extends ChangeNotifier {
 
   /// ✅ TỔNG HỢP THỰC SỰ: Cycle + Trung + Bắc + Xiên
   WinStats getCombinedStats() {
-    // ✅ Gộp TẤT CẢ 4 danh sách
     final allHistories = <dynamic>[
-      ..._cycleHistory,   // Tab "Tất cả" trong detail
-      ..._trungHistory,   // Tab "Trung"
-      ..._bacHistory,     // Tab "Bắc"
-      ..._xienHistory,    // Tab "Xiên"
+      ..._cycleHistory,
+      ..._trungHistory,
+      ..._bacHistory,
+      ..._xienHistory,
     ];
 
     if (allHistories.isEmpty) {
@@ -434,28 +448,24 @@ class WinHistoryViewModel extends ChangeNotifier {
       );
     }
 
-    // ✅ Lọc các bản ghi trúng
     final wins = allHistories.where((h) {
       if (h is CycleWinHistory) return h.isWin;
       if (h is XienWinHistory) return h.isWin;
       return false;
     }).toList();
     
-    // ✅ Tính tổng lợi nhuận
     final totalProfit = wins.fold<double>(0, (sum, h) {
       if (h is CycleWinHistory) return sum + h.loiLo;
       if (h is XienWinHistory) return sum + h.loiLo;
       return sum;
     });
     
-    // ✅ Tính tổng tiền cược
     final totalBet = wins.fold<double>(0, (sum, h) {
       if (h is CycleWinHistory) return sum + h.tongTienCuoc;
       if (h is XienWinHistory) return sum + h.tongTienCuoc;
       return sum;
     });
     
-    // ✅ Tính ROI trung bình
     final avgROI = wins.isNotEmpty
         ? wins.fold<double>(0, (sum, h) {
             if (h is CycleWinHistory) return sum + h.roi;
@@ -464,12 +474,8 @@ class WinHistoryViewModel extends ChangeNotifier {
           }) / wins.length
         : 0.0;
 
-    // ✅ Tính số tháng và lợi/tháng
     final months = _calculateMonths(allHistories);
     final profitPerMonth = months > 0 ? totalProfit / months : 0.0;
-
-    print('📊 getCombinedStats: Cycle=${_cycleHistory.length}, Trung=${_trungHistory.length}, Bắc=${_bacHistory.length}, Xiên=${_xienHistory.length}');
-    print('   Total wins: ${wins.length}, Profit: $totalProfit, Months: $months');
 
     return WinStats(
       totalWins: wins.length,
@@ -481,9 +487,8 @@ class WinHistoryViewModel extends ChangeNotifier {
     );
   }
 
-  /// ✅ "Tất cả" trong Chu kỳ: CHỈ cycleHistory (tab "Tất cả" - không phải Trung/Bắc)
+  /// ✅ "Tất cả" trong Chu kỳ
   WinStats getAllCycleStats() {
-    // ✅ CHỈ lấy cycleHistory - tab "Tất cả" riêng
     final wins = _cycleHistory.where((h) => h.isWin).toList();
     final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
     final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
@@ -547,7 +552,7 @@ class WinHistoryViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ THÊM vào class WinHistoryViewModel
+  /// Lấy profit theo tháng
   List<MonthlyProfit> getProfitByMonth() {
     final allHistories = <dynamic>[
       ..._cycleHistory,
@@ -558,7 +563,6 @@ class WinHistoryViewModel extends ChangeNotifier {
 
     if (allHistories.isEmpty) return [];
 
-    // Group by month
     final monthlyData = <String, Map<String, dynamic>>{};
 
     for (var history in allHistories) {
@@ -601,7 +605,6 @@ class WinHistoryViewModel extends ChangeNotifier {
       }
     }
 
-    // Convert to list and sort
     final result = monthlyData.entries.map((entry) {
       return MonthlyProfit(
         month: entry.value['month'],
@@ -621,7 +624,6 @@ class WinHistoryViewModel extends ChangeNotifier {
   }
 }
 
-// ✅ Class WinStats (GIỮ NGUYÊN)
 class WinStats {
   final int totalWins;
   final double totalProfit;
@@ -645,7 +647,6 @@ class WinStats {
   }
 }
 
-// ✅ THÊM: Method mới để lấy data theo tháng
 class MonthlyProfit {
   final int month;
   final int year;
