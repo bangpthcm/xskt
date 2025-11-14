@@ -47,6 +47,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
   bool _isLoading = false;
   String? _errorMessage;
+  String? _lastDataHash;
   GanPairInfo? _ganPairInfo;
   CycleAnalysisResult? _cycleResult;
   String _selectedMien = 'Tất cả';
@@ -155,21 +156,34 @@ class AnalysisViewModel extends ChangeNotifier {
     try {
       print('💾 Caching alerts...');
       
-      // ✅ CHECK TẤT CẢ (KHÔNG LỌC THEO MIỀN)
-      final tatCaResult = await _analysisService.analyzeCycle(_allResults);
-      _tatCaAlertCache = tatCaResult != null && tatCaResult.maxGanDays > 3;
+      // ✅ OPTIMIZATION: Check nếu data không thay đổi
+      final currentDataHash = '${_allResults.length}_${_allResults.last.ngay}';
+      if (_lastDataHash == currentDataHash && 
+          _tatCaAlertCache != null && 
+          _trungAlertCache != null && 
+          _bacAlertCache != null) {
+        print('   📦 Using cached alerts (data unchanged)');
+        return;
+      }
       
-      // Check Trung
-      final trungResults = _allResults.where((r) => r.mien == 'Trung').toList();
-      final trungResult = await _analysisService.analyzeCycle(trungResults);
-      _trungAlertCache = trungResult != null && trungResult.maxGanDays > 9;
+      // ✅ PARALLEL: Tính toán song song
+      final results = await Future.wait([
+        _analysisService.analyzeCycle(_allResults),
+        _analysisService.analyzeCycle(
+          _allResults.where((r) => r.mien == 'Trung').toList(),
+        ),
+        _analysisService.analyzeCycle(
+          _allResults.where((r) => r.mien == 'Bắc').toList(),
+        ),
+      ]);
       
-      // Check Bắc
-      final bacResults = _allResults.where((r) => r.mien == 'Bắc').toList();
-      final bacResult = await _analysisService.analyzeCycle(bacResults);
-      _bacAlertCache = bacResult != null && bacResult.maxGanDays > 15;
+      _tatCaAlertCache = results[0] != null && results[0]!.maxGanDays > 3;
+      _trungAlertCache = results[1] != null && results[1]!.maxGanDays > 9;
+      _bacAlertCache = results[2] != null && results[2]!.maxGanDays > 15;
       
-      print('   ✅ Alert cache: Tất cả=$_tatCaAlertCache, Trung=$_trungAlertCache, Bắc=$_bacAlertCache');
+      _lastDataHash = currentDataHash; // ✅ Save hash
+      
+      print('   ✅ Alert cache updated');
       
     } catch (e) {
       print('⚠️ Error caching alerts: $e');

@@ -6,13 +6,22 @@ import '../models/app_config.dart';  // ✅ ADD
 class StorageService {
   static const String _configKey = 'app_config';
   static const String _cacheKey = 'analysis_cache';
-
-  Future<void> saveConfig(AppConfig config) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_configKey, jsonEncode(config.toJson()));
-  }
+  
+  // ✅ THÊM: Memory cache
+  AppConfig? _configCache;
+  DateTime? _configCacheTime;
+  static const Duration _configCacheDuration = Duration(minutes: 5);
 
   Future<AppConfig?> loadConfig() async {
+    // ✅ Check memory cache
+    if (_configCache != null && _configCacheTime != null) {
+      final age = DateTime.now().difference(_configCacheTime!);
+      if (age < _configCacheDuration) {
+        print('📦 Using cached config');
+        return _configCache;
+      }
+    }
+    
     final prefs = await SharedPreferences.getInstance();
     final configStr = prefs.getString(_configKey);
     
@@ -20,35 +29,24 @@ class StorageService {
     
     try {
       final json = jsonDecode(configStr);
-      return AppConfig.fromJson(json);
+      final config = AppConfig.fromJson(json);
+      
+      // ✅ Cache it
+      _configCache = config;
+      _configCacheTime = DateTime.now();
+      
+      return config;
     } catch (e) {
       return null;
     }
   }
 
-  Future<void> saveCache(String key, Map<String, dynamic> data) async {
+  Future<void> saveConfig(AppConfig config) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('${_cacheKey}_$key', jsonEncode(data));
-  }
-
-  Future<Map<String, dynamic>?> loadCache(String key) async {
-    final prefs = await SharedPreferences.getInstance();
-    final cacheStr = prefs.getString('${_cacheKey}_$key');
+    await prefs.setString(_configKey, jsonEncode(config.toJson()));
     
-    if (cacheStr == null) return null;
-    
-    try {
-      return jsonDecode(cacheStr);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<void> clearCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys().where((k) => k.startsWith(_cacheKey));
-    for (final key in keys) {
-      await prefs.remove(key);
-    }
+    // ✅ Update cache
+    _configCache = config;
+    _configCacheTime = DateTime.now();
   }
 }

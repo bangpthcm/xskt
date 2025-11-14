@@ -90,12 +90,12 @@ class _MyAppState extends State<MyApp> {
       ServiceManager.markReady();
       print('✅ Background: Core services initialized');
       
-      // ✅ STEP 3: Test connections (non-critical, không block)
-      unawaited(_testConnections(sheetsService, telegramService));
+      // ✅ THÊM: Warm up cache
+      unawaited(_warmUpCache());
       
     } catch (e) {
       print('⚠️ Background: Error initializing services: $e');
-      ServiceManager.markNotReady(); // ✅ Mark as not ready on error
+      ServiceManager.markNotReady();
     }
   }
 
@@ -206,5 +206,23 @@ class _MyAppState extends State<MyApp> {
         );
       },
     );
+  }
+  
+  Future<void> _warmUpCache() async {
+    print('🔥 Warming up cache...');
+    
+    try {
+      final cachedService = context.read<CachedDataService>();
+      
+      // Preload minimal data
+      await cachedService.loadKQXS(
+        forceRefresh: false,
+        minimalMode: true,
+      );
+      
+      print('✅ Cache warmed up');
+    } catch (e) {
+      print('⚠️ Cache warming error: $e');
+    }
   }
 }

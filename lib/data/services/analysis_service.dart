@@ -7,9 +7,20 @@ import '../../core/utils/date_utils.dart' as date_utils;
 import '../models/number_detail.dart';
 
 class AnalysisService {
+  // ✅ ADD: Cache cho analysis results
+  final Map<String, GanPairInfo> _ganPairCache = {};
+  final Map<String, CycleAnalysisResult> _cycleCache = {};
+  
   Future<GanPairInfo?> findGanPairsMienBac(
     List<LotteryResult> allResults,
   ) async {
+    // ✅ THÊM: Check cache
+    final cacheKey = 'ganpair_${allResults.length}';
+    if (_ganPairCache.containsKey(cacheKey)) {
+      print('📦 Using cached gan pair analysis');
+      return _ganPairCache[cacheKey];
+    }
+    
     print("Bắt đầu phân tích cặp số gan Miền Bắc");
     
     final bacResults = allResults.where((r) => r.mien == 'Bắc').toList();
@@ -68,27 +79,39 @@ class AnalysisService {
     final longestGanPair = top2Pairs[0];
     final maxDaysGan = now.difference(longestGanPair.value).inDays;
     
-    // ✅ FIX: Tạo đúng List<PairWithDays>
     final pairsWithDays = top2Pairs.map((entry) {
       final parts = entry.key.split('-');
       final daysGan = now.difference(entry.value).inDays;
-      return PairWithDays(  // ✅ Giờ có thể dùng vì đã import từ gan_pair_info.dart
+      return PairWithDays(
         pair: NumberPair(parts[0], parts[1]),
         daysGan: daysGan,
         lastSeen: entry.value,
       );
     }).toList();
 
-    return GanPairInfo(
+    final ganPairResult = GanPairInfo(
       daysGan: maxDaysGan,
       lastSeen: longestGanPair.value,
-      pairs: pairsWithDays,  // ✅ Đúng type: List<PairWithDays>
+      pairs: pairsWithDays,
     );
+    
+    // ✅ THÊM: Store in cache
+    _ganPairCache[cacheKey] = ganPairResult;
+    print('💾 Cached gan pair analysis');
+    
+    return ganPairResult;
   }
 
   Future<CycleAnalysisResult?> analyzeCycle(
     List<LotteryResult> allResults,
   ) async {
+    // ✅ THÊM: Check cache
+    final cacheKey = 'cycle_${allResults.length}';
+    if (_cycleCache.containsKey(cacheKey)) {
+      print('📦 Using cached cycle analysis');
+      return _cycleCache[cacheKey];
+    }
+    
     if (allResults.isEmpty) return null;
 
     // ✅ BƯỚC 1: Tìm lần xuất hiện cuối cùng của mỗi số (theo miền)
@@ -185,13 +208,19 @@ class AnalysisService {
       targetNumber = ganNumbers.first;
     }
 
-    return CycleAnalysisResult(
+    final cycleResult = CycleAnalysisResult(
       ganNumbers: ganNumbers,
       maxGanDays: maxGan,
       lastSeenDate: longestGanGroup.first['last_seen'] as DateTime,
       mienGroups: mienGroups,
       targetNumber: targetNumber,
     );
+    
+    // ✅ THÊM: Store in cache
+    _cycleCache[cacheKey] = cycleResult;
+    print('💾 Cached cycle analysis');
+    
+    return cycleResult;
   }
 
   // ✅ HÀM MỚI: Đếm số NGÀY (không phải số dòng) của một miền
@@ -280,5 +309,12 @@ class AnalysisService {
       number: targetNumber,
       mienDetails: mienDetails,
     );
+  }
+  
+  // ✅ THÊM: Clear cache method
+  void clearCache() {
+    _cycleCache.clear();
+    _ganPairCache.clear();
+    print('🗑️ Analysis cache cleared');
   }
 }
