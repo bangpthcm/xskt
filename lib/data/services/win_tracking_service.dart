@@ -1,5 +1,5 @@
 // lib/data/services/win_tracking_service.dart
-// ✅ VERSION TỐI ƯU - GIẢM API CALLS
+// ✅ OPTIMIZED VERSION with Batch Operations
 
 import '../models/cycle_win_history.dart';
 import '../models/xien_win_history.dart';
@@ -18,109 +18,225 @@ class WinTrackingService {
   GoogleSheetsService get sheetsService => _sheetsService;
 
   // ============================================
-  // PHẦN 1: OPTIMIZED PENDING DATE CHECKS
+  // ✅ OPTIMIZED: LOAD PENDING DATES WITH BATCH
   // ============================================
 
-  /// ✅ Get pending dates CHU KỲ (TẤT CẢ) - với caching
-  Future<List<String>> getCyclePendingCheckDates() async {
-    return await _getCachedPendingDates('xsktBot1');
-  }
-
-  /// ✅ Get pending dates XIÊN - với caching
-  Future<List<String>> getXienPendingCheckDates() async {
-    return await _getCachedPendingDates('xienBot');
-  }
-
-  /// ✅ Get pending dates MIỀN TRUNG - với caching
-  Future<List<String>> getTrungPendingCheckDates() async {
-    return await _getCachedPendingDates('trungBot');
-  }
-
-  /// ✅ Get pending dates MIỀN BẮC - với caching
-  Future<List<String>> getBacPendingCheckDates() async {
-    return await _getCachedPendingDates('bacBot');
-  }
-
-  /// ✅ HELPER: Get pending dates với cache
-  Future<List<String>> _getCachedPendingDates(String worksheetName) async {
-    print('🔍 Getting pending dates for $worksheetName...');
+  /// ✅ NEW: Load tất cả pending dates cùng lúc (1 API call)
+  Future<Map<String, List<String>>> loadAllPendingDates({
+    bool useCache = true,
+  }) async {
+    print('📊 Loading all pending dates (batch mode)...');
     
-    // 1. CHECK CACHE
-    final cached = _pendingCache[worksheetName];
-    if (cached != null && !cached.isExpired) {
-      print('   ✅ Using cached pending dates (${cached.dates.length} dates)');
-      return cached.dates;
-    }
-
-    // 2. LOAD FROM SHEET (OPTIMIZED)
-    final dates = await _loadPendingDatesOptimized(worksheetName);
+    // ✅ Define all betting tables
+    final tables = ['xsktBot1', 'xienBot', 'trungBot', 'bacBot'];
     
-    // 3. SAVE TO CACHE
-    _pendingCache[worksheetName] = _PendingCache(
-      dates: dates,
-      timestamp: DateTime.now(),
-    );
-    
-    print('   ✅ Loaded ${dates.length} pending dates (cached for 5min)');
-    return dates;
-  }
-
-  /// ✅ CORE: Load pending dates - CHỈ load 2 cột (Ngày + Status)
-  Future<List<String>> _loadPendingDatesOptimized(String worksheetName) async {
-    try {
-      final allValues = await _sheetsService.getAllValues(worksheetName);
+    // ✅ Check cache first
+    if (useCache) {
+      final cachedResult = <String, List<String>>{};
+      bool allCached = true;
       
-      if (allValues.length < 4) {
-        print('   ⚠️ No data in $worksheetName');
-        return [];
-      }
-
-      // Xác định cột status (K cho cycle, H cho xiên)
-      final isXien = worksheetName == 'xienBot';
-      final statusColIndex = isXien ? 7 : 10; // H=7, K=10 (0-indexed)
-
-      final pendingDates = <String>{};
-
-      // ✅ CHỈ PARSE 2 CỘT: B (Ngày) và K/H (Status)
-      for (int i = 3; i < allValues.length; i++) {
-        final row = allValues[i];
-        
-        // Skip empty rows
-        if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
-        if (row.length <= 1) continue;
-
-        final date = row[1].toString().trim();
-        if (date.isEmpty) continue;
-
-        // Check status
-        final checked = row.length > statusColIndex
-            ? row[statusColIndex].toString().toUpperCase() == 'TRUE'
-            : false;
-
-        if (!checked) {
-          pendingDates.add(date);
+      for (final table in tables) {
+        final cached = _pendingCache[table];
+        if (cached != null && !cached.isExpired) {
+          cachedResult[table] = cached.dates;
+        } else {
+          allCached = false;
+          break;
         }
       }
-
-      return pendingDates.toList()..sort();
-
+      
+      if (allCached) {
+        print('   ✅ Using cached pending dates');
+        return cachedResult;
+      }
+    }
+    
+    try {
+      // ✅ BATCH READ: 1 API call thay vì 4 calls
+      final batchData = await _sheetsService.batchGetValues(tables);
+      
+      final result = <String, List<String>>{};
+      
+      // ✅ Parse pending dates for each table
+      for (final table in tables) {
+        final values = batchData[table] ?? [];
+        final pendingDates = _parsePendingDatesFromSheet(table, values);
+        
+        result[table] = pendingDates;
+        
+        // ✅ Cache it
+        _pendingCache[table] = _PendingCache(
+          dates: pendingDates,
+          timestamp: DateTime.now(),
+        );
+        
+        print('   📋 $table: ${pendingDates.length} pending dates');
+      }
+      
+      print('✅ Loaded all pending dates (1 batch call)');
+      return result;
+      
     } catch (e) {
-      print('   ❌ Error loading pending dates: $e');
-      return [];
+      print('❌ Error loading pending dates: $e');
+      return {};
     }
   }
 
-  /// ✅ CLEAR cache khi update status (để refresh lần sau)
+  /// ✅ Helper: Parse pending dates from sheet data
+  List<String> _parsePendingDatesFromSheet(
+    String worksheetName,
+    List<List<String>> values,
+  ) {
+    if (values.length < 4) return [];
+
+    final isXien = worksheetName == 'xienBot';
+    final statusColIndex = isXien ? 7 : 10;
+
+    final pendingDates = <String>{};
+
+    for (int i = 3; i < values.length; i++) {
+      final row = values[i];
+      
+      if (row.isEmpty || row[0].trim().isEmpty) continue;
+      if (row.length <= 1) continue;
+
+      final date = row[1].trim();
+      if (date.isEmpty) continue;
+
+      final checked = row.length > statusColIndex
+          ? row[statusColIndex].toUpperCase() == 'TRUE'
+          : false;
+
+      if (!checked) {
+        pendingDates.add(date);
+      }
+    }
+
+    return pendingDates.toList()..sort();
+  }
+
+  // ============================================
+  // BACKWARD COMPATIBLE METHODS
+  // ============================================
+  
+  Future<List<String>> getCyclePendingCheckDates() async {
+    final all = await loadAllPendingDates();
+    return all['xsktBot1'] ?? [];
+  }
+
+  Future<List<String>> getXienPendingCheckDates() async {
+    final all = await loadAllPendingDates();
+    return all['xienBot'] ?? [];
+  }
+
+  Future<List<String>> getTrungPendingCheckDates() async {
+    final all = await loadAllPendingDates();
+    return all['trungBot'] ?? [];
+  }
+
+  Future<List<String>> getBacPendingCheckDates() async {
+    final all = await loadAllPendingDates();
+    return all['bacBot'] ?? [];
+  }
+
   void _clearPendingCache(String worksheetName) {
     _pendingCache.remove(worksheetName);
     print('🗑️ Cleared pending cache for $worksheetName');
   }
 
   // ============================================
-  // PHẦN 2: OPTIMIZED STATUS UPDATES
+  // ✅ OPTIMIZED: BATCH STATUS UPDATES
   // ============================================
 
-  /// ✅ Update CHU KỲ status - CHỈ update status columns
+  /// ✅ NEW: Update nhiều status rows cùng lúc
+  Future<void> batchUpdateCycleStatus(
+    List<BatchStatusUpdate> updates,
+  ) async {
+    if (updates.isEmpty) return;
+    
+    print('📤 Batch updating ${updates.length} cycle rows...');
+
+    // ✅ Group by consecutive rows
+    final groups = _groupConsecutiveRows(updates);
+    
+    for (final group in groups) {
+      if (group.length == 1) {
+        // Single row
+        final u = group.first;
+        await updateCycleBettingStatus(
+          rowNumber: u.rowNumber,
+          checked: u.checked,
+          result: u.result,
+          winDate: u.winDate,
+          winMien: u.winMien,
+          actualProfit: u.actualProfit,
+        );
+      } else {
+        // ✅ Batch update consecutive rows
+        await _batchUpdateConsecutiveRows('xsktBot1', group);
+      }
+    }
+
+    _clearPendingCache('xsktBot1');
+    print('✅ Batch update complete');
+  }
+
+  List<List<BatchStatusUpdate>> _groupConsecutiveRows(
+    List<BatchStatusUpdate> updates,
+  ) {
+    if (updates.isEmpty) return [];
+    
+    final sorted = List<BatchStatusUpdate>.from(updates)
+      ..sort((a, b) => a.rowNumber.compareTo(b.rowNumber));
+
+    final groups = <List<BatchStatusUpdate>>[];
+    var currentGroup = <BatchStatusUpdate>[sorted.first];
+
+    for (int i = 1; i < sorted.length; i++) {
+      if (sorted[i].rowNumber == currentGroup.last.rowNumber + 1) {
+        currentGroup.add(sorted[i]);
+      } else {
+        groups.add(currentGroup);
+        currentGroup = [sorted[i]];
+      }
+    }
+    
+    groups.add(currentGroup);
+    return groups;
+  }
+
+  Future<void> _batchUpdateConsecutiveRows(
+    String worksheetName,
+    List<BatchStatusUpdate> group,
+  ) async {
+    final startRow = group.first.rowNumber;
+    final endRow = group.last.rowNumber;
+    
+    print('   📊 Updating rows $startRow-$endRow...');
+
+    final rows = group.map((u) {
+      return [
+        u.checked ? 'TRUE' : 'FALSE',
+        u.result,
+        u.winDate ?? '',
+        u.winMien ?? '',
+        u.actualProfit != null 
+            ? u.actualProfit!.toStringAsFixed(2).replaceAll('.', ',')
+            : '',
+      ];
+    }).toList();
+
+    await _sheetsService.updateRange(
+      worksheetName,
+      'K$startRow:O$endRow',
+      rows,
+    );
+  }
+
+  // ============================================
+  // EXISTING STATUS UPDATE METHODS (Keep for compatibility)
+  // ============================================
+  
   Future<void> updateCycleBettingStatus({
     required int rowNumber,
     required bool checked,
@@ -131,31 +247,26 @@ class WinTrackingService {
   }) async {
     print('📝 Updating cycle status at row $rowNumber...');
     
-    // Prepare status values
     final updates = <String>[
-      checked ? 'TRUE' : 'FALSE',  // K: Đã kiểm tra
-      result,                       // L: Kết quả
-      winDate ?? '',                // M: Ngày trúng
-      winMien ?? '',                // N: Miền trúng
+      checked ? 'TRUE' : 'FALSE',
+      result,
+      winDate ?? '',
+      winMien ?? '',
       actualProfit != null 
           ? actualProfit.toStringAsFixed(2).replaceAll('.', ',')
-          : '',                     // O: Lời thực tế
+          : '',
     ];
 
-    // ✅ CHỈ UPDATE 5 CỘT (K→O), KHÔNG UPDATE TOÀN BỘ ROW
     await _sheetsService.updateRange(
       'xsktBot1',
       'K$rowNumber:O$rowNumber',
       [updates],
     );
 
-    // Clear cache để load lại lần sau
     _clearPendingCache('xsktBot1');
-    
-    print('   ✅ Updated (reduced API payload)');
+    print('   ✅ Updated');
   }
 
-  /// ✅ Update XIÊN status - CHỈ update status columns
   Future<void> updateXienBettingStatus({
     required int rowNumber,
     required bool checked,
@@ -166,15 +277,14 @@ class WinTrackingService {
     print('📝 Updating xien status at row $rowNumber...');
     
     final updates = <String>[
-      checked ? 'TRUE' : 'FALSE',  // H: Đã kiểm tra
-      result,                       // I: Kết quả
-      winDate ?? '',                // J: Ngày trúng
+      checked ? 'TRUE' : 'FALSE',
+      result,
+      winDate ?? '',
       actualProfit != null 
           ? actualProfit.toStringAsFixed(2).replaceAll('.', ',')
-          : '',                     // K: Lời thực tế
+          : '',
     ];
 
-    // ✅ CHỈ UPDATE 4 CỘT (H→K)
     await _sheetsService.updateRange(
       'xienBot',
       'H$rowNumber:K$rowNumber',
@@ -185,7 +295,6 @@ class WinTrackingService {
     print('   ✅ Updated');
   }
 
-  /// ✅ Update MIỀN TRUNG status
   Future<void> updateTrungBettingStatus({
     required int rowNumber,
     required bool checked,
@@ -216,7 +325,6 @@ class WinTrackingService {
     print('   ✅ Updated');
   }
 
-  /// ✅ Update MIỀN BẮC status
   Future<void> updateBacBettingStatus({
     required int rowNumber,
     required bool checked,
@@ -248,104 +356,9 @@ class WinTrackingService {
   }
 
   // ============================================
-  // PHẦN 3: BATCH STATUS UPDATES (NEW!)
+  // WIN HISTORY OPERATIONS (Keep as is)
   // ============================================
-
-  /// ✅ NEW: Batch update nhiều rows cùng lúc (giảm API calls)
-  Future<void> batchUpdateCycleStatus(
-    List<BatchStatusUpdate> updates,
-  ) async {
-    if (updates.isEmpty) return;
-    
-    print('📤 Batch updating ${updates.length} cycle rows...');
-
-    // Group updates by consecutive rows để optimize
-    final groups = _groupConsecutiveRows(updates);
-    
-    for (final group in groups) {
-      if (group.length == 1) {
-        // Single row - use normal update
-        final u = group.first;
-        await updateCycleBettingStatus(
-          rowNumber: u.rowNumber,
-          checked: u.checked,
-          result: u.result,
-          winDate: u.winDate,
-          winMien: u.winMien,
-          actualProfit: u.actualProfit,
-        );
-      } else {
-        // Multiple consecutive rows - batch update
-        await _batchUpdateConsecutiveRows('xsktBot1', group);
-      }
-    }
-
-    _clearPendingCache('xsktBot1');
-    print('   ✅ Batch update complete');
-  }
-
-  /// ✅ Helper: Group consecutive rows
-  List<List<BatchStatusUpdate>> _groupConsecutiveRows(
-    List<BatchStatusUpdate> updates,
-  ) {
-    if (updates.isEmpty) return [];
-    
-    // Sort by row number
-    final sorted = List<BatchStatusUpdate>.from(updates)
-      ..sort((a, b) => a.rowNumber.compareTo(b.rowNumber));
-
-    final groups = <List<BatchStatusUpdate>>[];
-    var currentGroup = <BatchStatusUpdate>[sorted.first];
-
-    for (int i = 1; i < sorted.length; i++) {
-      if (sorted[i].rowNumber == currentGroup.last.rowNumber + 1) {
-        // Consecutive - add to current group
-        currentGroup.add(sorted[i]);
-      } else {
-        // Not consecutive - start new group
-        groups.add(currentGroup);
-        currentGroup = [sorted[i]];
-      }
-    }
-    
-    groups.add(currentGroup);
-    return groups;
-  }
-
-  /// ✅ Helper: Batch update consecutive rows
-  Future<void> _batchUpdateConsecutiveRows(
-    String worksheetName,
-    List<BatchStatusUpdate> group,
-  ) async {
-    final startRow = group.first.rowNumber;
-    final endRow = group.last.rowNumber;
-    
-    print('   📊 Updating rows $startRow-$endRow...');
-
-    final rows = group.map((u) {
-      return [
-        u.checked ? 'TRUE' : 'FALSE',
-        u.result,
-        u.winDate ?? '',
-        u.winMien ?? '',
-        u.actualProfit != null 
-            ? u.actualProfit!.toStringAsFixed(2).replaceAll('.', ',')
-            : '',
-      ];
-    }).toList();
-
-    await _sheetsService.updateRange(
-      worksheetName,
-      'K$startRow:O$endRow',
-      rows,
-    );
-  }
-
-  // ============================================
-  // PHẦN 4: WIN HISTORY OPERATIONS (GIỮ NGUYÊN)
-  // ============================================
-
-  /// Lưu lịch sử trúng số chu kỳ
+  
   Future<void> saveCycleWinHistory(CycleWinHistory history) async {
     print('💾 Saving cycle win history...');
     
@@ -395,7 +408,6 @@ class WinTrackingService {
     print('   ✅ Saved cycle win history (STT: $newSTT)');
   }
 
-  /// Lưu lịch sử trúng số xiên
   Future<void> saveXienWinHistory(XienWinHistory history) async {
     print('💾 Saving xien win history...');
     
@@ -445,7 +457,6 @@ class WinTrackingService {
     print('   ✅ Saved xien win history (STT: $newSTT)');
   }
 
-  /// Lưu lịch sử trúng số Miền Trung
   Future<void> saveTrungWinHistory(CycleWinHistory history) async {
     print('💾 Saving trung win history...');
     
@@ -494,7 +505,6 @@ class WinTrackingService {
     print('   ✅ Saved trung win history (STT: $newSTT)');
   }
 
-  /// Lưu lịch sử trúng số Miền Bắc
   Future<void> saveBacWinHistory(CycleWinHistory history) async {
     print('💾 Saving bac win history...');
     
@@ -543,10 +553,6 @@ class WinTrackingService {
     print('   ✅ Saved bac win history (STT: $newSTT)');
   }
 
-  // ============================================
-  // PHẦN 5: READ OPERATIONS (GIỮ NGUYÊN)
-  // ============================================
-
   Future<List<CycleWinHistory>> getAllCycleWinHistory() async {
     print('📚 Loading all cycle win history...');
     
@@ -593,17 +599,11 @@ class WinTrackingService {
     return histories;
   }
 
-  // ============================================
-  // PHẦN 6: UTILITY METHODS
-  // ============================================
-
-  /// ✅ NEW: Force refresh pending cache
   void clearAllPendingCache() {
     _pendingCache.clear();
     print('🗑️ Cleared all pending caches');
   }
 
-  /// ✅ NEW: Get cache info
   Map<String, String> getPendingCacheInfo() {
     final info = <String, String>{};
     
@@ -620,7 +620,6 @@ class WinTrackingService {
 // HELPER CLASSES
 // ============================================
 
-/// ✅ Cache cho pending dates
 class _PendingCache {
   final List<String> dates;
   final DateTime timestamp;
@@ -636,7 +635,6 @@ class _PendingCache {
   }
 }
 
-/// ✅ Model cho batch update
 class BatchStatusUpdate {
   final int rowNumber;
   final bool checked;

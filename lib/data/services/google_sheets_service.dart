@@ -6,11 +6,15 @@ import '../models/app_config.dart';
 class GoogleSheetsService {
   SheetsApi? _sheetsApi;
   GoogleSheetsConfig? _config;
+  
+  // ✅ NEW: Cache for batch operations
+  final Map<String, List<List<String>>> _batchReadCache = {};
+  DateTime? _batchReadCacheTime;
+  static const Duration _batchCacheDuration = Duration(minutes: 5);
 
   Future<void> initialize(GoogleSheetsConfig config) async {
     _config = config;
     
-    // ✅ Credentials đầy đủ từ CREDS_DICT Python
     final credentials = ServiceAccountCredentials.fromJson({
       "type": "service_account",
       "project_id": config.projectId,
@@ -56,6 +60,143 @@ class GoogleSheetsService {
     }
   }
 
+  // ============================================
+  // ✅ NEW: BATCH READ OPERATIONS
+  // ============================================
+  
+  /// Batch read multiple worksheets at once
+  /// Returns: Map<worksheetName, List<List<String>>>
+  Future<Map<String, List<List<String>>>> batchGetValues(
+    List<String> worksheetNames, {
+    bool useCache = true,
+  }) async {
+    if (_sheetsApi == null || _config == null) {
+      throw Exception('Google Sheets not initialized');
+    }
+    
+    // ✅ Check cache
+    if (useCache && _isBatchCacheValid()) {
+      print('📦 Using batch cache (${_batchReadCache.length} sheets)');
+      final result = <String, List<List<String>>>{};
+      for (final name in worksheetNames) {
+        if (_batchReadCache.containsKey(name)) {
+          result[name] = _batchReadCache[name]!;
+        }
+      }
+      if (result.length == worksheetNames.length) {
+        return result;
+      }
+    }
+    
+    try {
+      print('📥 Batch reading ${worksheetNames.length} worksheets...');
+      
+      // ✅ Build ranges for batch request
+      final ranges = worksheetNames.map((name) => '$name!A:AD').toList();
+      
+      // ✅ Single API call for all sheets
+      final response = await _sheetsApi!.spreadsheets.values.batchGet(
+        _config!.sheetName,
+        ranges: ranges,
+      );
+      
+      // ✅ Parse results
+      final result = <String, List<List<String>>>{};
+      final valueRanges = response.valueRanges ?? [];
+      
+      for (int i = 0; i < worksheetNames.length; i++) {
+        if (i < valueRanges.length) {
+          final values = valueRanges[i].values ?? [];
+          final parsed = values.map((row) {
+            return row.map((cell) => cell?.toString() ?? '').toList();
+          }).toList();
+          
+          result[worksheetNames[i]] = parsed;
+          _batchReadCache[worksheetNames[i]] = parsed; // Cache it
+        } else {
+          result[worksheetNames[i]] = [];
+        }
+      }
+      
+      _batchReadCacheTime = DateTime.now();
+      
+      print('✅ Batch read complete (1 API call instead of ${worksheetNames.length})');
+      return result;
+      
+    } catch (e) {
+      print('❌ Batch read error: $e');
+      rethrow;
+    }
+  }
+
+  /// Check if batch cache is still valid
+  bool _isBatchCacheValid() {
+    if (_batchReadCacheTime == null || _batchReadCache.isEmpty) {
+      return false;
+    }
+    
+    final age = DateTime.now().difference(_batchReadCacheTime!);
+    return age < _batchCacheDuration;
+  }
+
+  /// Clear batch cache
+  void clearBatchCache() {
+    _batchReadCache.clear();
+    _batchReadCacheTime = null;
+    print('🗑️ Batch cache cleared');
+  }
+
+  // ============================================
+  // ✅ NEW: BATCH WRITE OPERATIONS
+  // ============================================
+  
+  /// Batch update multiple ranges at once
+  Future<void> batchUpdateRanges(
+    Map<String, BatchUpdateData> updates,
+  ) async {
+    if (_sheetsApi == null || _config == null) {
+      throw Exception('Google Sheets not initialized');
+    }
+    
+    if (updates.isEmpty) return;
+    
+    try {
+      print('📤 Batch updating ${updates.length} ranges...');
+      
+      // ✅ Build batch update request
+      final batchUpdateRequest = BatchUpdateValuesRequest(
+        valueInputOption: 'USER_ENTERED',
+        data: updates.entries.map((entry) {
+          return ValueRange(
+            range: '${entry.key}!${entry.value.range}',
+            values: entry.value.values,
+          );
+        }).toList(),
+      );
+      
+      // ✅ Single API call for all updates
+      await _sheetsApi!.spreadsheets.values.batchUpdate(
+        batchUpdateRequest,
+        _config!.sheetName,
+      );
+      
+      // ✅ Invalidate cache for updated sheets
+      for (final worksheetName in updates.keys) {
+        _batchReadCache.remove(worksheetName);
+      }
+      
+      print('✅ Batch update complete (1 API call instead of ${updates.length})');
+      
+    } catch (e) {
+      print('❌ Batch update error: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // EXISTING METHODS (Keep for backward compatibility)
+  // ============================================
+  
   Future<List<List<String>>> getAllValues(String worksheetName) async {
     if (_sheetsApi == null || _config == null) {
       throw Exception('Google Sheets not initialized');
@@ -142,4 +283,19 @@ class GoogleSheetsService {
       rethrow;
     }
   }
+}
+
+// ============================================
+// ✅ NEW: Helper Classes
+// ============================================
+
+/// Data for batch update operation
+class BatchUpdateData {
+  final String range;
+  final List<List<String>> values;
+
+  BatchUpdateData({
+    required this.range,
+    required this.values,
+  });
 }
