@@ -837,7 +837,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Colors.blue,
                         Colors.orange,
-                        Colors.purple,
+                        Colors.green,
                         Colors.grey,
                       ].map((color) {
                         final isSelected = themeProvider.accentColor.value == color.value;

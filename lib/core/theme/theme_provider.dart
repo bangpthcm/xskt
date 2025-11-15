@@ -1,4 +1,4 @@
-// ✅ TẠO FILE MỚI
+// lib/core/theme/theme_provider.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -52,15 +52,59 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   ThemeData getLightTheme() {
+    // ✅ FIX: Tạo MaterialColor và dùng nó trong colorScheme
+    final materialColor = _generateMaterialColor(_accentColor);
+    
     return ThemeData(
       brightness: Brightness.light,
-      primarySwatch: _generateMaterialColor(_accentColor),
+      primarySwatch: materialColor,
+      primaryColor: _accentColor,  // ✅ THÊM: Set primary color trực tiếp
       scaffoldBackgroundColor: Colors.grey.shade50,
       cardColor: Colors.white,
       appBarTheme: AppBarTheme(
         backgroundColor: _accentColor,
         foregroundColor: Colors.white,
         elevation: 0,
+      ),
+      // ✅ FIX: Dùng colorScheme để đảm bảo màu được áp dụng đúng
+      colorScheme: ColorScheme.light(
+        primary: _accentColor,
+        secondary: _accentColor,
+        surface: Colors.white,
+      ),
+      // ✅ THÊM: Cấu hình màu cho các component cụ thể
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _accentColor,
+          foregroundColor: Colors.white,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: _accentColor,
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: _accentColor,
+        indicatorColor: _accentColor,
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: MaterialStateProperty.resolveWith<Color>(
+            (states) {
+              if (states.contains(MaterialState.selected)) {
+                return _accentColor.withOpacity(0.3);
+              }
+              return Colors.grey.shade200;
+            },
+          ),
+          foregroundColor: MaterialStateProperty.resolveWith<Color>(
+            (states) {
+              if (states.contains(MaterialState.selected)) {
+                return _accentColor;
+              }
+              return Colors.grey.shade700;
+            },
+          ),
+        ),
       ),
       useMaterial3: true,
     );
@@ -94,6 +138,40 @@ class ThemeProvider extends ChangeNotifier {
         primary: _accentColor,
         secondary: _accentColor,
         surface: const Color(0xFF1E1E1E),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _accentColor,
+          foregroundColor: Colors.white,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: _accentColor,
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.grey,
+        indicatorColor: _accentColor,
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: MaterialStateProperty.resolveWith<Color>(
+            (states) {
+              if (states.contains(MaterialState.selected)) {
+                return _accentColor.withOpacity(0.3);
+              }
+              return const Color(0xFF2C2C2C);
+            },
+          ),
+          foregroundColor: MaterialStateProperty.resolveWith<Color>(
+            (states) {
+              if (states.contains(MaterialState.selected)) {
+                return _accentColor;
+              }
+              return Colors.grey.shade400;
+            },
+          ),
+        ),
       ),
       useMaterial3: true,
     );

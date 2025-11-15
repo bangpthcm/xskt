@@ -141,7 +141,6 @@ class _BettingScreenState extends State<BettingScreen> {
     final tongTienTongQuat = tongTienChuKy + tongTienXien;
 
     return Card(
-      color: const Color(0xFF2C2C2C),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -484,7 +483,6 @@ class _BettingScreenState extends State<BettingScreen> {
   Widget _buildMiniTable(List<BettingRow> rows, {required bool isCycle}) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
         border: Border.all(color: Colors.grey.shade800),
         borderRadius: BorderRadius.circular(8),
       ),
