@@ -285,7 +285,7 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
                 child: AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
                   label: 'Tạo lại',
                   icon: Icons.refresh,
-                  backgroundColor: Colors.orange,
+                  backgroundColor: Colors.orange.withOpacity(0.7),
                   onPressed: () => _showRegenerateDialog(context, viewModel, type),
                 ),
               ),
@@ -294,7 +294,7 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
                 child: AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
                   label: 'Gửi Telegram',
                   icon: Icons.send,
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.blue.withOpacity(0.7),
                   onPressed: () => _showSendTelegramDialog(context, viewModel, type),
                 ),
               ),
@@ -304,7 +304,7 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
           AnimatedButton(  // ✅ ĐỔI từ OutlinedButton
             label: 'Xóa bảng cược',
             icon: Icons.delete_outline,
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.red.withOpacity(0.7),
             onPressed: () => _showDeleteDialog(context, viewModel, type),
             width: double.infinity,
           ),

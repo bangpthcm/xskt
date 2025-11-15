@@ -603,46 +603,32 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           children: [
             Row(
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // ✅ THAY ICON BẰNG CHỮ C
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: Center(
-                        child: const Text(
-                          'C',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
-                            height: 1.0,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (viewModel.hasCycleAlert)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Chu kỳ 00-99',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Text(
+                        'Chu kỳ 00-99',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      // ✅ THAY ĐỔI: Hiển thị chấm đỏ nếu CÓ BẤT KỲ alert nào (từ cache)
+                      if (viewModel.tatCaAlertCache == true || 
+                          viewModel.trungAlertCache == true || 
+                          viewModel.bacAlertCache == true)
+                        Positioned(
+                          right: 210,
+                          top: -4,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                          ),
+                        ),
+                      ],
                   ),
                 ),
                 // ✅ 3. ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
@@ -808,46 +794,30 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           children: [
             Row(
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // ✅ THAY ICON BẰNG CHỮ X
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: Center(
-                        child: Text(
-                          'X',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
-                            height: 1.0,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (viewModel.hasXienAlert)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Cặp xiên Bắc',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Text(
+                        'Cặp xiên Bắc',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      // ✅ FIX: Đổi từ hasCycleAlert thành hasXienAlert
+                      if (viewModel.hasXienAlert)
+                        Positioned(
+                          right: 200,
+                          top: -4,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                          ),
+                        ),
+                      ],
                   ),
                 ),
                 // ✅ ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
