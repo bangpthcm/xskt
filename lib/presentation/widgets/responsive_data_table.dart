@@ -90,7 +90,7 @@ class ResponsiveDataTable extends StatelessWidget {
               ],
             ),
             trailing: SizedBox(
-              width: 85,
+              width: 155,
               child: isCycleTable
                   ? Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -101,14 +101,15 @@ class ResponsiveDataTable extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             SizedBox(
-                              width: 22,
+                              width: 100,
                               child: Text(
-                                'L1',
+                                'Lời 1 số:',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey.shade400,
                                   fontWeight: FontWeight.w500,
                                 ),
+                                textAlign: TextAlign.right,
                               ),
                             ),
                             const SizedBox(width: 4),
@@ -117,7 +118,7 @@ class ResponsiveDataTable extends StatelessWidget {
                                 NumberUtils.formatCurrency(row.loi1So),
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: row.loi1So > 0 ? Colors.green.shade300 : Colors.red.shade300,
+                                  color: Colors.green.shade300,
                                   fontWeight: FontWeight.bold,
                                 ),
                                 textAlign: TextAlign.right,
@@ -131,23 +132,24 @@ class ResponsiveDataTable extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             SizedBox(
-                              width: 22,
+                              width: 100,
                               child: Text(
-                                'L2',
+                                'Cược/miền:',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey.shade400,
                                   fontWeight: FontWeight.w500,
                                 ),
+                                textAlign: TextAlign.right,
                               ),
                             ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                NumberUtils.formatCurrency(row.loi2So ?? 0),
+                                NumberUtils.formatCurrency(row.cuocMien),
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: (row.loi2So ?? 0) > 0 ? Colors.green.shade300 : Colors.red.shade300,
+                                  color: Colors.red.shade300,
                                   fontWeight: FontWeight.bold,
                                 ),
                                 textAlign: TextAlign.right,
@@ -199,19 +201,16 @@ class ResponsiveDataTable extends StatelessWidget {
                 _buildDetailRow(
                   'Lời (1 số)',
                   NumberUtils.formatCurrency(row.loi1So),
-                  color: row.loi1So > 0 ? Colors.green : Colors.red,
                 ),
                 _buildDetailRow(
                   'Lời (2 số)',
                   NumberUtils.formatCurrency(row.loi2So ?? 0),
-                  color: (row.loi2So ?? 0) > 0 ? Colors.green : Colors.red,
                 ),
               ] else ...[
                 _buildDetailRow('Cược', NumberUtils.formatCurrency(row.cuocMien)),
                 _buildDetailRow(
                   'Lời',
                   NumberUtils.formatCurrency(row.loi1So),
-                  color: row.loi1So > 0 ? Colors.green : Colors.red,
                 ),
               ],
             ],
@@ -374,10 +373,6 @@ class ResponsiveDataTable extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: Text(
               NumberUtils.formatCurrency(row.loi1So),
-              style: TextStyle(
-                color: row.loi1So > 0 ? Colors.green : Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
             ),
           )),
       ],
@@ -400,8 +395,8 @@ class ResponsiveDataTable extends StatelessWidget {
               DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocSo), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))),
               DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocMien)))),
               DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.tongTien)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So), style: TextStyle(color: row.loi1So > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi2So ?? 0), style: TextStyle(color: (row.loi2So ?? 0) > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
+              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So)))),
+              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi2So ?? 0)))),
             ]
           : [
               DataCell(Center(child: Text(row.stt.toString()))),
@@ -410,7 +405,7 @@ class ResponsiveDataTable extends StatelessWidget {
               DataCell(Center(child: Text(row.so, style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)))),
               DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.cuocMien), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))),
               DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.tongTien)))),
-              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So), style: TextStyle(color: row.loi1So > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)))),
+              DataCell(Align(alignment: Alignment.centerRight, child: Text(NumberUtils.formatCurrency(row.loi1So)))),
             ],
     );
   }
