@@ -266,7 +266,7 @@ class AnalysisViewModel extends ChangeNotifier {
       // ✅ BƯỚC 3: Tính số lượt
       int targetMienCount = 9;
       
-      DateTime endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 15));
+      DateTime endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 10));
       print('📅 Start betting: ${date_utils.DateUtils.formatDate(startDate)} - startMienIndex: $startMienIndex (${mienOrder[startMienIndex]})');
       print('🔍 Starting with targetMienCount: $targetMienCount');
       print('📅 Estimated endDate: ${date_utils.DateUtils.formatDate(endDate)}');
@@ -567,44 +567,91 @@ class AnalysisViewModel extends ChangeNotifier {
         throw Exception('Không tìm thấy thông tin số $targetNumber');
       }
 
-      int maxDaysGan = 0;
+      // ✅ NEW LOGIC: Xác định targetMien dựa trên filter
+      int targetDaysGan = 0;
       DateTime? lastSeenDate;
-      String? selectedMien;
+      String? targetMien;  // ✅ ĐỔI TÊN: selectedMien → targetMien
 
-      for (final entry in numberDetail.mienDetails.entries) {
-        if (entry.value.daysGan > maxDaysGan) {
-          maxDaysGan = entry.value.daysGan;
-          lastSeenDate = entry.value.lastSeenDate;
-          selectedMien = entry.key;
+      if (_selectedMien == 'Trung') {
+        // ✅ Filter = Trung → targetMien = Trung
+        final trungDetail = numberDetail.mienDetails['Trung'];
+        if (trungDetail == null) {
+          throw Exception('Số $targetNumber chưa có dữ liệu Miền Trung');
         }
+        targetDaysGan = trungDetail.daysGan;
+        lastSeenDate = trungDetail.lastSeenDate;
+        targetMien = 'Trung';
+        print('📍 Filter = Trung → targetMien = Trung: $targetDaysGan days');
+        
+      } else if (_selectedMien == 'Bắc') {
+        // ✅ Filter = Bắc → targetMien = Bắc
+        final bacDetail = numberDetail.mienDetails['Bắc'];
+        if (bacDetail == null) {
+          throw Exception('Số $targetNumber chưa có dữ liệu Miền Bắc');
+        }
+        targetDaysGan = bacDetail.daysGan;
+        lastSeenDate = bacDetail.lastSeenDate;
+        targetMien = 'Bắc';
+        print('📍 Filter = Bắc → targetMien = Bắc: $targetDaysGan days');
+        
+      } else {
+        // ✅ Filter = Tất cả → targetMien = miền có số ngày gan ÍT NHẤT
+        int minDaysGan = 999999;
+        
+        for (final entry in numberDetail.mienDetails.entries) {
+          print('   Checking ${entry.key}: ${entry.value.daysGan} days, last seen: ${date_utils.DateUtils.formatDate(entry.value.lastSeenDate)}');
+          
+          if (entry.value.daysGan < minDaysGan) {
+            minDaysGan = entry.value.daysGan;
+            targetDaysGan = entry.value.daysGan;
+            lastSeenDate = entry.value.lastSeenDate;
+            targetMien = entry.key;
+          }
+        }
+        
+        print('📍 Filter = Tất cả → targetMien = $targetMien (MIN): $targetDaysGan days');
       }
 
-      if (lastSeenDate == null) {
+      if (lastSeenDate == null || targetMien == null) {
         throw Exception('Không tìm thấy ngày xuất hiện cuối');
       }
 
       final customCycleResult = CycleAnalysisResult(
         ganNumbers: {targetNumber},
-        maxGanDays: maxDaysGan,
+        maxGanDays: targetDaysGan,
         lastSeenDate: lastSeenDate,
-        mienGroups: {selectedMien!: [targetNumber]},
+        mienGroups: {targetMien: [targetNumber]},
         targetNumber: targetNumber,
       );
 
-      // ✅ BƯỚC 2: Tính budget khả dụng (NEW LOGIC)
+      // ✅ BƯỚC 2: Tính budget dựa trên FILTER (không phải targetMien)
       final budgetService = BudgetCalculationService(
         sheetsService: _sheetsService,
       );
       
+      String targetTable;
+      double? configBudget;
+      
+      if (_selectedMien == 'Bắc') {
+        targetTable = 'bac';
+        configBudget = config.budget.bacBudget;
+      } else if (_selectedMien == 'Trung') {
+        targetTable = 'trung';
+        configBudget = config.budget.trungBudget;
+      } else {
+        targetTable = 'tatca';
+        configBudget = null;
+      }
+      
       final budgetResult = await budgetService.calculateAvailableBudget(
         totalCapital: config.budget.totalCapital,
-        targetTable: 'tatca',
-        configBudget: null,
+        targetTable: targetTable,
+        configBudget: configBudget,
       );
       
       final availableBudget = budgetResult.budgetMax;
       
-      print('💰 Available budget for number $targetNumber: ${NumberUtils.formatCurrency(availableBudget)}');
+      print('💰 Available budget for filter "$_selectedMien" (targetMien=$targetMien, number=$targetNumber): ${NumberUtils.formatCurrency(availableBudget)}');
 
       // ✅ BƯỚC 3: Tìm ngày bắt đầu
       DateTime? latestDate;
@@ -636,80 +683,91 @@ class AnalysisViewModel extends ChangeNotifier {
         startMienIndex = latestMienIndex + 1;
       }
 
-      // ✅ BƯỚC 4: Tính số lượt - GIỐNG createCycleBettingTable()
-      int targetMienCount = 9;
+      // ✅ BƯỚC 4: Tính số lượt dựa trên FILTER (không phải targetMien)
+      int targetMienCount;
+      if (_selectedMien == 'Bắc') {
+        targetMienCount = 0; // Bắc không cần count, dùng endDate
+      } else if (_selectedMien == 'Trung') {
+        targetMienCount = 30;
+      } else {
+        targetMienCount = 9; // Tất cả
+      }
+      
       double budgetMax = availableBudget;
       
-      DateTime endDate = lastSeenDate.add(const Duration(days: 15));
+      DateTime endDate = lastSeenDate.add(const Duration(days: 35));
       print('📅 Start betting: ${date_utils.DateUtils.formatDate(startDate)} - startMienIndex: $startMienIndex (${mienOrder[startMienIndex]})');
-      print('🔍 Starting with targetMienCount: $targetMienCount');
+      print('🔍 Filter: $_selectedMien, targetMien: $targetMien, targetMienCount: $targetMienCount');
       print('📅 Estimated endDate: ${date_utils.DateUtils.formatDate(endDate)}');
       
-      // ✅ TÍNH initialCount TỪ lastSeenDate ĐẾN startDate
-      int initialMienCount = _countTargetMienOccurrences(
-        startDate: lastSeenDate,
-        endDate: startDate,
-        targetMien: selectedMien,
-        allResults: _allResults,
-      );
+      // ✅ CHỈ TÍNH TUESDAY CHO FILTER "TẤT CẢ"
+      if (_selectedMien == 'Tất cả') {
+        // ✅ TÍNH initialCount TỪ lastSeenDate ĐẾN startDate
+        int initialMienCount = _countTargetMienOccurrences(
+          startDate: lastSeenDate,
+          endDate: startDate,
+          targetMien: targetMien,
+          allResults: _allResults,
+        );
 
-      print('📊 Initial mien count: $initialMienCount');
+        print('📊 Initial mien count: $initialMienCount');
 
-      // ✅ CHECK TUESDAY
-      final simulatedRows = _simulateTableRows(
-        startDate: startDate,
-        startMienIndex: startMienIndex,
-        targetMien: selectedMien,
-        targetCount: targetMienCount,
-        mienOrder: mienOrder,
-        initialCount: initialMienCount,
-      );
+        // ✅ CHECK TUESDAY
+        final simulatedRows = _simulateTableRows(
+          startDate: startDate,
+          startMienIndex: startMienIndex,
+          targetMien: targetMien,
+          targetCount: targetMienCount,
+          mienOrder: mienOrder,
+          initialCount: initialMienCount,
+        );
 
-      if (simulatedRows.isNotEmpty) {
-        final uniqueDates = <DateTime>{};
-        for (final row in simulatedRows) {
-          uniqueDates.add(row['date'] as DateTime);
-        }
-        
-        final sortedDates = uniqueDates.toList()..sort();
-        
-        if (sortedDates.length >= 2) {
-          final lastDate = sortedDates[sortedDates.length - 1];
-          final secondLastDate = sortedDates[sortedDates.length - 2];
-          
-          final lastWeekday = date_utils.DateUtils.getWeekday(lastDate);
-          final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
-          
-          print('🔍 Last date: ${date_utils.DateUtils.formatDate(lastDate)} - Weekday: $lastWeekday');
-          print('🔍 Second last date: ${date_utils.DateUtils.formatDate(secondLastDate)} - Weekday: $secondLastWeekday');
-          
-          bool needExtraTurn = false;
-          
-          final lastDateHasNam = simulatedRows.any((row) => 
-            (row['date'] as DateTime).isAtSameMomentAs(lastDate) && 
-            row['mien'] == 'Nam'
-          );
-          
-          if (lastDateHasNam && lastWeekday == 1) {
-            print('   ⚠️ Last date has Nam on Tuesday!');
-            needExtraTurn = true;
+        if (simulatedRows.isNotEmpty) {
+          final uniqueDates = <DateTime>{};
+          for (final row in simulatedRows) {
+            uniqueDates.add(row['date'] as DateTime);
           }
           
-          if (!needExtraTurn) {
-            final secondLastDateHasNam = simulatedRows.any((row) => 
-              (row['date'] as DateTime).isAtSameMomentAs(secondLastDate) && 
+          final sortedDates = uniqueDates.toList()..sort();
+          
+          if (sortedDates.length >= 2) {
+            final lastDate = sortedDates[sortedDates.length - 1];
+            final secondLastDate = sortedDates[sortedDates.length - 2];
+            
+            final lastWeekday = date_utils.DateUtils.getWeekday(lastDate);
+            final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+            
+            print('🔍 Last date: ${date_utils.DateUtils.formatDate(lastDate)} - Weekday: $lastWeekday');
+            print('🔍 Second last date: ${date_utils.DateUtils.formatDate(secondLastDate)} - Weekday: $secondLastWeekday');
+            
+            bool needExtraTurn = false;
+            
+            final lastDateHasNam = simulatedRows.any((row) => 
+              (row['date'] as DateTime).isAtSameMomentAs(lastDate) && 
               row['mien'] == 'Nam'
             );
             
-            if (secondLastDateHasNam && secondLastWeekday == 1) {
-              print('   ⚠️ Second last date has Nam on Tuesday!');
+            if (lastDateHasNam && lastWeekday == 1) {
+              print('   ⚠️ Last date has Nam on Tuesday!');
               needExtraTurn = true;
             }
-          }
-          
-          if (needExtraTurn) {
-            print('📅 Adding extra turn (9 → 10)');
-            targetMienCount = 10;
+            
+            if (!needExtraTurn) {
+              final secondLastDateHasNam = simulatedRows.any((row) => 
+                (row['date'] as DateTime).isAtSameMomentAs(secondLastDate) && 
+                row['mien'] == 'Nam'
+              );
+              
+              if (secondLastDateHasNam && secondLastWeekday == 1) {
+                print('   ⚠️ Second last date has Nam on Tuesday!');
+                needExtraTurn = true;
+              }
+            }
+            
+            if (needExtraTurn) {
+              print('📅 Adding extra turn (9 → 10)');
+              targetMienCount = 10;
+            }
           }
         }
       }
@@ -717,20 +775,46 @@ class AnalysisViewModel extends ChangeNotifier {
       print('🎯 Final targetMienCount: $targetMienCount');
       print('💰 Final budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
 
-      // ✅ BƯỚC 5: Generate table
+      // ✅ BƯỚC 5: Generate table dựa trên FILTER (không phải targetMien)
       try {
-        final newTable = await _bettingService.generateCycleTable(
-          cycleResult: customCycleResult,
-          startDate: startDate,
-          endDate: endDate,
-          startMienIndex: startMienIndex,
-          budgetMin: budgetMax * 0.95,
-          budgetMax: budgetMax,
-          allResults: _allResults,
-          maxMienCount: targetMienCount,
-        );
-
-        await _saveCycleTableToSheet(newTable);
+        List<dynamic> newTable;
+        
+        if (_selectedMien == 'Bắc') {
+          print('   📊 Generating Bắc table (targetMien=$targetMien)...');
+          newTable = await _bettingService.generateBacGanTable(
+            cycleResult: customCycleResult,
+            startDate: startDate,
+            endDate: endDate,
+            budgetMin: budgetMax * 0.95,
+            budgetMax: budgetMax,
+          );
+          await _saveBacTableToSheet(newTable, customCycleResult);
+          
+        } else if (_selectedMien == 'Trung') {
+          print('   📊 Generating Trung table (targetMien=$targetMien)...');
+          newTable = await _bettingService.generateTrungGanTable(
+            cycleResult: customCycleResult,
+            startDate: startDate,
+            endDate: endDate,
+            budgetMin: budgetMax * 0.95,
+            budgetMax: budgetMax,
+          );
+          await _saveTrungTableToSheet(newTable, customCycleResult);
+          
+        } else {
+          print('   📊 Generating Cycle table "Tất cả" (targetMien=$targetMien)...');
+          newTable = await _bettingService.generateCycleTable(
+            cycleResult: customCycleResult,
+            startDate: startDate,
+            endDate: endDate,
+            startMienIndex: startMienIndex,
+            budgetMin: budgetMax * 0.95,
+            budgetMax: budgetMax,
+            allResults: _allResults,
+            maxMienCount: targetMienCount,
+          );
+          await _saveCycleTableToSheet(newTable);
+        }
 
         _isLoading = false;
         notifyListeners();
@@ -739,21 +823,41 @@ class AnalysisViewModel extends ChangeNotifier {
         print('❌ Generate table error: $generateError');
         
         try {
-          final testTable = await _bettingService.generateCycleTable(
-            cycleResult: customCycleResult,
-            startDate: startDate,
-            endDate: endDate,
-            startMienIndex: startMienIndex,
-            budgetMin: 1.0,
-            budgetMax: budgetMax * 2,
-            allResults: _allResults,
-            maxMienCount: targetMienCount,
-          );
+          List<dynamic> testTable;
+          
+          if (_selectedMien == 'Bắc') {
+            testTable = await _bettingService.generateBacGanTable(
+              cycleResult: customCycleResult,
+              startDate: startDate,
+              endDate: endDate,
+              budgetMin: 1.0,
+              budgetMax: budgetMax * 2,
+            );
+          } else if (_selectedMien == 'Trung') {
+            testTable = await _bettingService.generateTrungGanTable(
+              cycleResult: customCycleResult,
+              startDate: startDate,
+              endDate: endDate,
+              budgetMin: 1.0,
+              budgetMax: budgetMax * 2,
+            );
+          } else {
+            testTable = await _bettingService.generateCycleTable(
+              cycleResult: customCycleResult,
+              startDate: startDate,
+              endDate: endDate,
+              startMienIndex: startMienIndex,
+              budgetMin: 1.0,
+              budgetMax: budgetMax * 2,
+              allResults: _allResults,
+              maxMienCount: targetMienCount,
+            );
+          }
           
           final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
           
           throw OptimizationFailedException(
-            tableName: 'Tất cả (Number $targetNumber)',
+            tableName: 'Số $targetNumber (Filter: $_selectedMien, Target: $targetMien)',
             budgetResult: budgetResult,
             estimatedTotal: estimatedTotal,
           );
@@ -1419,7 +1523,7 @@ class AnalysisViewModel extends ChangeNotifier {
           .reduce((a, b) => a!.isAfter(b!) ? a : b);
 
       final startDate = latestDate!.add(const Duration(days: 1));
-      final endDate = trungDetail.lastSeenDate.add(const Duration(days: 35));
+      final endDate = trungDetail.lastSeenDate.add(const Duration(days: 30));
 
       // ✅ NEW LOGIC: Tính budget động
       final budgetService = BudgetCalculationService(

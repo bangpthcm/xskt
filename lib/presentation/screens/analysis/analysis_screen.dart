@@ -565,29 +565,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           }
         } else {
           print('   ❌ ViewModel error: ${viewModel.errorMessage}'); // ✅ ADD LOG
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(viewModel.errorMessage!),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
         }
       }
     } catch (e, stackTrace) {
       print('❌ Error in _createTableForAlertType: $e'); // ✅ ADD LOG
       print('   Stack trace: $stackTrace'); // ✅ ADD LOG
-      
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi tạo bảng: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
       rethrow; // ✅ Throw lại để _handleAlertItemClick bắt được
     }
   }
@@ -1024,14 +1006,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
                   }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(viewModel.errorMessage!),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+                } 
               }
             },
             child: const Text('Tạo bảng'),
@@ -1078,13 +1053,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
                   }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(viewModel.errorMessage!),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
                 }
               }
             },
@@ -1223,14 +1191,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
                   }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(viewModel.errorMessage!),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+                } 
               }
             },
             child: const Text('Tạo bảng'),
@@ -1295,13 +1256,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
                   }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(viewModel.errorMessage!),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
                 }
               }
             },
@@ -1690,14 +1644,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         
         print('   🔀 Switching to betting tab');
         mainNavigationKey.currentState?.switchToTab(1);
-      } else {
-        print('   ❌ Error from viewModel: ${viewModel.errorMessage}');
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(viewModel.errorMessage!),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     } catch (e, stackTrace) {
       print('   ❌ Exception caught: $e');
@@ -1705,14 +1651,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       
       // ✅ ĐÓNG LOADING
       navigator.pop();
-      
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('Lỗi tạo bảng: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ),
-      );
     }
   }
   // ✅ THÊM: Helper method

@@ -124,10 +124,10 @@ class BettingTableService {
       }
     }
     
-    print('🎯 Target number: $targetNumber');
-    print('🌍 Target mien: $targetMien');
-    print('📊 Current gan days (by mien): ${cycleResult.maxGanDays}');
-    print('🔢 Max mien count: $maxMienCount');  // ✅ LOG
+    //print('🎯 Target number: $targetNumber');
+    //print('🌍 Target mien: $targetMien');
+    //print('📊 Current gan days (by mien): ${cycleResult.maxGanDays}');
+    //print('🔢 Max mien count: $maxMienCount');  // ✅ LOG
 
     double lowProfit = 100.0;
     double highProfit = 100000.0;
@@ -156,7 +156,7 @@ class BettingTableService {
         // ✅ LƯU NGAY NẾU CHƯA CÓ BEST TABLE
         if (bestTable == null) {
           bestTable = foundTable;
-          print('   💾 Saved first valid table as backup');
+          //print('   💾 Saved first valid table as backup');
         }
         
         final adjustedProfit = midProfit * 3.5 / 4.2;
@@ -177,9 +177,9 @@ class BettingTableService {
         // ✅ CHỈ CẬP NHẬT NẾU TÌM ĐƯỢC BETTER TABLE
         if (optimizedTable != null) {
           bestTable = optimizedTable;
-          print('   ✅ Found better optimized table');
+          //print('   ✅ Found better optimized table');
         } else {
-          print('   ⚠️ Optimization failed, keeping previous table');
+          //print('   ⚠️ Optimization failed, keeping previous table');
         }
         
         lowProfit = midProfit + 1;
@@ -244,18 +244,18 @@ class BettingTableService {
     required List<LotteryResult> allResults,
     int maxMienCount = 9,
   }) async {
-    print('🔧 _optimizeStartBet called:');
-    print('   budgetMin: ${NumberUtils.formatCurrency(budgetMin)}');
-    print('   budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
-    print('   profitTarget: ${NumberUtils.formatCurrency(profitTarget)}');
+    //print('🔧 _optimizeStartBet called:');
+    //print('   budgetMin: ${NumberUtils.formatCurrency(budgetMin)}');
+    //print('   budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
+    //print('   profitTarget: ${NumberUtils.formatCurrency(profitTarget)}');
     
     double lowBet = 1.0;
     double highBet = 1000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 11; i++) {
       if (highBet < lowBet) {
-        print('   ⚠️ Binary search exhausted at iteration $i');
+        //print('   ⚠️ Binary search exhausted at iteration $i');
         break;
       }
 
@@ -278,22 +278,22 @@ class BettingTableService {
       final tableData = result['table'] as List<BettingRow>;
       final tongTien = result['tong_tien'] as double;
 
-      print('   Iteration $i: midBet=$midBet, tongTien=${NumberUtils.formatCurrency(tongTien)}');
+      //print('   Iteration $i: midBet=$midBet, tongTien=${NumberUtils.formatCurrency(tongTien)}');
 
       if (tongTien >= budgetMin && tongTien <= budgetMax) {
         bestTable = tableData;
-        print('   ✅ Found valid table!');
+        //print('   ✅ Found valid table!');
         highBet = midBet - 1;
       } else if (tongTien > budgetMax) {
-        print('   ⬆️ Too high, reducing bet');
+        //print('   ⬆️ Too high, reducing bet');
         highBet = midBet - 1;
       } else {
-        print('   ⬇️ Too low, increasing bet');
+        //print('   ⬇️ Too low, increasing bet');
         lowBet = midBet + 1;
       }
     }
 
-    print('   Result: ${bestTable != null ? "Found table" : "No table found"}');
+    //print('   Result: ${bestTable != null ? "Found table" : "No table found"}');
     return bestTable;
   }
 
@@ -320,8 +320,8 @@ class BettingTableService {
       allResults: allResults,
     );
     
-    print('📊 Initial mienCount (from lastSeenDate to startDate): $mienCount');
-    print('📊 Max mien count target: $maxMienCount');  // ✅ LOG
+    //print('📊 Initial mienCount (from lastSeenDate to startDate): $mienCount');
+    //print('📊 Max mien count target: $maxMienCount');  // ✅ LOG
     
     int stt = 1;
     DateTime currentDate = startDate;
@@ -373,12 +373,14 @@ class BettingTableService {
           loi1So: tienLoi1So,
           loi2So: tienLoi2So,
         ));
-        
+
+        // ✅ CRITICAL FIX: CHỈ increment khi ĐÚNG targetMien
         if (mien == targetMien) {
           mienCount++;
+          //print('   🔢 Incremented mienCount to $mienCount on $ngayStr for $targetMien');
           
-          if (mienCount >= maxMienCount) {  // ✅ SỬ DỤNG maxMienCount
-            print('   ✅ Reached max mien count ($maxMienCount), stopping...');
+          if (mienCount >= maxMienCount) {
+            //print('   ✅ Reached max mien count ($maxMienCount), stopping...');
             break outerLoop;
           }
         }
@@ -388,7 +390,7 @@ class BettingTableService {
       currentDate = currentDate.add(Duration(days: 1));
     }
 
-    print('✅ Table generation completed: ${tableData.length} rows, total: $tongTien');
+    //print('✅ Table generation completed: ${tableData.length} rows, total: $tongTien');
 
     return {
       'table': tableData,
@@ -396,34 +398,33 @@ class BettingTableService {
     };
   }
 
-  // ✅ NEW HELPER: Đếm số lần quay của targetMien từ startDate đến endDate
+  // ✅ FIXED: Đếm số ngày GAN của targetMien từ lastSeenDate đến startDate
   int _countTargetMienOccurrences({
     required DateTime startDate,
     required DateTime endDate,
     required String targetMien,
-    required List<LotteryResult> allResults,  // ✅ THÊM PARAMETER
+    required List<LotteryResult> allResults,
   }) {
-    // ✅ ĐẾM DỰA TRÊN DỮ LIỆU THỰC TẾ, GIỐNG ANALYSIS SERVICE
     final uniqueDates = <String>{};
     
     for (final result in allResults) {
       final date = date_utils.DateUtils.parseDate(result.ngay);
       if (date == null) continue;
       
-      // Chỉ đếm từ SAU startDate đến endDate
+      // ✅ FIX: Đếm từ SAU lastSeenDate (startDate) đến trước hoặc bằng endDate
+      // và CHỈ đếm những ngày có targetMien
       if (date.isAfter(startDate) && 
           (date.isBefore(endDate) || date.isAtSameMomentAs(endDate)) &&
           result.mien == targetMien) {
-        uniqueDates.add(result.ngay);  // ✅ DÙNG SET ĐỂ LOẠI TRÙNG
+        uniqueDates.add(result.ngay);
       }
     }
     
-    final count = uniqueDates.length;
-    //print('   🔢 Counted $count unique dates for $targetMien between '
-    //      '${date_utils.DateUtils.formatDate(startDate)} and '
-    //      '${date_utils.DateUtils.formatDate(endDate)}');
+    //print('   🔢 Counted ${uniqueDates.length} unique dates for $targetMien '
+    //      'from ${date_utils.DateUtils.formatDate(startDate)} '
+    //      'to ${date_utils.DateUtils.formatDate(endDate)}');
     
-    return count;
+    return uniqueDates.length;
   }
 
   /// ✅ Generate Bắc Gan Table (chỉ cược Miền Bắc, multiplier 99)
@@ -436,19 +437,19 @@ class BettingTableService {
   }) async {
     final targetNumber = cycleResult.targetNumber;
     
-    print('🎯 Generating Bắc Gan Table');
-    print('   Target number: $targetNumber');
-    print('   Start: ${_formatDateWith2Digits(startDate)}');
-    print('   End: ${_formatDateWith2Digits(endDate)}');
-    print('   Duration base: $_bacGanDurationBase days');
-    print('   Win multiplier: $_bacGanWinMultiplier');
+    //print('🎯 Generating Bắc Gan Table');
+    //print('   Target number: $targetNumber');
+    //print('   Start: ${_formatDateWith2Digits(startDate)}');
+    //print('   End: ${_formatDateWith2Digits(endDate)}');
+    //print('   Duration base: $_bacGanDurationBase days');
+    //print('   Win multiplier: $_bacGanWinMultiplier');
 
     // Tối ưu lợi nhuận
     double lowProfit = 100.0;
     double highProfit = 100000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 11; i++) {
       if (highProfit < lowProfit) break;
 
       final midProfit = ((lowProfit + highProfit) / 2);
@@ -517,7 +518,7 @@ class BettingTableService {
     double highBet = 1000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 11; i++) {
       if (highBet < lowBet) break;
 
       double midBet = ((lowBet + highBet) / 2);
@@ -611,7 +612,7 @@ class BettingTableService {
       currentDate = currentDate.add(Duration(days: 1));
     }
 
-    print('✅ Bac Gan table completed: ${tableData.length} rows, total: $tongTien');
+    //print('✅ Bac Gan table completed: ${tableData.length} rows, total: $tongTien');
 
     return {
       'table': tableData,
@@ -629,19 +630,19 @@ class BettingTableService {
   }) async {
     final targetNumber = cycleResult.targetNumber;
     
-    print('🎯 Generating Trung Gan Table');
-    print('   Target number: $targetNumber');
-    print('   Start: ${_formatDateWith2Digits(startDate)}');
-    print('   End: ${_formatDateWith2Digits(endDate)}');
-    print('   Duration base: $_trungGanDurationBase days');
-    print('   Win multiplier: $_trungGanWinMultiplier');
+    //print('🎯 Generating Trung Gan Table');
+    //print('   Target number: $targetNumber');
+    //print('   Start: ${_formatDateWith2Digits(startDate)}');
+    //print('   End: ${_formatDateWith2Digits(endDate)}');
+    //print('   Duration base: $_trungGanDurationBase days');
+   // print('   Win multiplier: $_trungGanWinMultiplier');
 
     // Tối ưu lợi nhuận
     double lowProfit = 100.0;
     double highProfit = 100000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 11; i++) {
       if (highProfit < lowProfit) break;
 
       final midProfit = ((lowProfit + highProfit) / 2);
@@ -710,7 +711,7 @@ class BettingTableService {
     double highBet = 1000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 11; i++) {
       if (highBet < lowBet) break;
 
       double midBet = ((lowBet + highBet) / 2);
@@ -804,7 +805,7 @@ class BettingTableService {
       currentDate = currentDate.add(Duration(days: 1));
     }
 
-    print('✅ Trung Gan table completed: ${tableData.length} rows, total: $tongTien');
+    //print('✅ Trung Gan table completed: ${tableData.length} rows, total: $tongTien');
 
     return {
       'table': tableData,
