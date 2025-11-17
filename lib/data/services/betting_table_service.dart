@@ -698,7 +698,7 @@ class BettingTableService {
     return bestTable;
   }
 
-  /// Helper: Optimize start bet for Trung Gan
+  // Helper: Optimize start bet for Trung Gan
   Future<List<BettingRow>?> _optimizeStartBetForTrungGan({
     required String targetNumber,
     required DateTime startDate,
@@ -707,15 +707,20 @@ class BettingTableService {
     required double budgetMin,
     required double budgetMax,
   }) async {
-    double lowBet = 1.0;
-    double highBet = 1000.0;
+    // ✅ FIX: Tăng range tìm kiếm
+    double lowBet = 0.5;
+    double highBet = 5000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 11; i++) {
-      if (highBet < lowBet) break;
+    // ✅ FIX: Tăng số lần iteration
+    for (int i = 0; i < 20; i++) {
+      if (highBet < lowBet) {
+        print('   ⚠️ Binary search exhausted at iteration $i');
+        break;
+      }
 
       double midBet = ((lowBet + highBet) / 2);
-      if (midBet < 1.0) midBet = 1.0;
+      if (midBet < 0.5) midBet = 0.5;
 
       final result = await _calculateTrungGanTable(
         targetNumber: targetNumber,
@@ -728,16 +733,22 @@ class BettingTableService {
       final tableData = result['table'] as List<BettingRow>;
       final tongTien = result['tong_tien'] as double;
 
+      print('   Iteration $i: midBet=$midBet, tongTien=${NumberUtils.formatCurrency(tongTien)}, target=${NumberUtils.formatCurrency(budgetMax)}');
+
       if (tongTien >= budgetMin && tongTien <= budgetMax) {
         bestTable = tableData;
-        highBet = midBet - 1;
+        print('   ✅ Found valid table within budget!');
+        highBet = midBet - 0.1;  // ✅ Giảm nhỏ hơn để tìm chính xác
       } else if (tongTien > budgetMax) {
-        highBet = midBet - 1;
+        print('   ⬆️ Too high, reducing bet');
+        highBet = midBet - 0.1;
       } else {
-        lowBet = midBet + 1;
+        print('   ⬇️ Too low, increasing bet');
+        lowBet = midBet + 0.1;
       }
     }
 
+    print('   Result: ${bestTable != null ? "Found table with ${bestTable.length} rows" : "No table found"}');
     return bestTable;
   }
 
