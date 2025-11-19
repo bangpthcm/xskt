@@ -586,31 +586,31 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             Row(
               children: [
                 Expanded(
-                  child: Stack(
-                    clipBehavior: Clip.none,
+                  child: // ✅ THAY ĐỔI: Từ Stack với left cố định sang Row với flexible positioning
+                  Row(
                     children: [
                       Text(
                         'Chu kỳ 00-99',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      // ✅ THAY ĐỔI: Hiển thị chấm đỏ nếu CÓ BẤT KỲ alert nào (từ cache)
+                      // ✅ Dấu chấm đỏ sát ngay bên phải text
                       if (viewModel.tatCaAlertCache == true || 
                           viewModel.trungAlertCache == true || 
                           viewModel.bacAlertCache == true)
-                        Positioned(
-                          left: 127,
-                          top: -4,
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4, bottom: 15), // Điều chỉnh vị trí
                           child: Container(
-                            width: 12,
-                            height: 12,
+                            width: 8,
+                            height: 8,
                             decoration: BoxDecoration(
                               color: Colors.red,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1.5),
+                              border: Border.all(color: Colors.white, width: 1),
                             ),
                           ),
                         ),
-                      ],
+                      const Spacer(), // Đẩy các icon sang phải
+                    ],
                   ),
                 ),
                 // ✅ 3. ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
@@ -777,29 +777,27 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             Row(
               children: [
                 Expanded(
-                  child: Stack(
-                    clipBehavior: Clip.none,
+                  child: Row(
                     children: [
                       Text(
                         'Cặp xiên Bắc',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      // ✅ FIX: Đổi từ hasCycleAlert thành hasXienAlert
                       if (viewModel.hasXienAlert)
-                        Positioned(
-                          left: 127,
-                          top: -4,
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4, bottom: 15),
                           child: Container(
-                            width: 12,
-                            height: 12,
+                            width: 8,
+                            height: 8,
                             decoration: BoxDecoration(
                               color: Colors.red,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1.5),
+                              border: Border.all(color: Colors.white, width: 1),
                             ),
                           ),
                         ),
-                      ],
+                      const Spacer(),
+                    ],
                   ),
                 ),
                 // ✅ ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
