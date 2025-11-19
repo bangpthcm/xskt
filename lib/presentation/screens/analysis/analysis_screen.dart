@@ -598,7 +598,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                           viewModel.trungAlertCache == true || 
                           viewModel.bacAlertCache == true)
                         Positioned(
-                          right: 210,
+                          left: 127,
                           top: -4,
                           child: Container(
                             width: 12,
@@ -787,7 +787,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       // ✅ FIX: Đổi từ hasCycleAlert thành hasXienAlert
                       if (viewModel.hasXienAlert)
                         Positioned(
-                          right: 200,
+                          left: 127,
                           top: -4,
                           child: Container(
                             width: 12,
