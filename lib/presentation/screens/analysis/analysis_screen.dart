@@ -18,28 +18,13 @@ class AnalysisScreen extends StatefulWidget {
   State<AnalysisScreen> createState() => _AnalysisScreenState();
 }
 
-enum AlertType { xien, tatCa, trung, bac }
 
 class _AnalysisScreenState extends State<AnalysisScreen> 
     with SingleTickerProviderStateMixin {
 
-  late AnimationController _pulseController;  // ✅ THÊM
-  late Animation<double> _pulseAnimation; 
-
   @override
   void initState() {
     super.initState();
-
-    // ✅ Setup animation
-    _pulseController = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    )..repeat(reverse: true);
-    
-    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    
     // ✅ FIX: Use ServiceManager
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
@@ -55,12 +40,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         print('❌ AnalysisScreen: Error: $e');
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();  // ✅ THÊM
-    super.dispose();
   }
 
   @override
@@ -116,10 +95,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
-                // ✅ THÊM: Alert banner nếu có
-                if (viewModel.hasAnyAlert)
-                  _buildAlertBanner(viewModel),
-                
+
                 _buildCycleSection(viewModel),
                 const SizedBox(height: 24),
                 _buildGanPairSection(viewModel),
@@ -131,448 +107,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  // ✅ SỬA: _buildAlertBanner method
-  Widget _buildAlertBanner(AnalysisViewModel viewModel) {
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
-      child: viewModel.hasAnyAlert ? Card(
-        margin: const EdgeInsets.only(bottom: 16),
-        child: InkWell(
-          onTap: () => _showAlertDialog(context, viewModel),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                ScaleTransition(
-                  scale: _pulseAnimation,
-                  child: Icon(
-                    Icons.warning_amber_rounded,
-                    color: Theme.of(context).primaryColor,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Có số gan thỏa điều kiện!',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Nhấn để xem chi tiết',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context).primaryColor.withOpacity(0.8),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    _getAlertCount(viewModel).toString(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: Theme.of(context).primaryColor),
-              ],
-            ),
-          ),
-        ),
-      ) : const SizedBox.shrink(),
-    );
-  }
-
-  // ✅ THÊM: Dialog hiển thị chi tiết alert
-  void _showAlertDialog(BuildContext context, AnalysisViewModel viewModel) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.white),
-            const SizedBox(width: 8),
-            const Text('Thông báo số gan'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Các số sau đã thỏa điều kiện gan:',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 16),
-              
-              // 1. Chu kỳ (Tất cả) - GIỮ NGUYÊN Icons.loop
-              if (viewModel.tatCaAlertCache == true)
-                FutureBuilder<CycleAnalysisResult?>(
-                  future: viewModel.analyzeCycleForAllMien(), // ✅ THÊM METHOD MỚI
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const SizedBox.shrink();
-                    final result = snapshot.data!;
-                    
-                    return _buildClickableAlertItem(
-                      context: context,
-                      viewModel: viewModel,
-                      icon: Icons.text_fields,  // ✅ GIỮ NGUYÊN
-                      color: Colors.grey,
-                      title: 'Chu kỳ (Tất cả)',
-                      subtitle: 'Số: ${result.targetNumber}',
-                      days: result.maxGanDays,
-                      threshold: 3,
-                      type: AlertType.tatCa,
-                      useTextIcon: 'C',
-                    );
-                  },
-                ),
-              // 2. Miền Trung - THAY BẰNG CHỮ T (dùng text icon)
-              if (viewModel.trungAlertCache == true)
-                FutureBuilder<CycleAnalysisResult?>(
-                  future: viewModel.analyzeCycleForMien('Trung'), // ✅ THÊM METHOD MỚI
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const SizedBox.shrink();
-                    final result = snapshot.data!;
-                    
-                    return _buildClickableAlertItem(
-                      context: context,
-                      viewModel: viewModel,
-                      icon: Icons.text_fields,  // ❌ KHÔNG DÙNG - sẽ dùng custom
-                      color: const Color(0xFFBB31E6F),
-                      title: 'Miền Trung',
-                      subtitle: 'Số: ${result.targetNumber}',
-                      days: result.maxGanDays,
-                      threshold: 9,
-                      type: AlertType.trung,
-                      useTextIcon: 'T',  // ✅ THÊM PARAMETER MỚI
-                    );
-                  },
-                ),
-
-              // 3. Miền Bắc - THAY BẰNG CHỮ B
-              if (viewModel.bacAlertCache == true)
-                FutureBuilder<CycleAnalysisResult?>(
-                  future: viewModel.analyzeCycleForMien('Bắc'), // ✅ THÊM METHOD MỚI
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const SizedBox.shrink();
-                    final result = snapshot.data!;
-                    
-                    return _buildClickableAlertItem(
-                      context: context,
-                      viewModel: viewModel,
-                      icon: Icons.text_fields,  // ❌ KHÔNG DÙNG
-                      color: const Color(0xFFB6771D),
-                      title: 'Miền Bắc',
-                      subtitle: 'Số: ${result.targetNumber}',
-                      days: result.maxGanDays,
-                      threshold: 15,
-                      type: AlertType.bac,
-                      useTextIcon: 'B',  // ✅ THÊM PARAMETER MỚI
-                    );
-                  },
-                ),
-
-              // 4. Xiên - THAY BẰNG GẠCH CHÉO
-              if (viewModel.ganPairInfo != null && viewModel.ganPairInfo!.daysGan > 150)
-                _buildClickableAlertItem(
-                  context: context,
-                  viewModel: viewModel,
-                  icon: Icons.text_fields,  // ✅ GẠCH CHÉO - hoặc dùng custom
-                  color: Colors.grey,
-                  title: 'Cặp số gan (Xiên)',
-                  subtitle: 'Cặp: ${viewModel.ganPairInfo!.randomPair.display}',
-                  days: viewModel.ganPairInfo!.daysGan,
-                  threshold: 150,
-                  type: AlertType.xien,
-                  useTextIcon: 'X',
-                ),
-              
-              // Thông báo nếu không có alert
-              if ((viewModel.ganPairInfo?.daysGan ?? 0) <= 150 &&
-                  viewModel.tatCaAlertCache != true &&
-                  viewModel.trungAlertCache != true &&
-                  viewModel.bacAlertCache != true)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Theme.of(context).primaryColor),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Hiện chưa có số nào thỏa điều kiện',
-                          style: TextStyle(color: Theme.of(context).primaryColor),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          // ✅ CHỈ CÒN NÚT ĐÓNG
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng'),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  // ✅ SỬA _buildAlertItem() THÀNH CLICKABLE
-  Widget _buildClickableAlertItem({
-    required BuildContext context,
-    required AnalysisViewModel viewModel,
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-    required int days,
-    required int threshold,
-    required AlertType type,
-    String? useTextIcon,  // ✅ THÊM: Dùng chữ thay vì icon
-  }) {
-    return InkWell(
-      onTap: () {
-        Navigator.pop(context); // Đóng dialog
-        _handleAlertItemClick(context, viewModel, type);
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Row(
-          children: [
-            // ✅ THAY ĐỔI: Hiển thị text hoặc icon
-            if (useTextIcon != null)
-              Container(
-                width: 32,
-                height: 32,
-                alignment: Alignment.center,
-                child: Text(
-                  useTextIcon,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              )
-            else
-              Icon(icon, color: color, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$days ngày (>$threshold)',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right, color: color),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ✅ THÊM HANDLER KHI CLICK VÀO TỪNG ITEM
-  void _handleAlertItemClick(
-    BuildContext context,
-    AnalysisViewModel viewModel,
-    AlertType type,
-  ) {
-    print('📘 Alert item clicked: $type');
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tạo bảng cược'),
-        content: Text(_getCreateTableMessage(type, viewModel)),
-        actions: [
-          TextButton(
-            onPressed: () {
-              print('❌ User cancelled');
-              Navigator.pop(context);
-            },
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              print('✅ User confirmed, creating table...');
-              Navigator.pop(context); // ✅ Đóng dialog xác nhận
-              
-              // ❌ BỎ LOADING Ở ĐÂY - Các hàm bên trong đã có loading riêng
-              
-              try {
-                await _createTableForAlertType(context, viewModel, type);
-                // ✅ Không cần đóng loading ở đây nữa
-              } catch (e) {
-                print('❌ Error in _handleAlertItemClick: $e');
-                
-                // ✅ HIỂN THỊ LỖI
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Lỗi: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Tạo bảng'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ✅ LẤY MESSAGE CHO DIALOG XÁC NHẬN
-  String _getCreateTableMessage(AlertType type, AnalysisViewModel viewModel) {
-    switch (type) {
-      case AlertType.xien:
-        return 'Tạo bảng cược Xiên cho cặp ${viewModel.ganPairInfo!.randomPair.display}?\n\n'
-            'Bảng hiện tại sẽ bị thay thế.';
-      case AlertType.tatCa:
-        return 'Tạo bảng cược Chu kỳ (Tất cả) cho số ${viewModel.cycleResult!.targetNumber}?\n\n'
-            'Bảng hiện tại sẽ bị thay thế.';
-      case AlertType.trung:
-        return 'Tạo bảng cược Miền Trung cho số ${viewModel.cycleResult!.targetNumber}?\n\n'
-            'Bảng hiện tại sẽ bị thay thế.';
-      case AlertType.bac:
-        return 'Tạo bảng cược Miền Bắc cho số ${viewModel.cycleResult!.targetNumber}?\n\n'
-            'Bảng hiện tại sẽ bị thay thế.';
-    }
-  }
-
-  // ✅ TẠO BẢNG THEO LOẠI
-  Future<void> _createTableForAlertType(
-    BuildContext context,
-    AnalysisViewModel viewModel,
-    AlertType type,
-  ) async {
-    print('🎯 _createTableForAlertType called: $type'); // ✅ ADD LOG
-    
-    final config = context.read<SettingsViewModel>().config;
-
-    try {
-      switch (type) {
-        case AlertType.xien:
-          print('   Creating Xiên table...'); // ✅ ADD LOG
-          await viewModel.createXienBettingTable();
-          break;
-          
-        case AlertType.tatCa:
-          print('   Creating Tất cả table...'); // ✅ ADD LOG
-          await viewModel.createCycleBettingTable(config);
-          break;
-          
-        case AlertType.trung:
-          print('   Analyzing Trung...'); // ✅ ADD LOG
-          final trungResult = await viewModel.analyzeCycleForMien('Trung');
-          if (trungResult == null) {
-            throw Exception('Không thể phân tích Miền Trung');
-          }
-          print('   Creating Trung table for number: ${trungResult.targetNumber}'); // ✅ ADD LOG
-          await viewModel.createTrungGanBettingTable(trungResult.targetNumber, config);
-          break;
-          
-        case AlertType.bac:
-          print('   Analyzing Bắc...'); // ✅ ADD LOG
-          final bacResult = await viewModel.analyzeCycleForMien('Bắc');
-          if (bacResult == null) {
-            throw Exception('Không thể phân tích Miền Bắc');
-          }
-          print('   Creating Bắc table for number: ${bacResult.targetNumber}'); // ✅ ADD LOG
-          await viewModel.createBacGanBettingTable(bacResult.targetNumber, config);
-          break;
-      }
-
-      print('   ✅ Table created successfully'); // ✅ ADD LOG
-
-      // ✅ XỬ LÝ SAU KHI TẠO BẢNG
-      if (context.mounted) {
-        if (viewModel.errorMessage == null) {
-          print('   Reloading betting tables...'); // ✅ ADD LOG
-          await context.read<BettingViewModel>().loadBettingTables();
-          
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Tạo bảng cược thành công!'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-            
-            await Future.delayed(const Duration(milliseconds: 300));
-            
-            if (context.mounted) {
-              print('   Switching to betting tab...'); // ✅ ADD LOG
-              mainNavigationKey.currentState?.switchToTab(1);
-            }
-          }
-        } else {
-          print('   ❌ ViewModel error: ${viewModel.errorMessage}'); // ✅ ADD LOG
-        }
-      }
-    } catch (e, stackTrace) {
-      print('❌ Error in _createTableForAlertType: $e'); // ✅ ADD LOG
-      print('   Stack trace: $stackTrace'); // ✅ ADD LOG
-      rethrow; // ✅ Throw lại để _handleAlertItemClick bắt được
-    }
-  }
 
   Widget _buildCycleSection(AnalysisViewModel viewModel) {
     final cycleResult = viewModel.cycleResult;
@@ -633,7 +167,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                               cycleResult.targetNumber,
                             );
                           } else {
-                            _createCycleBettingTable(context, viewModel);
+                            _createCycleBettingTable(
+                              context, 
+                              viewModel, 
+                              cycleResult.targetNumber,
+                            );
                           }
                         }
                       : null,
@@ -655,7 +193,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (cycleResult == null)
               const Text('Chưa có dữ liệu phân tích') 
             else ...[
-              _buildInfoRow('Số ngày gan:', '${cycleResult.maxGanDays} ngày'),
+              _buildInfoRow(
+                'Số ngày gan:', 
+                AnalysisThresholds.formatWithThreshold(
+                  cycleResult.maxGanDays, 
+                  viewModel.selectedMien,
+                ),
+              ),
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
@@ -821,7 +365,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/${AnalysisThresholds.xien} ngày'),
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
@@ -966,14 +510,26 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     }
   }
 
-  void _createCycleBettingTable(BuildContext context, AnalysisViewModel viewModel) {
+  void _createCycleBettingTable(
+    BuildContext context,
+    AnalysisViewModel viewModel,
+    String number,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận'),
-        content: const Text(
-          'Tạo bảng cược Chu kỳ dựa trên kết quả phân tích?\n\n'
-          'Bảng cược sẽ được tạo trong tab "Bảng cược".',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Số: $number'),
+            const SizedBox(height: 8),
+            const Text(
+              'Tạo bảng cược Chu kỳ dựa trên kết quả phân tích?\n'
+              'Bảng cược sẽ được tạo trong tab "Bảng cược".',
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -985,7 +541,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               Navigator.pop(context);
               
               final config = context.read<SettingsViewModel>().config;
-              await viewModel.createCycleBettingTable(config);
+              await viewModel.createCycleBettingTable(number, config);
               
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
@@ -1020,7 +576,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận'),
         content: const Text(
-          'Tạo bảng cược Xiên dựa trên kết quả phân tích?\n\n'
+          'Tạo bảng cược Xiên dựa trên kết quả phân tích?\n'
           'Bảng cược sẽ được tạo trong tab "Bảng cược".',
         ),
         actions: [
@@ -1532,69 +1088,57 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     AnalysisViewModel viewModel,
     String number,
   ) async {
-    print('🎯 _createTableForNumberWithMien called');
-    print('   Number: $number');
-    
+    print('🎯 Creating table for number: $number');
+
     final selectedMien = viewModel.selectedMien;
     print('   Selected mien: $selectedMien');
-    
-    // ✅ XÁC ĐỊNH LOẠI BẢNG DỰA TRÊN FILTER
-    String tableType;
+
+    // ✅ Xác định table type
+    final BettingTableTypeEnum tableType;
+    String tableDisplayName;
+
     if (selectedMien == 'Bắc') {
-      tableType = 'Miền Bắc';
+      tableType = BettingTableTypeEnum.bac;
+      tableDisplayName = 'Miền Bắc';
     } else if (selectedMien == 'Trung') {
-      tableType = 'Miền Trung';
+      tableType = BettingTableTypeEnum.trung;
+      tableDisplayName = 'Miền Trung';
     } else {
-      tableType = 'Chu kỳ (Tất cả)';
+      tableType = BettingTableTypeEnum.tatca;
+      tableDisplayName = 'Chu kỳ (Tất cả)';
     }
-    
-    print('   Table type: $tableType');
-    
-    // ✅ LƯU TẤT CẢ REFERENCES TRƯỚC KHI HIỂN THỊ DIALOG
+
+    // ✅ Lưu references
     final settingsViewModel = context.read<SettingsViewModel>();
     final bettingViewModel = context.read<BettingViewModel>();
     final navigator = Navigator.of(context);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-    
+
+    // ✅ Xác nhận
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Xác nhận'),
         content: Text(
-          'Tạo bảng cược $tableType cho số $number?\n\n'
+          'Tạo bảng cược $tableDisplayName cho số $number?\n\n'
           'Bảng cược hiện tại sẽ bị xóa và thay thế.',
-          style: TextStyle(color: Theme.of(context).primaryColor.withOpacity(0.9)),
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              print('   ❌ User cancelled');
-              Navigator.pop(dialogContext, false);
-            },
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Hủy'),
           ),
           ElevatedButton(
-            onPressed: () {
-              print('   ✅ User confirmed');
-              Navigator.pop(dialogContext, true);
-            },
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Tạo'),
           ),
         ],
       ),
     );
 
-    print('   Confirm result: $confirm');
+    if (confirm != true) return;
 
-    if (confirm != true) {
-      print('   ⚠️ User cancelled');
-      return;
-    }
-
-    print('   💰 Config loaded');
-
-    // ✅ HIỂN THỊ LOADING (DÙNG NAVIGATOR ĐÃ LƯU)
-    print('   📊 Showing loading dialog');
+    // ✅ Show loading
     navigator.push(
       PageRouteBuilder(
         opaque: false,
@@ -1607,29 +1151,23 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
     try {
       final config = settingsViewModel.config;
-      
-      // ✅ GỌI HÀM ĐÚNG THEO MIỀN
+
+      // ✅ GỌI wrapper (chọn tùy theo type)
       if (selectedMien == 'Bắc') {
-        print('   🎯 Creating Bắc table...');
         await viewModel.createBacGanBettingTable(number, config);
       } else if (selectedMien == 'Trung') {
-        print('   🎯 Creating Trung table...');
         await viewModel.createTrungGanBettingTable(number, config);
       } else {
-        print('   🎯 Creating Cycle table...');
-        await viewModel.createCycleBettingTableForNumber(number, config);
+        // ✅ Gọi createCycleBettingTableForNumber (giữ nguyên từ code cũ)
+        await viewModel.createCycleBettingTable(number, config);
       }
 
-      print('   ✅ Table creation completed');
-
-      // ✅ ĐÓNG LOADING
-      print('   🔄 Closing loading dialog');
+      // ✅ Close loading
       navigator.pop();
 
       if (viewModel.errorMessage == null) {
-        print('   ✅ No errors, reloading betting tables');
         await bettingViewModel.loadBettingTables();
-        
+
         scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('Tạo bảng cược thành công!'),
@@ -1637,52 +1175,16 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             duration: Duration(seconds: 2),
           ),
         );
-        
+
         await Future.delayed(const Duration(milliseconds: 300));
-        
-        print('   🔀 Switching to betting tab');
-        mainNavigationKey.currentState?.switchToTab(1);
+
+        if (context.mounted) {
+          mainNavigationKey.currentState?.switchToTab(1);
+        }
       }
-    } catch (e, stackTrace) {
-      print('   ❌ Exception caught: $e');
-      print('   Stack trace: $stackTrace');
-      
-      // ✅ ĐÓNG LOADING
+    } catch (e) {
+      print('❌ Error: $e');
       navigator.pop();
     }
-  }
-  // ✅ THÊM: Helper method
-  int _getAlertCount(AnalysisViewModel viewModel) {
-    int count = 0;
-    if (viewModel.hasXienAlert) count++;
-    if (viewModel.tatCaAlertCache == true) count++;
-    if (viewModel.trungAlertCache == true) count++;
-    if (viewModel.bacAlertCache == true) count++;
-    return count;
-  }
-}
-
-// ✅ THÊM: Custom painter cho ripple effect
-class RipplePainter extends CustomPainter {
-  final double progress;
-  final Color color;
-
-  RipplePainter(this.progress, this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withOpacity((1 - progress) * 0.3)
-      ..style = PaintingStyle.fill;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width * 0.8) * progress;
-
-    canvas.drawCircle(center, radius, paint);
-  }
-
-  @override
-  bool shouldRepaint(RipplePainter oldDelegate) {
-    return oldDelegate.progress != progress;
   }
 }

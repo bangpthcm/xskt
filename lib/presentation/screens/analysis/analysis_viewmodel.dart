@@ -7,6 +7,7 @@ import '../../../data/models/app_config.dart';
 import '../../../data/models/analysis_history.dart';
 import '../../../data/models/xien_analysis_history.dart';
 import '../../../data/models/number_detail.dart';
+import '../../../data/models/betting_row.dart';
 import '../../../data/services/google_sheets_service.dart';
 import '../../../data/services/analysis_service.dart';
 import '../../../data/services/storage_service.dart';
@@ -19,6 +20,185 @@ import '../../../data/services/budget_calculation_service.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/services/budget_calculation_service.dart';
 import '../../../data/services/cached_data_service.dart';
+
+// ✅ THÊM: Constants cho thresholds
+class AnalysisThresholds {
+  static const int tatca = 3;   // Alert khi > 3 ngày
+  static const int nam = 0;     // Nam: không có threshold
+  static const int trung = 14;   // Alert khi > 9 ngày
+  static const int bac = 15;    // Alert khi > 15 ngày
+  static const int xien = 150;  // Alert khi > 150 ngày
+  
+  static const Map<String, int> byMien = {
+    'Tất cả': tatca,
+    'Nam': nam,
+    'Trung': trung,
+    'Bắc': bac,
+  };
+  
+  static int getThreshold(String mien) => byMien[mien] ?? 0;
+  
+  static String formatWithThreshold(int currentDays, String mien) {
+    final threshold = getThreshold(mien);
+    return threshold == 0 
+        ? '$currentDays ngày' 
+        : '$currentDays ngày/$threshold ngày';
+  }
+}
+
+enum BettingTableTypeEnum { tatca, trung, bac }
+
+extension BettingTableTypeExtension on BettingTableTypeEnum {
+  String get sheetName {
+    switch (this) {
+      case BettingTableTypeEnum.tatca:
+        return 'xsktBot1';
+      case BettingTableTypeEnum.trung:
+        return 'trungBot';
+      case BettingTableTypeEnum.bac:
+        return 'bacBot';
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case BettingTableTypeEnum.tatca:
+        return 'Tất cả';
+      case BettingTableTypeEnum.trung:
+        return 'Miền Trung';
+      case BettingTableTypeEnum.bac:
+        return 'Miền Bắc';
+    }
+  }
+
+  String get budgetTableName {
+    switch (this) {
+      case BettingTableTypeEnum.tatca:
+        return 'tatca';
+      case BettingTableTypeEnum.trung:
+        return 'trung';
+      case BettingTableTypeEnum.bac:
+        return 'bac';
+    }
+  }
+
+  double? getBudgetConfig(AppConfig config) {
+    switch (this) {
+      case BettingTableTypeEnum.tatca:
+        return null;
+      case BettingTableTypeEnum.trung:
+        return config.budget.trungBudget;
+      case BettingTableTypeEnum.bac:
+        return config.budget.bacBudget;
+    }
+  }
+
+  Future<List<BettingRow>> generateTable({
+    required BettingTableService bettingService,
+    required CycleAnalysisResult cycleResult,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int startMienIndex,
+    required double budgetMin,
+    required double budgetMax,
+    required List<LotteryResult> allResults,
+    required int maxMienCount, 
+  }) async {
+    switch (this) {
+      case BettingTableTypeEnum.tatca:
+        return await bettingService.generateCycleTable(
+          cycleResult: cycleResult,
+          startDate: startDate,
+          endDate: endDate,
+          startMienIndex: startMienIndex,
+          budgetMin: budgetMin,
+          budgetMax: budgetMax,
+          allResults: allResults,
+          maxMienCount: maxMienCount,
+        );
+
+      case BettingTableTypeEnum.trung:
+        return await bettingService.generateTrungGanTable(
+          cycleResult: cycleResult,
+          startDate: startDate,
+          endDate: endDate,
+          budgetMin: budgetMin,
+          budgetMax: budgetMax,
+        );
+
+      case BettingTableTypeEnum.bac:
+        return await bettingService.generateBacGanTable(
+          cycleResult: cycleResult,
+          startDate: startDate,
+          endDate: endDate,
+          budgetMin: budgetMin,
+          budgetMax: budgetMax,
+        );
+    }
+  }
+
+  Future<List<BettingRow>> generateTestTable({
+    required BettingTableService bettingService,
+    required CycleAnalysisResult cycleResult,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int startMienIndex,
+    required double budgetMin,
+    required double budgetMax,
+    required List<LotteryResult> allResults,
+    required int maxMienCount, 
+  }) async {
+    // ✅ CHÚ Ý: generateTestTable có thể gọi lại generateTable
+    // Vì mục đích test, chúng ta gọi generate với budget gấp 2
+    return await generateTable(
+      bettingService: bettingService,
+      cycleResult: cycleResult,
+      startDate: startDate,
+      endDate: endDate,
+      startMienIndex: startMienIndex,
+      budgetMin: budgetMin,
+      budgetMax: budgetMax,
+      allResults: allResults,
+      maxMienCount: maxMienCount,
+    );
+  }
+
+  Future<void> saveTable({
+    required GoogleSheetsService sheetsService,
+    required List<BettingRow> table,
+    required CycleAnalysisResult cycleResult,
+  }) async {
+    print('📝 Saving table to $sheetName...');
+    
+    await sheetsService.clearSheet(sheetName);
+
+    await sheetsService.updateRange(
+      sheetName,
+      'A1:D1',
+      [
+        [
+          cycleResult.maxGanDays.toString(),
+          date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
+          cycleResult.ganNumbersDisplay,
+          cycleResult.targetNumber,
+        ]
+      ],
+    );
+
+    await sheetsService.updateRange(
+      sheetName,
+      'A3:J3',
+      [
+        ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
+      ],
+    );
+
+    final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
+    await sheetsService.updateRange(sheetName, 'A4', dataRows);
+    
+    print('✅ Table saved to $sheetName');
+  }
+}
 
 class AnalysisViewModel extends ChangeNotifier {
   final CachedDataService _cachedDataService;
@@ -177,9 +357,9 @@ class AnalysisViewModel extends ChangeNotifier {
         ),
       ]);
       
-      _tatCaAlertCache = results[0] != null && results[0]!.maxGanDays > 3;
-      _trungAlertCache = results[1] != null && results[1]!.maxGanDays > 9;
-      _bacAlertCache = results[2] != null && results[2]!.maxGanDays > 15;
+      _tatCaAlertCache = results[0] != null && results[0]!.maxGanDays > AnalysisThresholds.tatca;
+      _trungAlertCache = results[1] != null && results[1]!.maxGanDays > AnalysisThresholds.trung;
+      _bacAlertCache = results[2] != null && results[2]!.maxGanDays > AnalysisThresholds.bac;
       
       _lastDataHash = currentDataHash; // ✅ Save hash
       
@@ -193,218 +373,253 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> createCycleBettingTable(AppConfig config) async {
-    if (_cycleResult == null) {
-      _errorMessage = 'Chưa có dữ liệu chu kỳ';
-      notifyListeners();
-      return;
-    }
-    
+  /// ✅ Generic method - Tạo bảng cược cho bất kỳ type nào
+  Future<void> _createBettingTableGeneric({
+    required BettingTableTypeEnum tableType,
+    required String targetNumber,
+    required AppConfig config,
+  }) async {
+    print('🎯 _createBettingTableGeneric: type=${tableType.displayName}, number=$targetNumber');
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // ✅ BƯỚC 1: Tính budget khả dụng (NEW LOGIC)
+      // ✅ STEP 1: Xác định CycleResult
+      print('⏳ STEP 1: Getting cycle result...');
+      
+      final CycleAnalysisResult? cycleResult;
+
+      if (tableType == BettingTableTypeEnum.tatca) {
+        cycleResult = _cycleResult;
+        if (cycleResult == null) {
+          throw Exception('Chưa có dữ liệu chu kỳ');
+        }
+        print('   ✅ Using current cycle result');
+      } else {
+        cycleResult = await _createCycleResultForNumber(targetNumber, tableType);
+        if (cycleResult == null) {
+          throw Exception('Không tìm thấy thông tin số $targetNumber cho ${tableType.displayName}');
+        }
+        print('   ✅ Created cycle result from number');
+      }
+
+      // ✅ STEP 2: Tính budget khả dụng
+      print('⏳ STEP 2: Calculating budget...');
+      
       final budgetService = BudgetCalculationService(
         sheetsService: _sheetsService,
       );
-      
+
       final budgetResult = await budgetService.calculateAvailableBudget(
         totalCapital: config.budget.totalCapital,
-        targetTable: 'tatca',  // Bảng "Tất cả"
-        configBudget: null,  // Không có config cho Tất cả
+        targetTable: tableType.budgetTableName,
+        configBudget: tableType.getBudgetConfig(config),
       );
-      
+
       final budgetMax = budgetResult.budgetMax;
+      final budgetMin = budgetMax * 0.95;
+
+      print('   💰 Budget: ${NumberUtils.formatCurrency(budgetMin)} - ${NumberUtils.formatCurrency(budgetMax)}');
+
+      // ✅ STEP 3: Tính startDate và endDate
+      print('⏳ STEP 3: Calculating dates...');
       
-      print('💰 Budget for Tất cả: ${NumberUtils.formatCurrency(budgetMax)}');
+      final startDateInfo = _calculateStartDateAndMienIndex(tableType);
+      final startDate = startDateInfo['startDate'] as DateTime;
+      final startMienIndex = startDateInfo['startMienIndex'] as int;
 
-      // ✅ BƯỚC 2: Tìm ngày bắt đầu (logic cũ, giữ nguyên)
-      DateTime? latestDate;
-      String? latestMien;
-      
-      for (final result in _allResults) {
-        final date = date_utils.DateUtils.parseDate(result.ngay);
-        if (date != null) {
-          if (latestDate == null || 
-              date.isAfter(latestDate) ||
-              (date.isAtSameMomentAs(latestDate) && _isMienLater(result.mien, latestMien ?? ''))) {
-            latestDate = date;
-            latestMien = result.mien;
-          }
-        }
-      }
-
-      if (latestDate == null || latestMien == null) {
-        throw Exception('Không tìm thấy dữ liệu KQXS');
-      }
-
-      final mienOrder = ['Nam', 'Trung', 'Bắc'];
-      final latestMienIndex = mienOrder.indexOf(latestMien);
-      print('📅 Latest KQXS: ${date_utils.DateUtils.formatDate(latestDate!)} - $latestMien');
-      
-      DateTime startDate;
-      int startMienIndex;
-      
-      if (latestMienIndex == 2) {
-        startDate = latestDate.add(const Duration(days: 1));
-        startMienIndex = 0;
-      } else {
-        startDate = latestDate;
-        startMienIndex = latestMienIndex + 1;
-      }
-
-      String targetMien = 'Nam';
-      for (final entry in _cycleResult!.mienGroups.entries) {
-        if (entry.value.contains(_cycleResult!.targetNumber)) {
-          targetMien = entry.key;
-          break;
-        }
-      }
-
-      // ✅ BƯỚC 3: Tính số lượt
+      DateTime endDate;
       int targetMienCount = 9;
-      
-      DateTime endDate = _cycleResult!.lastSeenDate.add(const Duration(days: 10));
-      print('📅 Start betting: ${date_utils.DateUtils.formatDate(startDate)} - startMienIndex: $startMienIndex (${mienOrder[startMienIndex]})');
-      print('🔍 Starting with targetMienCount: $targetMienCount');
-      print('📅 Estimated endDate: ${date_utils.DateUtils.formatDate(endDate)}');
-      
-      int initialMienCount = _countTargetMienOccurrences(
-        startDate: _cycleResult!.lastSeenDate,
-        endDate: startDate,
-        targetMien: targetMien,
-        allResults: _allResults,
-      );
 
-      print('📊 Initial mien count: $initialMienCount');
-
-      // ✅ CHECK TUESDAY
-      final simulatedRows = _simulateTableRows(
-        startDate: startDate,
-        startMienIndex: startMienIndex,
-        targetMien: targetMien,
-        targetCount: targetMienCount,
-        mienOrder: mienOrder,
-        initialCount: initialMienCount,
-      );
-
-      if (simulatedRows.isNotEmpty) {
-        final uniqueDates = <DateTime>{};
-        for (final row in simulatedRows) {
-          uniqueDates.add(row['date'] as DateTime);
-        }
+      if (tableType == BettingTableTypeEnum.tatca) {
+        // ✅ LOGIC CHO TẤT CẢ
+        print('   📊 TATCA logic: checking Tuesday...');
         
-        final sortedDates = uniqueDates.toList()..sort();
-        
-        if (sortedDates.length >= 2) {
-          final lastDate = sortedDates[sortedDates.length - 1];
-          final secondLastDate = sortedDates[sortedDates.length - 2];
-          
-          final lastWeekday = date_utils.DateUtils.getWeekday(lastDate);
-          final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
-          
-          print('🔍 Last date: ${date_utils.DateUtils.formatDate(lastDate)} - Weekday: $lastWeekday');
-          print('🔍 Second last date: ${date_utils.DateUtils.formatDate(secondLastDate)} - Weekday: $secondLastWeekday');
-          
-          bool needExtraTurn = false;
-          
-          final lastDateHasNam = simulatedRows.any((row) => 
-            (row['date'] as DateTime).isAtSameMomentAs(lastDate) && 
-            row['mien'] == 'Nam'
-          );
-          
-          if (lastDateHasNam && lastWeekday == 1) {
-            print('   ⚠️ Last date has Nam on Tuesday!');
-            needExtraTurn = true;
+        String targetMien = 'Nam';
+        for (final entry in cycleResult!.mienGroups.entries) {
+          if (entry.value.contains(cycleResult.targetNumber)) {
+            targetMien = entry.key;
+            break;
           }
-          
-          if (!needExtraTurn) {
-            final secondLastDateHasNam = simulatedRows.any((row) => 
-              (row['date'] as DateTime).isAtSameMomentAs(secondLastDate) && 
-              row['mien'] == 'Nam'
-            );
-            
-            if (secondLastDateHasNam && secondLastWeekday == 1) {
-              print('   ⚠️ Second last date has Nam on Tuesday!');
+        }
+        print('   🌍 Target mien: $targetMien');
+
+        final mienOrder = ['Nam', 'Trung', 'Bắc'];
+
+        int initialMienCount = _countTargetMienOccurrences(
+          startDate: cycleResult.lastSeenDate,
+          endDate: startDate,
+          targetMien: targetMien,
+          allResults: _allResults,
+        );
+        print('   📊 Initial mien count: $initialMienCount');
+
+        targetMienCount = 9;
+
+        // Simulate để kiểm tra Tuesday
+        final simulatedRows = _simulateTableRows(
+          startDate: startDate,
+          startMienIndex: startMienIndex,
+          targetMien: targetMien,
+          targetCount: targetMienCount,
+          mienOrder: mienOrder,
+          initialCount: initialMienCount,
+        );
+
+        if (simulatedRows.isNotEmpty) {
+          final uniqueDates = <DateTime>{};
+          for (final row in simulatedRows) {
+            uniqueDates.add(row['date'] as DateTime);
+          }
+
+          final sortedDates = uniqueDates.toList()..sort();
+
+          if (sortedDates.length >= 2) {
+            final lastDate = sortedDates[sortedDates.length - 1];
+            final secondLastDate = sortedDates[sortedDates.length - 2];
+
+            final lastWeekday = date_utils.DateUtils.getWeekday(lastDate);
+            final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
+
+            print('   🔍 Last date: ${date_utils.DateUtils.formatDate(lastDate)} (weekday: $lastWeekday)');
+            print('   🔍 Second last: ${date_utils.DateUtils.formatDate(secondLastDate)} (weekday: $secondLastWeekday)');
+
+            bool needExtraTurn = false;
+
+            final lastDateHasNam = simulatedRows.any((row) =>
+                (row['date'] as DateTime).isAtSameMomentAs(lastDate) && row['mien'] == 'Nam');
+
+            if (lastDateHasNam && lastWeekday == 1) {
+              print('   ⚠️ Last date has Nam on Tuesday → adding extra turn');
               needExtraTurn = true;
             }
-          }
-          
-          if (needExtraTurn) {
-            print('📅 Adding extra turn (9 → 10)');
-            targetMienCount = 10;
+
+            if (!needExtraTurn) {
+              final secondLastDateHasNam = simulatedRows.any((row) =>
+                  (row['date'] as DateTime).isAtSameMomentAs(secondLastDate) && row['mien'] == 'Nam');
+
+              if (secondLastDateHasNam && secondLastWeekday == 1) {
+                print('   ⚠️ Second last has Nam on Tuesday → adding extra turn');
+                needExtraTurn = true;
+              }
+            }
+
+            if (needExtraTurn) {
+              print('   📅 Increasing count: $targetMienCount → ${targetMienCount + 1}');
+              targetMienCount += 1;
+            }
           }
         }
+
+        endDate = cycleResult.lastSeenDate.add(const Duration(days: 10));
+      } else if (tableType == BettingTableTypeEnum.trung) {
+        // ✅ LOGIC CHO TRUNG/BẮC
+        print('   📊 ${tableType.displayName} logic: fixed endDate');
+        endDate = cycleResult!.lastSeenDate.add(const Duration(days: 28));
+        targetMienCount = 0;  // Không dùng cho Trung/Bắc
+      } else {
+        // ✅ LOGIC CHO TRUNG/BẮC
+        print('   📊 ${tableType.displayName} logic: fixed endDate');
+        endDate = cycleResult!.lastSeenDate.add(const Duration(days: 35));
+        targetMienCount = 0;  // Không dùng cho Trung/Bắc
       }
 
-      print('🎯 Final targetMienCount: $targetMienCount');
-      print('💰 Final budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
+      print('   📅 End date: ${date_utils.DateUtils.formatDate(endDate)}');
+      print('   🎯 Target mien count: $targetMienCount');
 
-      // ✅ BƯỚC 4: Generate table
+      // ✅ STEP 4: Generate table
+      print('⏳ STEP 4: Generating table...');
+      
       try {
-        final newTable = await _bettingService.generateCycleTable(
-          cycleResult: _cycleResult!,
+        final newTable = await tableType.generateTable(
+          bettingService: _bettingService,
+          cycleResult: cycleResult!,
           startDate: startDate,
           endDate: endDate,
           startMienIndex: startMienIndex,
-          budgetMin: budgetMax * 0.95,
+          budgetMin: budgetMin,
           budgetMax: budgetMax,
           allResults: _allResults,
           maxMienCount: targetMienCount,
         );
 
-        await _saveCycleTableToSheet(newTable);
+        print('   ✅ Generated ${newTable.length} rows');
+
+        // ✅ STEP 5: Save table
+        print('⏳ STEP 5: Saving table...');
+        
+        await tableType.saveTable(
+          sheetsService: _sheetsService,
+          table: newTable,
+          cycleResult: cycleResult,
+        );
+
+        print('   ✅ Table saved');
 
         _isLoading = false;
         notifyListeners();
-        
       } catch (generateError) {
-        // ✅ Bắt lỗi generate và throw lỗi chi tiết
-        print('❌ Generate table error: $generateError');
-        
-        // Thử tạo một lần để lấy estimated total
+        print('❌ Generate error: $generateError');
+
         try {
-          final testTable = await _bettingService.generateCycleTable(
-            cycleResult: _cycleResult!,
+          final testTable = await tableType.generateTestTable(
+            bettingService: _bettingService,
+            cycleResult: cycleResult!,
             startDate: startDate,
             endDate: endDate,
             startMienIndex: startMienIndex,
             budgetMin: 1.0,
-            budgetMax: budgetMax * 2,  // Thử với budget gấp đôi
+            budgetMax: budgetMax * 2,
             allResults: _allResults,
             maxMienCount: targetMienCount,
           );
-          
+
           final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
-          
+
           throw OptimizationFailedException(
-            tableName: 'Tất cả',
+            tableName: tableType.displayName,
             budgetResult: budgetResult,
             estimatedTotal: estimatedTotal,
           );
         } catch (testError) {
-          // Nếu test cũng fail, throw error gốc
           rethrow;
         }
       }
-      
     } on BudgetInsufficientException catch (e) {
+      print('❌ Budget insufficient: $e');
       _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
     } on OptimizationFailedException catch (e) {
+      print('❌ Optimization failed: $e');
       _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ Unexpected error: $e');
+      print('   Stack: $stackTrace');
       _errorMessage = 'Lỗi tạo bảng: $e';
       _isLoading = false;
       notifyListeners();
     }
   }
 
+  // ✅ SIMPLIFIED
+  Future<void> createCycleBettingTable(
+    String targetNumber,
+    AppConfig config,
+  ) async {
+    print('📊 createCycleBettingTable called: $targetNumber');
+
+    // ✅ Delegate to generic method
+    await _createBettingTableGeneric(
+      tableType: BettingTableTypeEnum.tatca,
+      targetNumber: targetNumber,
+      config: config,
+    );
+  }
 
   // ✅ SỬA _simulateTableRows() - THÊM initialCount
 
@@ -547,340 +762,6 @@ class AnalysisViewModel extends ChangeNotifier {
     };
   }
 
-
-  Future<void> createCycleBettingTableForNumber(
-    String targetNumber,
-    AppConfig config,
-  ) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      // ✅ BƯỚC 1: Analyze số đó
-      final numberDetail = await _analysisService.analyzeNumberDetail(
-        _allResults,
-        targetNumber,
-      );
-
-      if (numberDetail == null) {
-        throw Exception('Không tìm thấy thông tin số $targetNumber');
-      }
-
-      // ✅ NEW LOGIC: Xác định targetMien dựa trên filter
-      int targetDaysGan = 0;
-      DateTime? lastSeenDate;
-      String? targetMien;  // ✅ ĐỔI TÊN: selectedMien → targetMien
-
-      if (_selectedMien == 'Trung') {
-        // ✅ Filter = Trung → targetMien = Trung
-        final trungDetail = numberDetail.mienDetails['Trung'];
-        if (trungDetail == null) {
-          throw Exception('Số $targetNumber chưa có dữ liệu Miền Trung');
-        }
-        targetDaysGan = trungDetail.daysGan;
-        lastSeenDate = trungDetail.lastSeenDate;
-        targetMien = 'Trung';
-        print('📍 Filter = Trung → targetMien = Trung: $targetDaysGan days');
-        
-      } else if (_selectedMien == 'Bắc') {
-        // ✅ Filter = Bắc → targetMien = Bắc
-        final bacDetail = numberDetail.mienDetails['Bắc'];
-        if (bacDetail == null) {
-          throw Exception('Số $targetNumber chưa có dữ liệu Miền Bắc');
-        }
-        targetDaysGan = bacDetail.daysGan;
-        lastSeenDate = bacDetail.lastSeenDate;
-        targetMien = 'Bắc';
-        print('📍 Filter = Bắc → targetMien = Bắc: $targetDaysGan days');
-        
-      } else {
-        // ✅ Filter = Tất cả → targetMien = miền có số ngày gan ÍT NHẤT
-        int minDaysGan = 999999;
-        
-        for (final entry in numberDetail.mienDetails.entries) {
-          print('   Checking ${entry.key}: ${entry.value.daysGan} days, last seen: ${date_utils.DateUtils.formatDate(entry.value.lastSeenDate)}');
-          
-          if (entry.value.daysGan < minDaysGan) {
-            minDaysGan = entry.value.daysGan;
-            targetDaysGan = entry.value.daysGan;
-            lastSeenDate = entry.value.lastSeenDate;
-            targetMien = entry.key;
-          }
-        }
-        
-        print('📍 Filter = Tất cả → targetMien = $targetMien (MIN): $targetDaysGan days');
-      }
-
-      if (lastSeenDate == null || targetMien == null) {
-        throw Exception('Không tìm thấy ngày xuất hiện cuối');
-      }
-
-      final customCycleResult = CycleAnalysisResult(
-        ganNumbers: {targetNumber},
-        maxGanDays: targetDaysGan,
-        lastSeenDate: lastSeenDate,
-        mienGroups: {targetMien: [targetNumber]},
-        targetNumber: targetNumber,
-      );
-
-      // ✅ BƯỚC 2: Tính budget dựa trên FILTER (không phải targetMien)
-      final budgetService = BudgetCalculationService(
-        sheetsService: _sheetsService,
-      );
-      
-      String targetTable;
-      double? configBudget;
-      
-      if (_selectedMien == 'Bắc') {
-        targetTable = 'bac';
-        configBudget = config.budget.bacBudget;
-      } else if (_selectedMien == 'Trung') {
-        targetTable = 'trung';
-        configBudget = config.budget.trungBudget;
-      } else {
-        targetTable = 'tatca';
-        configBudget = null;
-      }
-      
-      final budgetResult = await budgetService.calculateAvailableBudget(
-        totalCapital: config.budget.totalCapital,
-        targetTable: targetTable,
-        configBudget: configBudget,
-      );
-      
-      final availableBudget = budgetResult.budgetMax;
-      
-      print('💰 Available budget for filter "$_selectedMien" (targetMien=$targetMien, number=$targetNumber): ${NumberUtils.formatCurrency(availableBudget)}');
-
-      // ✅ BƯỚC 3: Tìm ngày bắt đầu
-      DateTime? latestDate;
-      String? latestMien;
-      
-      for (final result in _allResults) {
-        final date = date_utils.DateUtils.parseDate(result.ngay);
-        if (date != null) {
-          if (latestDate == null || 
-              date.isAfter(latestDate) ||
-              (date.isAtSameMomentAs(latestDate) && _isMienLater(result.mien, latestMien ?? ''))) {
-            latestDate = date;
-            latestMien = result.mien;
-          }
-        }
-      }
-
-      final mienOrder = ['Nam', 'Trung', 'Bắc'];
-      final latestMienIndex = mienOrder.indexOf(latestMien!);
-      
-      DateTime startDate;
-      int startMienIndex;
-      
-      if (latestMienIndex == 2) {
-        startDate = latestDate!.add(const Duration(days: 1));
-        startMienIndex = 0;
-      } else {
-        startDate = latestDate!;
-        startMienIndex = latestMienIndex + 1;
-      }
-
-      // ✅ BƯỚC 4: Tính số lượt dựa trên FILTER (không phải targetMien)
-      int targetMienCount;
-      if (_selectedMien == 'Bắc') {
-        targetMienCount = 0; // Bắc không cần count, dùng endDate
-      } else if (_selectedMien == 'Trung') {
-        targetMienCount = 30;
-      } else {
-        targetMienCount = 9; // Tất cả
-      }
-      
-      double budgetMax = availableBudget;
-      
-      DateTime endDate = lastSeenDate.add(const Duration(days: 35));
-      print('📅 Start betting: ${date_utils.DateUtils.formatDate(startDate)} - startMienIndex: $startMienIndex (${mienOrder[startMienIndex]})');
-      print('🔍 Filter: $_selectedMien, targetMien: $targetMien, targetMienCount: $targetMienCount');
-      print('📅 Estimated endDate: ${date_utils.DateUtils.formatDate(endDate)}');
-      
-      // ✅ CHỈ TÍNH TUESDAY CHO FILTER "TẤT CẢ"
-      if (_selectedMien == 'Tất cả') {
-        // ✅ TÍNH initialCount TỪ lastSeenDate ĐẾN startDate
-        int initialMienCount = _countTargetMienOccurrences(
-          startDate: lastSeenDate,
-          endDate: startDate,
-          targetMien: targetMien,
-          allResults: _allResults,
-        );
-
-        print('📊 Initial mien count: $initialMienCount');
-
-        // ✅ CHECK TUESDAY
-        final simulatedRows = _simulateTableRows(
-          startDate: startDate,
-          startMienIndex: startMienIndex,
-          targetMien: targetMien,
-          targetCount: targetMienCount,
-          mienOrder: mienOrder,
-          initialCount: initialMienCount,
-        );
-
-        if (simulatedRows.isNotEmpty) {
-          final uniqueDates = <DateTime>{};
-          for (final row in simulatedRows) {
-            uniqueDates.add(row['date'] as DateTime);
-          }
-          
-          final sortedDates = uniqueDates.toList()..sort();
-          
-          if (sortedDates.length >= 2) {
-            final lastDate = sortedDates[sortedDates.length - 1];
-            final secondLastDate = sortedDates[sortedDates.length - 2];
-            
-            final lastWeekday = date_utils.DateUtils.getWeekday(lastDate);
-            final secondLastWeekday = date_utils.DateUtils.getWeekday(secondLastDate);
-            
-            print('🔍 Last date: ${date_utils.DateUtils.formatDate(lastDate)} - Weekday: $lastWeekday');
-            print('🔍 Second last date: ${date_utils.DateUtils.formatDate(secondLastDate)} - Weekday: $secondLastWeekday');
-            
-            bool needExtraTurn = false;
-            
-            final lastDateHasNam = simulatedRows.any((row) => 
-              (row['date'] as DateTime).isAtSameMomentAs(lastDate) && 
-              row['mien'] == 'Nam'
-            );
-            
-            if (lastDateHasNam && lastWeekday == 1) {
-              print('   ⚠️ Last date has Nam on Tuesday!');
-              needExtraTurn = true;
-            }
-            
-            if (!needExtraTurn) {
-              final secondLastDateHasNam = simulatedRows.any((row) => 
-                (row['date'] as DateTime).isAtSameMomentAs(secondLastDate) && 
-                row['mien'] == 'Nam'
-              );
-              
-              if (secondLastDateHasNam && secondLastWeekday == 1) {
-                print('   ⚠️ Second last date has Nam on Tuesday!');
-                needExtraTurn = true;
-              }
-            }
-            
-            if (needExtraTurn) {
-              print('📅 Adding extra turn (9 → 10)');
-              targetMienCount = 10;
-            }
-          }
-        }
-      }
-
-      print('🎯 Final targetMienCount: $targetMienCount');
-      print('💰 Final budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
-
-      // ✅ BƯỚC 5: Generate table dựa trên FILTER (không phải targetMien)
-      try {
-        List<dynamic> newTable;
-        
-        if (_selectedMien == 'Bắc') {
-          print('   📊 Generating Bắc table (targetMien=$targetMien)...');
-          newTable = await _bettingService.generateBacGanTable(
-            cycleResult: customCycleResult,
-            startDate: startDate,
-            endDate: endDate,
-            budgetMin: budgetMax * 0.95,
-            budgetMax: budgetMax,
-          );
-          await _saveBacTableToSheet(newTable, customCycleResult);
-          
-        } else if (_selectedMien == 'Trung') {
-          print('   📊 Generating Trung table (targetMien=$targetMien)...');
-          newTable = await _bettingService.generateTrungGanTable(
-            cycleResult: customCycleResult,
-            startDate: startDate,
-            endDate: endDate,
-            budgetMin: budgetMax * 0.95,
-            budgetMax: budgetMax,
-          );
-          await _saveTrungTableToSheet(newTable, customCycleResult);
-          
-        } else {
-          print('   📊 Generating Cycle table "Tất cả" (targetMien=$targetMien)...');
-          newTable = await _bettingService.generateCycleTable(
-            cycleResult: customCycleResult,
-            startDate: startDate,
-            endDate: endDate,
-            startMienIndex: startMienIndex,
-            budgetMin: budgetMax * 0.95,
-            budgetMax: budgetMax,
-            allResults: _allResults,
-            maxMienCount: targetMienCount,
-          );
-          await _saveCycleTableToSheet(newTable);
-        }
-
-        _isLoading = false;
-        notifyListeners();
-        
-      } catch (generateError) {
-        print('❌ Generate table error: $generateError');
-        
-        try {
-          List<dynamic> testTable;
-          
-          if (_selectedMien == 'Bắc') {
-            testTable = await _bettingService.generateBacGanTable(
-              cycleResult: customCycleResult,
-              startDate: startDate,
-              endDate: endDate,
-              budgetMin: 1.0,
-              budgetMax: budgetMax * 2,
-            );
-          } else if (_selectedMien == 'Trung') {
-            testTable = await _bettingService.generateTrungGanTable(
-              cycleResult: customCycleResult,
-              startDate: startDate,
-              endDate: endDate,
-              budgetMin: 1.0,
-              budgetMax: budgetMax * 2,
-            );
-          } else {
-            testTable = await _bettingService.generateCycleTable(
-              cycleResult: customCycleResult,
-              startDate: startDate,
-              endDate: endDate,
-              startMienIndex: startMienIndex,
-              budgetMin: 1.0,
-              budgetMax: budgetMax * 2,
-              allResults: _allResults,
-              maxMienCount: targetMienCount,
-            );
-          }
-          
-          final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
-          
-          throw OptimizationFailedException(
-            tableName: 'Số $targetNumber (Filter: $_selectedMien, Target: $targetMien)',
-            budgetResult: budgetResult,
-            estimatedTotal: estimatedTotal,
-          );
-        } catch (testError) {
-          rethrow;
-        }
-      }
-      
-    } on BudgetInsufficientException catch (e) {
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    } on OptimizationFailedException catch (e) {
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Lỗi tạo bảng: $e';
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
   String _getWeekdayName(int weekday) {
     const names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
     return names[weekday];
@@ -975,34 +856,6 @@ class AnalysisViewModel extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  Future<void> _saveCycleTableToSheet(List<dynamic> table) async {
-    await _sheetsService.clearSheet('xsktBot1');
-
-    await _sheetsService.updateRange(
-      'xsktBot1',
-      'A1:D1',
-      [
-        [
-          _cycleResult!.maxGanDays.toString(),
-          date_utils.DateUtils.formatDate(_cycleResult!.lastSeenDate),
-          _cycleResult!.ganNumbersDisplay,
-          _cycleResult!.targetNumber,
-        ]
-      ],
-    );
-
-    await _sheetsService.updateRange(
-      'xsktBot1',
-      'A3:J3',
-      [
-        ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
-      ],
-    );
-
-    final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
-    await _sheetsService.updateRange('xsktBot1', 'A4', dataRows);
   }
 
   Future<void> _saveXienTableToSheet(List<dynamic> table) async {
@@ -1136,6 +989,95 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
   }
   
+  /// ✅ Helper: Tạo CycleResult từ số cho Trung/Bắc
+  Future<CycleAnalysisResult?> _createCycleResultForNumber(
+    String targetNumber,
+    BettingTableTypeEnum tableType,
+  ) async {
+    print('🔍 Creating cycle result for number: $targetNumber, type: ${tableType.displayName}');
+    
+    final numberDetail = await _analysisService.analyzeNumberDetail(
+      _allResults,
+      targetNumber,
+    );
+
+    if (numberDetail == null) {
+      print('❌ No number detail found');
+      return null;
+    }
+
+    final mienName = tableType == BettingTableTypeEnum.trung ? 'Trung' : 'Bắc';
+    final mienDetail = numberDetail.mienDetails[mienName];
+
+    if (mienDetail == null) {
+      print('❌ No mien detail found for $mienName');
+      return null;
+    }
+
+    final cycleResult = CycleAnalysisResult(
+      ganNumbers: {targetNumber},
+      maxGanDays: mienDetail.daysGan,
+      lastSeenDate: mienDetail.lastSeenDate,
+      mienGroups: {mienName: [targetNumber]},
+      targetNumber: targetNumber,
+    );
+    
+    print('✅ Cycle result created: $mienName, ${mienDetail.daysGan} days gan');
+    return cycleResult;
+  }
+
+  /// ✅ Helper: Tính startDate và startMienIndex
+  Map<String, dynamic> _calculateStartDateAndMienIndex(
+    BettingTableTypeEnum tableType,
+  ) {
+    print('📅 Calculating start date and mien index...');
+    
+    DateTime? latestDate;
+    String? latestMien;
+
+    for (final result in _allResults) {
+      final date = date_utils.DateUtils.parseDate(result.ngay);
+      if (date != null) {
+        if (latestDate == null ||
+            date.isAfter(latestDate) ||
+            (date.isAtSameMomentAs(latestDate) && _isMienLater(result.mien, latestMien ?? ''))) {
+          latestDate = date;
+          latestMien = result.mien;
+        }
+      }
+    }
+
+    if (latestDate == null || latestMien == null) {
+      throw Exception('Không tìm thấy KQXS mới nhất');
+    }
+
+    final mienOrder = ['Nam', 'Trung', 'Bắc'];
+    final latestMienIndex = mienOrder.indexOf(latestMien);
+
+    DateTime startDate;
+    int startMienIndex;
+
+    if (latestMienIndex == 2) {
+      // Mien cuối cùng là Bắc → ngày mai từ Nam
+      startDate = latestDate.add(const Duration(days: 1));
+      startMienIndex = 0;
+      print('   📍 Last: Bắc → Start tomorrow from Nam');
+    } else {
+      // Mien cuối cùng là Nam/Trung → hôm nay từ mien tiếp theo
+      startDate = latestDate;
+      startMienIndex = latestMienIndex + 1;
+      print('   📍 Last: $latestMien → Start today from ${mienOrder[startMienIndex]}');
+    }
+
+    print('   📅 Start date: ${date_utils.DateUtils.formatDate(startDate)}');
+    print('   🌍 Start mien index: $startMienIndex (${mienOrder[startMienIndex]})');
+
+    return {
+      'startDate': startDate,
+      'startMienIndex': startMienIndex,
+    };
+  }
+
   Future<void> _saveAnalysisHistory() async {
     try {
       final existingData = await _sheetsService.getAllValues('xsktGan');
@@ -1372,306 +1314,30 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  /// Tạo bảng cược cho số gan Miền Bắc
-  Future<void> createBacGanBettingTable(
-    String targetNumber,
-    AppConfig config,
-  ) async {
-    print('🎯 Creating Bắc gan betting table for number: $targetNumber');
-    
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final numberDetail = await _analysisService.analyzeNumberDetail(
-        _allResults,
-        targetNumber,
-      );
-
-      if (numberDetail == null) {
-        throw Exception('Không tìm thấy thông tin số $targetNumber');
-      }
-
-      final bacDetail = numberDetail.mienDetails['Bắc'];
-      if (bacDetail == null) {
-        throw Exception('Số $targetNumber chưa có dữ liệu Miền Bắc');
-      }
-
-      final customCycleResult = CycleAnalysisResult(
-        ganNumbers: {targetNumber},
-        maxGanDays: bacDetail.daysGan,
-        lastSeenDate: bacDetail.lastSeenDate,
-        mienGroups: {'Bắc': [targetNumber]},
-        targetNumber: targetNumber,
-      );
-
-      final latestDate = _allResults
-          .map((r) => date_utils.DateUtils.parseDate(r.ngay))
-          .where((d) => d != null)
-          .reduce((a, b) => a!.isAfter(b!) ? a : b);
-
-      final startDate = latestDate!.add(const Duration(days: 1));
-      final endDate = bacDetail.lastSeenDate.add(const Duration(days: 35));
-
-      // ✅ NEW LOGIC: Tính budget động
-      final budgetService = BudgetCalculationService(
-        sheetsService: _sheetsService,
-      );
-      
-      final budgetResult = await budgetService.calculateAvailableBudget(
-        totalCapital: config.budget.totalCapital,
-        targetTable: 'bac',
-        configBudget: config.budget.bacBudget,
-      );
-      
-      final budgetMax = budgetResult.budgetMax;
-      final budgetMin = budgetMax * 0.95;
-      
-      print('💰 Bắc budget: ${NumberUtils.formatCurrency(budgetMax)}');
-
-      try {
-        final newTable = await _bettingService.generateBacGanTable(
-          cycleResult: customCycleResult,
-          startDate: startDate,
-          endDate: endDate,
-          budgetMin: budgetMin,
-          budgetMax: budgetMax,
-        );
-
-        await _saveBacTableToSheet(newTable, customCycleResult);
-
-        _isLoading = false;
-        notifyListeners();
-        
-      } catch (generateError) {
-        print('❌ Generate table error: $generateError');
-        
-        try {
-          final testTable = await _bettingService.generateBacGanTable(
-            cycleResult: customCycleResult,
-            startDate: startDate,
-            endDate: endDate,
-            budgetMin: 1.0,
-            budgetMax: budgetMax * 2,
-          );
-          
-          final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
-          
-          throw OptimizationFailedException(
-            tableName: 'Miền Bắc',
-            budgetResult: budgetResult,
-            estimatedTotal: estimatedTotal,
-          );
-        } catch (testError) {
-          rethrow;
-        }
-      }
-      
-    } on BudgetInsufficientException catch (e) {
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    } on OptimizationFailedException catch (e) {
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Lỗi tạo bảng: $e';
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  /// Tạo bảng cược cho số gan Miền Trung
   Future<void> createTrungGanBettingTable(
     String targetNumber,
     AppConfig config,
   ) async {
-    print('🎯 Creating Trung gan betting table for number: $targetNumber');
+    print('📊 createTrungGanBettingTable called: $targetNumber');
     
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final numberDetail = await _analysisService.analyzeNumberDetail(
-        _allResults,
-        targetNumber,
-      );
-
-      if (numberDetail == null) {
-        throw Exception('Không tìm thấy thông tin số $targetNumber');
-      }
-
-      final trungDetail = numberDetail.mienDetails['Trung'];
-      if (trungDetail == null) {
-        throw Exception('Số $targetNumber chưa có dữ liệu Miền Trung');
-      }
-
-      final customCycleResult = CycleAnalysisResult(
-        ganNumbers: {targetNumber},
-        maxGanDays: trungDetail.daysGan,
-        lastSeenDate: trungDetail.lastSeenDate,
-        mienGroups: {'Trung': [targetNumber]},
-        targetNumber: targetNumber,
-      );
-
-      final latestDate = _allResults
-          .map((r) => date_utils.DateUtils.parseDate(r.ngay))
-          .where((d) => d != null)
-          .reduce((a, b) => a!.isAfter(b!) ? a : b);
-
-      final startDate = latestDate!.add(const Duration(days: 1));
-      final endDate = trungDetail.lastSeenDate.add(const Duration(days: 30));
-
-      // ✅ NEW LOGIC: Tính budget động
-      final budgetService = BudgetCalculationService(
-        sheetsService: _sheetsService,
-      );
-      
-      final budgetResult = await budgetService.calculateAvailableBudget(
-        totalCapital: config.budget.totalCapital,
-        targetTable: 'trung',
-        configBudget: config.budget.trungBudget,
-      );
-      
-      final budgetMax = budgetResult.budgetMax;
-      final budgetMin = budgetMax * 0.95;
-      
-      print('💰 Trung budget: ${NumberUtils.formatCurrency(budgetMax)}');
-
-      try {
-        final newTable = await _bettingService.generateTrungGanTable(
-          cycleResult: customCycleResult,
-          startDate: startDate,
-          endDate: endDate,
-          budgetMin: budgetMin,
-          budgetMax: budgetMax,
-        );
-
-        await _saveTrungTableToSheet(newTable, customCycleResult);
-
-        _isLoading = false;
-        notifyListeners();
-        
-      } catch (generateError) {
-        print('❌ Generate table error: $generateError');
-        
-        try {
-          final testTable = await _bettingService.generateTrungGanTable(
-            cycleResult: customCycleResult,
-            startDate: startDate,
-            endDate: endDate,
-            budgetMin: 1.0,
-            budgetMax: budgetMax * 2,
-          );
-          
-          final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
-          
-          throw OptimizationFailedException(
-            tableName: 'Miền Trung',
-            budgetResult: budgetResult,
-            estimatedTotal: estimatedTotal,
-          );
-        } catch (testError) {
-          rethrow;
-        }
-      }
-      
-    } on BudgetInsufficientException catch (e) {
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    } on OptimizationFailedException catch (e) {
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Lỗi tạo bảng: $e';
-      _isLoading = false;
-      notifyListeners();
-    }
+    await _createBettingTableGeneric(
+      tableType: BettingTableTypeEnum.trung,
+      targetNumber: targetNumber,
+      config: config,
+    );
   }
 
-  Future<CycleAnalysisResult?> analyzeCycleForAllMien() async {
-    return await _analysisService.analyzeCycle(_allResults);
-  }
-
-  /// Phân tích chu kỳ cho một miền cụ thể
-  Future<CycleAnalysisResult?> analyzeCycleForMien(String mien) async {
-    final filteredResults = _allResults.where((r) => r.mien == mien).toList();
-    return await _analysisService.analyzeCycle(filteredResults);
-  }
-
-  Future<void> _saveTrungTableToSheet(
-    List<dynamic> table,
-    CycleAnalysisResult cycleResult,
+  Future<void> createBacGanBettingTable(
+    String targetNumber,
+    AppConfig config,
   ) async {
-    print('📝 Saving trung table to trungBot sheet...');
+    print('📊 createBacGanBettingTable called: $targetNumber');
     
-    await _sheetsService.clearSheet('trungBot');
-
-    await _sheetsService.updateRange(
-      'trungBot',
-      'A1:D1',
-      [
-        [
-          cycleResult.maxGanDays.toString(),
-          date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
-          cycleResult.ganNumbersDisplay,
-          cycleResult.targetNumber,
-        ]
-      ],
+    await _createBettingTableGeneric(
+      tableType: BettingTableTypeEnum.bac,
+      targetNumber: targetNumber,
+      config: config,
     );
-
-    await _sheetsService.updateRange(
-      'trungBot',
-      'A3:J3',
-      [
-        ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
-      ],
-    );
-
-    final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
-    await _sheetsService.updateRange('trungBot', 'A4', dataRows);
-    
-    print('✅ Trung table saved to trungBot!');
-  }
-
-  Future<void> _saveBacTableToSheet(
-    List<dynamic> table,
-    CycleAnalysisResult cycleResult,
-  ) async {
-    print('📝 Saving bac table to bacBot sheet...');
-    
-    await _sheetsService.clearSheet('bacBot');
-
-    await _sheetsService.updateRange(
-      'bacBot',
-      'A1:D1',
-      [
-        [
-          cycleResult.maxGanDays.toString(),
-          date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
-          cycleResult.ganNumbersDisplay,
-          cycleResult.targetNumber,
-        ]
-      ],
-    );
-
-    await _sheetsService.updateRange(
-      'bacBot',
-      'A3:J3',
-      [
-        ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']
-      ],
-    );
-
-    final dataRows = table.map((row) => row.toSheetRow()).toList().cast<List<String>>();
-    await _sheetsService.updateRange('bacBot', 'A4', dataRows);
-    
-    print('✅ Bac table saved to bacBot!');
   }
 
   // ✅ Alert getters (BỎ hasCycleAlert cho "Tất cả")
@@ -1679,27 +1345,27 @@ class AnalysisViewModel extends ChangeNotifier {
     // ✅ KIỂM TRA ĐÚNG CHO "TẤT CẢ"
     if (_cycleResult == null) return false;
     if (_selectedMien != 'Tất cả') return false;
-    return _cycleResult!.maxGanDays > 3;
+    return _cycleResult!.maxGanDays > AnalysisThresholds.tatca;
   }
 
   /// Kiểm tra Trung có gan > 9 ngày
   bool get hasTrungAlert {
     if (_cycleResult == null) return false;
     if (_selectedMien != 'Trung') return false;
-    return _cycleResult!.maxGanDays > 9;
+    return _cycleResult!.maxGanDays > AnalysisThresholds.trung;
   }
 
   /// Kiểm tra Bắc có gan > 15 ngày
   bool get hasBacAlert {
     if (_cycleResult == null) return false;
     if (_selectedMien != 'Bắc') return false;
-    return _cycleResult!.maxGanDays > 15;
+    return _cycleResult!.maxGanDays > AnalysisThresholds.bac;
   }
 
   /// Kiểm tra Xiên có gan > 2 ngày
   bool get hasXienAlert {
     if (_ganPairInfo == null) return false;
-    return _ganPairInfo!.daysGan > 150;
+    return _ganPairInfo!.daysGan > AnalysisThresholds.xien;
   }
 
   /// ✅ Kiểm tra có bất kỳ alert nào (dùng cache)
@@ -1729,89 +1395,4 @@ class AnalysisViewModel extends ChangeNotifier {
     return hasAlert;
   }
 
-  /// Lấy thông tin alert cho từng filter
-  Map<String, AlertInfo> getAlertInfo() {
-    final alerts = <String, AlertInfo>{};
-    
-    // Check Xiên
-    if (_ganPairInfo != null && _ganPairInfo!.daysGan > 150) {
-      alerts['Xiên'] = AlertInfo(
-        threshold: 150,
-        currentDays: _ganPairInfo!.daysGan,
-        targetNumber: _ganPairInfo!.randomPair.display,
-      );
-    }
-    
-    // ✅ CHECK TẤT CẢ
-    if (_tatCaAlertCache == true) {
-      alerts['Tất cả'] = AlertInfo(
-        threshold: 3,
-        currentDays: _cycleResult?.maxGanDays ?? 0,
-        targetNumber: _cycleResult?.targetNumber ?? '',
-      );
-    }
-    
-    // Check Trung
-    if (_trungAlertCache == true) {
-      alerts['Trung'] = AlertInfo(
-        threshold: 9,
-        currentDays: _cycleResult?.maxGanDays ?? 0,
-        targetNumber: _cycleResult?.targetNumber ?? '',
-      );
-    }
-    
-    // Check Bắc
-    if (_bacAlertCache == true) {
-      alerts['Bắc'] = AlertInfo(
-        threshold: 15,
-        currentDays: _cycleResult?.maxGanDays ?? 0,
-        targetNumber: _cycleResult?.targetNumber ?? '',
-      );
-    }
-    
-    return alerts;
-  }
-
-  /// Lấy message thông báo
-  String getAlertMessage() {
-    final messages = <String>[];
-    
-    if (hasXienAlert) {
-      messages.add('🔥 Xiên: ${_ganPairInfo!.daysGan} ngày (>150)');
-    }
-    
-    // ✅ THÊM MESSAGE CHO "TẤT CẢ"
-    if (_tatCaAlertCache == true) {
-      messages.add('🔥 Chu kỳ (Tất cả): gan >3 ngày');
-    }
-    
-    if (_trungAlertCache == true) {
-      messages.add('🔥 Trung: gan >9 ngày');
-    }
-    
-    if (_bacAlertCache == true) {
-      messages.add('🔥 Bắc: gan >15 ngày');
-    }
-    
-    if (messages.isEmpty) {
-      return 'Chưa có số nào thỏa điều kiện';
-    }
-    
-    return messages.join('\n');
-  }
-}
-
-// ✅ Model cho alert info
-class AlertInfo {
-  final int threshold;
-  final int currentDays;
-  final String targetNumber;
-
-  AlertInfo({
-    required this.threshold,
-    required this.currentDays,
-    required this.targetNumber,
-  });
-
-  bool get isAlert => currentDays > threshold;
 }

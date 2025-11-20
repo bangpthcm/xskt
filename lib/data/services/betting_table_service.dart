@@ -112,7 +112,7 @@ class BettingTableService {
     required double budgetMin,
     required double budgetMax,
     required List<LotteryResult> allResults,
-    int maxMienCount = 9,  // ✅ THÊM PARAMETER VỚI DEFAULT = 9
+    required int maxMienCount, 
   }) async {
     final targetNumber = cycleResult.targetNumber;
     
@@ -133,7 +133,7 @@ class BettingTableService {
     double highProfit = 100000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 12; i++) {
       if (highProfit < lowProfit) break;
 
       final midProfit = ((lowProfit + highProfit) / 2);
