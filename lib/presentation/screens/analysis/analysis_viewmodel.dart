@@ -137,32 +137,6 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
     }
   }
 
-  Future<List<BettingRow>> generateTestTable({
-    required BettingTableService bettingService,
-    required CycleAnalysisResult cycleResult,
-    required DateTime startDate,
-    required DateTime endDate,
-    required int startMienIndex,
-    required double budgetMin,
-    required double budgetMax,
-    required List<LotteryResult> allResults,
-    required int maxMienCount, 
-  }) async {
-    // ✅ CHÚ Ý: generateTestTable có thể gọi lại generateTable
-    // Vì mục đích test, chúng ta gọi generate với budget gấp 2
-    return await generateTable(
-      bettingService: bettingService,
-      cycleResult: cycleResult,
-      startDate: startDate,
-      endDate: endDate,
-      startMienIndex: startMienIndex,
-      budgetMin: budgetMin,
-      budgetMax: budgetMax,
-      allResults: allResults,
-      maxMienCount: maxMienCount,
-    );
-  }
-
   Future<void> saveTable({
     required GoogleSheetsService sheetsService,
     required List<BettingRow> table,
@@ -545,46 +519,123 @@ class AnalysisViewModel extends ChangeNotifier {
           maxMienCount: targetMienCount,
         );
 
-        print('   ✅ Generated ${newTable.length} rows');
+        print('✅ Generated ${newTable.length} rows');
 
-        // ✅ STEP 5: Save table
-        print('⏳ STEP 5: Saving table...');
-        
         await tableType.saveTable(
           sheetsService: _sheetsService,
           table: newTable,
           cycleResult: cycleResult,
         );
 
-        print('   ✅ Table saved');
-
         _isLoading = false;
         notifyListeners();
+
       } catch (generateError) {
-        print('❌ Generate error: $generateError');
+        print('❌ Generate failed with current budget: $generateError');
+        print('\n🔍 Trying with 100x budget + profitTarget=200...');
+
+        double actualMinimumRequired = budgetMax;  // ✅ Default = budgetMax hiện tại
 
         try {
-          final testTable = await tableType.generateTestTable(
+          final hugeBudget = budgetMax * 100;
+          const profitTarget = 200.0;
+
+          print('   Testing: budgetMax=${NumberUtils.formatCurrency(hugeBudget)}, profit=200');
+
+          // Gọi lại với budget lớn
+          final testTable = await tableType.generateTable(
             bettingService: _bettingService,
             cycleResult: cycleResult!,
             startDate: startDate,
             endDate: endDate,
             startMienIndex: startMienIndex,
-            budgetMin: 1.0,
-            budgetMax: budgetMax * 4,
+            budgetMin: hugeBudget * 0.90,
+            budgetMax: hugeBudget,
             allResults: _allResults,
             maxMienCount: targetMienCount,
           );
 
-          final estimatedTotal = testTable.isNotEmpty ? testTable.last.tongTien : budgetMax;
+          if (testTable == null || testTable.isEmpty) {
+            throw Exception('Không tìm được giải pháp ngay cả với budget 100x');
+          }
 
-          throw OptimizationFailedException(
+          final estimatedTotal = testTable.last.tongTien;
+          print('   ✅ Found! Estimated minimum: ${NumberUtils.formatCurrency(estimatedTotal)}');
+          
+          // ✅ LƯU LẠI giá trị ĐÚNG từ 100x test
+          actualMinimumRequired = estimatedTotal;
+
+          // ✅ Binary search để tìm budget thực tế (20 vòng)
+          print('\n🔍 Binary searching for actual minimum...');
+          
+          double lowBudget = 1.0;
+          double highBudget = estimatedTotal;
+          List<BettingRow>? bestTable = testTable;
+
+          for (int i = 0; i < 20; i++) {
+            final midBudget = (lowBudget + highBudget) / 2;
+
+            try {
+              final result = await tableType.generateTable(
+                bettingService: _bettingService,
+                cycleResult: cycleResult!,
+                startDate: startDate,
+                endDate: endDate,
+                startMienIndex: startMienIndex,
+                budgetMin: midBudget * 0.95,
+                budgetMax: midBudget,
+                allResults: _allResults,
+                maxMienCount: targetMienCount,
+              );
+
+              if (result != null && result.isNotEmpty) {
+                // ✅ Success - thử nhỏ hơn
+                bestTable = result;
+                actualMinimumRequired = result.last.tongTien;  // ✅ Update giá trị chính xác
+                highBudget = midBudget - 1;
+              } else {
+                // ❌ Fail - cần thêm
+                lowBudget = midBudget + 1;
+              }
+            } catch (e) {
+              // Error - cần thêm
+              lowBudget = midBudget + 1;
+            }
+
+            if (i % 5 == 0) {
+              print('   Iteration $i: Range ${NumberUtils.formatCurrency(lowBudget)} - ${NumberUtils.formatCurrency(highBudget)}');
+            }
+
+            if (highBudget < lowBudget) break;
+          }
+
+          print('\n✅ Minimum found: ${NumberUtils.formatCurrency(actualMinimumRequired)}');
+
+          // ✅ Kiểm tra xem có trong budget không
+          if (actualMinimumRequired <= budgetMax) {
+            print('   ✓ Within original budget! Saving...');
+            await tableType.saveTable(
+              sheetsService: _sheetsService,
+              table: bestTable!,
+              cycleResult: cycleResult!,
+            );
+            _isLoading = false;
+            notifyListeners();
+            return;  // ✅ EXIT - Không throw exception
+          }
+
+          // ❌ Nếu vẫn không đủ → Throw UNO LẦN với giá trị ĐÚNG
+          throw Exception('Minimum required is $actualMinimumRequired');
+
+        } catch (testError) {
+          print('⚠️ 100x strategy result: $testError');
+          
+          // ✅ THROW EXCEPTION MỘT LẦN DUY NHẤT với actualMinimumRequired
+          throw BudgetInsufficientException(
             tableName: tableType.displayName,
             budgetResult: budgetResult,
-            estimatedTotal: estimatedTotal,
+            minimumRequired: actualMinimumRequired,  // ✅ Giá trị CHÍNH XÁC từ binary search
           );
-        } catch (testError) {
-          rethrow;
         }
       }
     } on BudgetInsufficientException catch (e) {

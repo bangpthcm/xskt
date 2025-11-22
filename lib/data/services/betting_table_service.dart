@@ -133,7 +133,7 @@ class BettingTableService {
     double highProfit = 100000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 22; i++) {
+    for (int i = 0; i < 12; i++) {
       if (highProfit < lowProfit) break;
 
       final midProfit = ((lowProfit + highProfit) / 2);
@@ -642,7 +642,7 @@ class BettingTableService {
     double highProfit = 100000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 22; i++) {
+    for (int i = 0; i < 11; i++) {
       if (highProfit < lowProfit) break;
 
       final midProfit = ((lowProfit + highProfit) / 2);
@@ -713,7 +713,7 @@ class BettingTableService {
     List<BettingRow>? bestTable;
 
     // ✅ FIX: Tăng số lần iteration
-    for (int i = 0; i < 22; i++) {
+    for (int i = 0; i < 20; i++) {
       if (highBet < lowBet) {
         print('   ⚠️ Binary search exhausted at iteration $i');
         break;
