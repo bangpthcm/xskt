@@ -133,7 +133,7 @@ class BettingTableService {
     double highProfit = 100000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 22; i++) {
       if (highProfit < lowProfit) break;
 
       final midProfit = ((lowProfit + highProfit) / 2);
@@ -242,7 +242,7 @@ class BettingTableService {
     required double budgetMax,
     required DateTime lastSeenDate,
     required List<LotteryResult> allResults,
-    int maxMienCount = 9,
+    required int maxMienCount,
   }) async {
     //print('🔧 _optimizeStartBet called:');
     //print('   budgetMin: ${NumberUtils.formatCurrency(budgetMin)}');
@@ -307,7 +307,7 @@ class BettingTableService {
     required double profitTarget,
     required DateTime lastSeenDate,
     required List<LotteryResult> allResults,
-    int maxMienCount = 9,  // ✅ THÊM PARAMETER
+    required int maxMienCount,  // ✅ THÊM PARAMETER
   }) async {
     final tableData = <BettingRow>[];
     double tongTien = 0.0;
@@ -518,7 +518,7 @@ class BettingTableService {
     double highBet = 1000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 11; i++) {
+    for (int i = 0; i < 22; i++) {
       if (highBet < lowBet) break;
 
       double midBet = ((lowBet + highBet) / 2);
@@ -642,7 +642,7 @@ class BettingTableService {
     double highProfit = 100000.0;
     List<BettingRow>? bestTable;
 
-    for (int i = 0; i < 11; i++) {
+    for (int i = 0; i < 22; i++) {
       if (highProfit < lowProfit) break;
 
       final midProfit = ((lowProfit + highProfit) / 2);
@@ -713,7 +713,7 @@ class BettingTableService {
     List<BettingRow>? bestTable;
 
     // ✅ FIX: Tăng số lần iteration
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 22; i++) {
       if (highBet < lowBet) {
         print('   ⚠️ Binary search exhausted at iteration $i');
         break;

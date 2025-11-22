@@ -571,7 +571,7 @@ class AnalysisViewModel extends ChangeNotifier {
             endDate: endDate,
             startMienIndex: startMienIndex,
             budgetMin: 1.0,
-            budgetMax: budgetMax * 2,
+            budgetMax: budgetMax * 4,
             allResults: _allResults,
             maxMienCount: targetMienCount,
           );

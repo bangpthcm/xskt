@@ -37,6 +37,15 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            // Ép kiểu về BaseVariantOutputImpl để set tên file
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output?.outputFileName = "xskt.apk" 
+        }
+    }
 }
 
 flutter {
