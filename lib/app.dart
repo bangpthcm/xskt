@@ -175,9 +175,7 @@ class _MyAppState extends State<MyApp> {
             ChangeNotifierProvider(
               create: (_) => BettingViewModel(
                 sheetsService: googleSheetsService,
-                bettingService: bettingService,
                 telegramService: telegramService,
-                analysisService: analysisService,
               ),
             ),
             ChangeNotifierProvider(

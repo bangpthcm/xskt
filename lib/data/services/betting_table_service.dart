@@ -10,7 +10,7 @@ import '../models/lottery_result.dart';
 
 class BettingTableService {
   static const double _winMultiplierXien = 17.0;
-  static const int _durationBase = 182;
+  static const int _durationBase = 185;
   static const double _startingProfit = 50.0;
   static const double _finalProfit = 1000.0;
   

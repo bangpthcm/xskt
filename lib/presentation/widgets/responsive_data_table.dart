@@ -168,20 +168,56 @@ class ResponsiveDataTable extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            Text(
-                              'Lời ',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade400,
-                                fontWeight: FontWeight.w500,
+                            SizedBox(
+                              width: 100,
+                              child: Text(
+                                'Lời 1 cặp:',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade400,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.right,
                               ),
                             ),
+                            const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 NumberUtils.formatCurrency(row.loi1So),
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: row.loi1So > 0 ? Colors.green.shade300 : Colors.red.shade300,
+                                  color: Colors.green.shade300,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.right,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            SizedBox(
+                              width: 100,
+                              child: Text(
+                                'Cược/miền:',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade400,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.right,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                NumberUtils.formatCurrency(row.cuocMien),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.red.shade300,
                                   fontWeight: FontWeight.bold,
                                 ),
                                 textAlign: TextAlign.right,

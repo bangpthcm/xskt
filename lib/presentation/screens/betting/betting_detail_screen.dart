@@ -276,37 +276,24 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
-                  label: 'Tạo lại',
-                  icon: Icons.refresh,
-                  backgroundColor: Colors.orange.withOpacity(0.7),
-                  onPressed: () => _showRegenerateDialog(context, viewModel, type),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
-                  label: 'Gửi Telegram',
-                  icon: Icons.send,
-                  backgroundColor: Colors.blue.withOpacity(0.7),
-                  onPressed: () => _showSendTelegramDialog(context, viewModel, type),
-                ),
-              ),
-            ],
+          Expanded(
+            child: AnimatedButton(
+              label: 'Xóa bảng cược',
+              icon: Icons.delete_outline,
+              backgroundColor: Colors.red.withOpacity(0.7),
+              onPressed: () => _showDeleteDialog(context, viewModel, type),
+            ),
           ),
-          const SizedBox(height: 12),
-          AnimatedButton(  // ✅ ĐỔI từ OutlinedButton
-            label: 'Xóa bảng cược',
-            icon: Icons.delete_outline,
-            backgroundColor: Colors.red.withOpacity(0.7),
-            onPressed: () => _showDeleteDialog(context, viewModel, type),
-            width: double.infinity,
+          const SizedBox(width: 12),
+          Expanded(
+            child: AnimatedButton(
+              label: 'Gửi Telegram',
+              icon: Icons.send,
+              backgroundColor: Colors.blue.withOpacity(0.7),
+              onPressed: () => _showSendTelegramDialog(context, viewModel, type),
+            ),
           ),
         ],
       ),
@@ -340,32 +327,6 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
     );
   }
 
-  void _showRegenerateDialog(BuildContext context, BettingViewModel viewModel, BettingTableType type) {
-    String tableName = type == BettingTableType.xien ? 'xiên' : type == BettingTableType.cycle ? 'chu kỳ' : type == BettingTableType.trung ? 'Miền Trung' : 'Miền Bắc';
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: Text('Bạn có chắc muốn tạo lại bảng cược $tableName? Bảng hiện tại sẽ bị ghi đè.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final config = context.read<SettingsViewModel>().config;
-              await viewModel.regenerateTable(type, config);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(viewModel.errorMessage ?? 'Tạo bảng thành công!'), backgroundColor: viewModel.errorMessage != null ? Colors.red : Colors.green),
-                );
-              }
-            },
-            child: const Text('Tạo lại'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showSendTelegramDialog(BuildContext context, BettingViewModel viewModel, BettingTableType type) {
     String tableName = type == BettingTableType.xien ? 'xiên' : type == BettingTableType.cycle ? 'chu kỳ' : type == BettingTableType.trung ? 'Miền Trung' : 'Miền Bắc';
