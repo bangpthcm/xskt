@@ -389,12 +389,12 @@ class AvailableBudgetResult {
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('📊 Phân tích:');
     buffer.writeln('  • Tổng vốn: ${NumberUtils.formatCurrency(totalCapital)} VNĐ');
-    buffer.writeln('  • Đã dự trữ:');
+    buffer.writeln('  • Vốn đang dùng:');
     buffer.writeln('    - Tất cả: ${NumberUtils.formatCurrency(reservedBreakdown.tatCaReserved)} VNĐ');
     buffer.writeln('    - Trung: ${NumberUtils.formatCurrency(reservedBreakdown.trungReserved)} VNĐ');
     buffer.writeln('    - Bắc: ${NumberUtils.formatCurrency(reservedBreakdown.bacReserved)} VNĐ');
     buffer.writeln('    - Xiên: ${NumberUtils.formatCurrency(reservedBreakdown.xienReserved)} VNĐ');
-    buffer.writeln('  → Tổng dự trữ: ${NumberUtils.formatCurrency(reservedBreakdown.totalReserved)} VNĐ');
+    buffer.writeln('  → Tổng vốn đang dùng: ${NumberUtils.formatCurrency(reservedBreakdown.totalReserved)} VNĐ');
     buffer.writeln('  → Vốn khả dụng: ${NumberUtils.formatCurrency(available)} VNĐ');
     buffer.writeln('');
     buffer.writeln('💰 Nhu cầu:');
@@ -403,7 +403,8 @@ class AvailableBudgetResult {
     buffer.writeln('');
     buffer.writeln('💡 Giải pháp:');
     buffer.writeln('  - Tăng tổng vốn thêm ${NumberUtils.formatCurrency(shortage)} VNĐ');
-    buffer.writeln('  - Hoặc xóa/giảm budget các bảng khác');
+    buffer.writeln('  - Hoặc đợi đến khi một số bảng kết thúc để giải phóng vốn');
+    buffer.writeln('  - Hoặc xóa/giảm budget các bảng khác (nếu có thể)');
     
     return buffer.toString();
   }
