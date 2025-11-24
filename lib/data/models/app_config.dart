@@ -1,21 +1,25 @@
 //lib/data/models/app_config.dart
+import 'api_account.dart';
 
 class AppConfig {
   final GoogleSheetsConfig googleSheets;
   final TelegramConfig telegram;
   final BudgetConfig budget;
+  final List<ApiAccount> apiAccounts; // ✅ THÊM
 
   AppConfig({
     required this.googleSheets,
     required this.telegram,
     required this.budget,
-  });
+    List<ApiAccount>? apiAccounts, // ✅ THÊM
+  }) : apiAccounts = apiAccounts ?? [];
 
   Map<String, dynamic> toJson() {
     return {
       'googleSheets': googleSheets.toJson(),
       'telegram': telegram.toJson(),
       'budget': budget.toJson(),
+      'apiAccounts': apiAccounts.map((a) => a.toJson()).toList(), // ✅ THÊM
     };
   }
 
@@ -24,6 +28,9 @@ class AppConfig {
       googleSheets: GoogleSheetsConfig.fromJson(json['googleSheets'] ?? {}),
       telegram: TelegramConfig.fromJson(json['telegram'] ?? {}),
       budget: BudgetConfig.fromJson(json['budget'] ?? {}),
+      apiAccounts: (json['apiAccounts'] as List<dynamic>?) // ✅ THÊM
+          ?.map((item) => ApiAccount.fromJson(item))
+          .toList() ?? [],
     );
   }
 
@@ -34,6 +41,7 @@ class AppConfig {
       ),
       telegram: TelegramConfig.empty(),
       budget: BudgetConfig.defaultBudget(),
+      apiAccounts: [], // ✅ THÊM
     );
   }
 }
@@ -182,12 +190,11 @@ class TelegramConfig {
   static String get defaultBotToken => _defaultBotToken;
 }
 
-// ✅ NEW BUDGET CONFIG
 class BudgetConfig {
-  final double totalCapital;    // Tổng vốn
-  final double trungBudget;     // Vốn cho Miền Trung
-  final double bacBudget;       // Vốn cho Miền Bắc
-  final double xienBudget;      // Vốn cho Xiên
+  final double totalCapital;
+  final double trungBudget;
+  final double bacBudget;
+  final double xienBudget;
 
   BudgetConfig({
     required this.totalCapital,
@@ -196,17 +203,14 @@ class BudgetConfig {
     required this.xienBudget,
   });
 
-  // ✅ Validation: Tổng phân bổ không vượt quá tổng vốn
   bool get isValid {
     return (trungBudget + bacBudget + xienBudget) <= totalCapital;
   }
 
-  // ✅ Vốn còn lại sau khi phân bổ
   double get remainingCapital {
     return totalCapital - (trungBudget + bacBudget + xienBudget);
   }
 
-  // ✅ Tổng đã phân bổ
   double get allocatedCapital {
     return trungBudget + bacBudget + xienBudget;
   }
@@ -222,23 +226,22 @@ class BudgetConfig {
 
   factory BudgetConfig.fromJson(Map<String, dynamic> json) {
     return BudgetConfig(
-      totalCapital: (json['totalCapital'] ?? 600000.0).toDouble(),
-      trungBudget: (json['trungBudget'] ?? 200000.0).toDouble(),
-      bacBudget: (json['bacBudget'] ?? 200000.0).toDouble(),
-      xienBudget: (json['xienBudget'] ?? 150000.0).toDouble(),
+      totalCapital: (json['totalCapital'] ?? 600000).toDouble(),
+      trungBudget: (json['trungBudget'] ?? 200000).toDouble(),
+      bacBudget: (json['bacBudget'] ?? 200000).toDouble(),
+      xienBudget: (json['xienBudget'] ?? 200000).toDouble(),
     );
   }
 
   factory BudgetConfig.defaultBudget() {
     return BudgetConfig(
-      totalCapital: 600000.0,
-      trungBudget: 200000.0,
-      bacBudget: 200000.0,
-      xienBudget: 150000.0,
+      totalCapital: 600000,
+      trungBudget: 200000,
+      bacBudget: 200000,
+      xienBudget: 200000,
     );
   }
 
-  // ✅ Copy with method để update từng field
   BudgetConfig copyWith({
     double? totalCapital,
     double? trungBudget,

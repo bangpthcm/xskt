@@ -291,8 +291,6 @@ class _BettingScreenState extends State<BettingScreen> {
               ),
 
               // ✅ HIỂN THỊ BẢNG HÔM NAY (LUÔN HIỂN THỊ, KHÔNG CẦN CHECK isEmpty)
-              const SizedBox(height: 16),
-              const Divider(color: Colors.grey),
               const SizedBox(height: 8),
               Text(
                 'Bảng cược hôm nay ($today):',
@@ -406,8 +404,6 @@ class _BettingScreenState extends State<BettingScreen> {
               ),
 
               // ✅ HIỂN THỊ BẢNG HÔM NAY (LUÔN HIỂN THỊ)
-              const SizedBox(height: 16),
-              const Divider(color: Colors.grey),
               const SizedBox(height: 8),
               Text(
                 'Bảng cược hôm nay ($today):',

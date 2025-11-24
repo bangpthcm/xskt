@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'settings_viewmodel.dart';
+import 'package:flutter/services.dart';
 import '../../../data/models/app_config.dart';
+import '../../../data/models/api_account.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../widgets/animated_button.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -27,6 +29,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _bacBudgetController;
   late TextEditingController _xienBudgetController;
 
+  final List<Map<String, TextEditingController>> _apiAccountControllers = [];
+
   @override
   void initState() {
     super.initState();
@@ -46,17 +50,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungBudgetController = TextEditingController();
     _bacBudgetController = TextEditingController();
     _xienBudgetController = TextEditingController();
+
+    for (int i = 0; i < 3; i++) {
+      _apiAccountControllers.add({
+        'username': TextEditingController(),
+        'password': TextEditingController(),
+      });
+    }
   }
+
 
   void _updateControllersFromConfig() {
     final config = context.read<SettingsViewModel>().config;
     
     _sheetNameController.text = config.googleSheets.sheetName;
     _chatIdsController.text = config.telegram.chatIds.join(', ');
-    _totalCapitalController.text = config.budget.totalCapital.toString();
-    _trungBudgetController.text = config.budget.trungBudget.toString();
-    _bacBudgetController.text = config.budget.bacBudget.toString();
-    _xienBudgetController.text = config.budget.xienBudget.toString();
+    
+    // ✅ Hiển thị giá trị rút gọn (chia 1000)
+    _totalCapitalController.text = _formatToThousands(config.budget.totalCapital);
+    _trungBudgetController.text = _formatToThousands(config.budget.trungBudget);
+    _bacBudgetController.text = _formatToThousands(config.budget.bacBudget);
+    _xienBudgetController.text = _formatToThousands(config.budget.xienBudget);
+
+    for (int i = 0; i < _apiAccountControllers.length && i < config.apiAccounts.length; i++) {
+      _apiAccountControllers[i]['username']!.text = config.apiAccounts[i].username;
+      _apiAccountControllers[i]['password']!.text = config.apiAccounts[i].password;
+    }
   }
 
   @override
@@ -67,6 +86,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungBudgetController.dispose();
     _bacBudgetController.dispose();
     _xienBudgetController.dispose();
+    super.dispose();
+
+    for (var controllers in _apiAccountControllers) {
+      controllers['username']?.dispose();
+      controllers['password']?.dispose();
+    }
+    
     super.dispose();
   }
 
@@ -81,7 +107,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
-                _buildThemeSection(),  // ✅ THÊM DÒNG NÀY Ở ĐẦU
+                _buildThemeSection(),
+                const SizedBox(height: 24),
+                _buildApiAccountsSection(),
                 const SizedBox(height: 24),
                 _buildGoogleSheetsSection(),
                 const SizedBox(height: 24),
@@ -200,7 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         subtitle: const Text(
-          'Phân bổ vốn',
+          'Nhập số nghìn (VD: 700 = 700.000đ)',
           style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
         initiallyExpanded: false,  // ✅ THÊM
@@ -223,14 +251,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 
                 TextFormField(
                   controller: _totalCapitalController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Tổng vốn khả dụng',
-                    hintText: '600000',
-                    suffixText: 'VNĐ',
-                    helperText: 'Tổng vốn bạn muốn sử dụng',
+                    hintText: '600',
+                    suffixText: 'K',  // ✅ Thay VNĐ → K
                     prefixIcon: Icon(Icons.account_balance_wallet),
                   ),
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,  // ✅ THÊM
+                  ],
                   onChanged: (value) => setState(() {}),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -261,15 +291,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // INFO
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: Colors.grey, width: 1),
-                    ),
-                  ),
                   child: Row(
                     children: [
                       Icon(Icons.info_outline, color: Colors.grey.shade300, size: 24),
-                      const SizedBox(width: 11),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,15 +329,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _trungBudgetController,
                   decoration: const InputDecoration(
                     labelText: 'Miền Trung',
-                    hintText: '200000',
-                    suffixText: 'VNĐ',
+                    hintText: '200',
+                    suffixText: 'K',  // ✅ Thay VNĐ → K
                     prefixIcon: Icon(Icons.filter_1),
                   ),
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,  // ✅ THÊM
+                  ],
                   onChanged: (value) => setState(() {}),
                   validator: (value) => _validateBudgetField(value, 'Miền Trung'),
                 ),
-
+                
+                const Divider(),
                 const SizedBox(height: 16),
 
                 // Miền Bắc
@@ -320,11 +349,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _bacBudgetController,
                   decoration: const InputDecoration(
                     labelText: 'Miền Bắc',
-                    hintText: '200000',
-                    suffixText: 'VNĐ',
+                    hintText: '200',
+                    suffixText: 'K',  // ✅ Thay VNĐ → K
                     prefixIcon: Icon(Icons.filter_2),
                   ),
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,  // ✅ THÊM
+                  ],
                   onChanged: (value) => setState(() {}),
                   validator: (value) => _validateBudgetField(value, 'Miền Bắc'),
                 ),
@@ -336,11 +368,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _xienBudgetController,
                   decoration: const InputDecoration(
                     labelText: 'Xiên',
-                    hintText: '150000',
-                    suffixText: 'VNĐ',
+                    hintText: '150',
+                    suffixText: 'K',  // ✅ Thay VNĐ → K
                     prefixIcon: Icon(Icons.favorite_border),
                   ),
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,  // ✅ THÊM
+                  ],
                   onChanged: (value) => setState(() {}),
                   validator: (value) => _validateBudgetField(value, 'Xiên'),
                 ),
@@ -447,10 +482,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ✅ BUDGET SUMMARY
   Widget _buildBudgetSummary() {
-    final totalCapital = double.tryParse(_totalCapitalController.text) ?? 0;
-    final trungBudget = double.tryParse(_trungBudgetController.text) ?? 0;
-    final bacBudget = double.tryParse(_bacBudgetController.text) ?? 0;
-    final xienBudget = double.tryParse(_xienBudgetController.text) ?? 0;
+    // ✅ Sử dụng _parseFromThousands để chuyển về giá trị thực
+    final totalCapital = _parseFromThousands(_totalCapitalController.text);
+    final trungBudget = _parseFromThousands(_trungBudgetController.text);
+    final bacBudget = _parseFromThousands(_bacBudgetController.text);
+    final xienBudget = _parseFromThousands(_xienBudgetController.text);
     
     final totalAllocated = trungBudget + bacBudget + xienBudget;
     final remaining = totalCapital - totalAllocated;
@@ -478,7 +514,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               Text(
-                NumberUtils.formatCurrency(totalAllocated),
+                '${NumberUtils.formatCurrency(totalAllocated)} đ',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -499,7 +535,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               Text(
-                NumberUtils.formatCurrency(remaining),
+                '${NumberUtils.formatCurrency(remaining)} đ',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -654,10 +690,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    final totalCapital = double.parse(_totalCapitalController.text);
-    final trungBudget = double.parse(_trungBudgetController.text);
-    final bacBudget = double.parse(_bacBudgetController.text);
-    final xienBudget = double.parse(_xienBudgetController.text);
+    final totalCapital = _parseFromThousands(_totalCapitalController.text);
+    final trungBudget = _parseFromThousands(_trungBudgetController.text);
+    final bacBudget = _parseFromThousands(_bacBudgetController.text);
+    final xienBudget = _parseFromThousands(_xienBudgetController.text);
     
     if (trungBudget + bacBudget + xienBudget > totalCapital) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -668,6 +704,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       return;
     }
+
+    // ✅ THÊM: Thu thập API accounts
+    final apiAccounts = _apiAccountControllers
+        .map((controllers) => ApiAccount(
+              username: controllers['username']!.text.trim(),
+              password: controllers['password']!.text.trim(),
+            ))
+        .where((account) => account.username.isNotEmpty && account.password.isNotEmpty)
+        .toList();
 
     final config = AppConfig(
       googleSheets: GoogleSheetsConfig.withHardcodedCredentials(
@@ -687,8 +732,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         bacBudget: bacBudget,
         xienBudget: xienBudget,
       ),
+      apiAccounts: apiAccounts,  // ✅ THÊM DÒNG NÀY
     );
 
+    // ... phần còn lại giữ nguyên
     final viewModel = context.read<SettingsViewModel>();
     
     final saved = await viewModel.saveConfig(config);
@@ -882,5 +929,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildApiAccountsSection() {
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(Icons.vpn_key, color: Theme.of(context).primaryColor.withOpacity(0.7)),
+        title: const Text(
+          'Tài khoản API',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text(
+          'Quản lý tài khoản API (tối đa 3)',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        initiallyExpanded: false,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [                
+                // API Account 1
+                ..._buildApiAccountFields(0, 'Tài khoản 1'),
+                
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 20),
+                
+                // API Account 2
+                ..._buildApiAccountFields(1, 'Tài khoản 2'),
+                
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 20),
+                
+                // API Account 3
+                ..._buildApiAccountFields(2, 'Tài khoản 3'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  List<Widget> _buildApiAccountFields(int index, String label) {
+    return [
+      Text(
+        label,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+          color: Theme.of(context).primaryColor.withOpacity(0.7),
+        ),
+      ),
+      const SizedBox(height: 12),
+      
+      // Username field
+      TextFormField(
+        controller: _apiAccountControllers[index]['username'],
+        decoration: InputDecoration(
+          labelText: 'Username',
+          hintText: 'Nhập username',
+          prefixIcon: const Icon(Icons.person),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      
+      const SizedBox(height: 12),
+      
+      // Password field
+      TextFormField(
+        controller: _apiAccountControllers[index]['password'],
+        obscureText: true,
+        decoration: InputDecoration(
+          labelText: 'Password',
+          hintText: 'Nhập password',
+          prefixIcon: const Icon(Icons.lock),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  // Helper: Chuyển 700000 → "700"
+  String _formatToThousands(double value) {
+    if (value == 0) return '';
+    return (value / 1000).toStringAsFixed(0);
+  }
+
+  // Helper: Chuyển "700" → 700000
+  double _parseFromThousands(String text) {
+    if (text.isEmpty) return 0;
+    final value = double.tryParse(text) ?? 0;
+    return value * 1000;
   }
 }
