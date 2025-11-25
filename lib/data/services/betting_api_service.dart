@@ -10,20 +10,32 @@ class BettingApiService {
   String? _cachedToken;
 
   BettingApiService() {
-    // ✅ Thêm cookie manager và interceptor
     _dio.interceptors.add(CookieManager(_cookieJar));
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
-          print('🔄 API Request: ${options.method} ${options.path}');
+        onRequest: (options, handler) async {
+          print('📤 REQUEST: ${options.method} ${options.path}');
+          print('   Headers: ${options.headers}');
+          
+          // ✅ QUAN TRỌNG: Kiểm tra cookie đang gửi
+          final cookies = await _cookieJar.loadForRequest(options.uri);
+          print('   🍪 Cookies being sent: ${cookies.map((c) => '${c.name}=${c.value.substring(0, 20)}...').join('; ')}');
+          
           return handler.next(options);
         },
-        onResponse: (response, handler) {
-          print('✅ API Response: ${response.statusCode} ${response.requestOptions.path}');
+        onResponse: (response, handler) async {
+          print('✅ RESPONSE: ${response.statusCode}');
+          print('   Data: ${response.data}');
+          
+          // ✅ Kiểm tra cookie nhận được
+          final cookies = await _cookieJar.loadForRequest(response.requestOptions.uri);
+          print('   🍪 Cookies after response: ${cookies.map((c) => '${c.name}=${c.value.substring(0, 20)}...').join('; ')}');
+          
           return handler.next(response);
         },
         onError: (error, handler) {
-          print('❌ API Error: ${error.message}');
+          print('❌ ERROR: ${error.message}');
+          print('   Response: ${error.response?.data}');
           return handler.next(error);
         },
       ),
@@ -39,7 +51,7 @@ class BettingApiService {
         'accept': 'application/json',
         'accept-language': 'en-US,en;q=0.9,vi;q=0.8',
         'content-type': 'application/json',
-        'origin': 'https://sin88.sx',
+        'origin': 'https://sin88.pro',
         'priority': 'u=1, i',
         'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
         'sec-ch-ua-mobile': '?0',
@@ -51,7 +63,7 @@ class BettingApiService {
       };
 
       final response = await _dio.post(
-        'https://sin88.sx/api/v1/login',
+        'https://sin88.pro/api/v1/login',
         options: Options(headers: headers),
         data: {
           'username': account.username,
@@ -92,23 +104,42 @@ class BettingApiService {
       };
 
       final response = await _dio.get(
-        'https://sin88.sx/api/v2/user/tp-token',
+        'https://sin88.pro/api/v2/user/tp-token',
         options: Options(headers: headers),
       );
 
       if (response.statusCode == 200) {
-        // ✅ Giả sử API trả về {token: "..."} hoặc {tp_token: "..."}
-        final token = response.data['token'] ?? 
-                     response.data['tp_token'] ?? 
-                     response.data['access_token'];
+        // ✅ FIX: Kiểm tra cấu trúc response đúng
+        final responseData = response.data;
+        
+        // Kiểm tra xem có wrap trong "data" object không
+        final dataObject = responseData['data'];
+        
+        if (dataObject != null) {
+          // ✅ Lấy token từ trong object "data"
+          final token = dataObject['tp_token'] ?? 
+                      dataObject['token'] ?? 
+                      dataObject['access_token'];
+          
+          if (token != null) {
+            _cachedToken = token;
+            print('✅ TP Token received: $token');
+            return token;
+          }
+        }
+        
+        // Fallback: Thử lấy từ level root (để tương thích với các API khác)
+        final token = responseData['token'] ?? 
+                    responseData['tp_token'] ?? 
+                    responseData['access_token'];
         
         if (token != null) {
           _cachedToken = token;
-          print('✅ TP Token received: ${token.substring(0, 20)}...');
+          print('✅ TP Token received: $token');
           return token;
         }
         
-        print('❌ No token in response: ${response.data}');
+        print('❌ No token in response: $responseData');
         return null;
       } else {
         print('❌ Failed to get TP Token: ${response.statusCode}');
