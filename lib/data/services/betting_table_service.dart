@@ -249,7 +249,7 @@ class BettingTableService {
     //print('   budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
     //print('   profitTarget: ${NumberUtils.formatCurrency(profitTarget)}');
     
-    double lowBet = 1.0;
+    double lowBet = profitTarget/2.2/54;
     double highBet = 1000.0;
     List<BettingRow>? bestTable;
 
@@ -514,7 +514,7 @@ class BettingTableService {
     required double budgetMin,
     required double budgetMax,
   }) async {
-    double lowBet = 1.0;
+    double lowBet = profitTarget/2.5/27;
     double highBet = 1000.0;
     List<BettingRow>? bestTable;
 
@@ -708,7 +708,7 @@ class BettingTableService {
     required double budgetMax,
   }) async {
     // ✅ FIX: Tăng range tìm kiếm
-    double lowBet = 0.5;
+    double lowBet = profitTarget/2.5/36;
     double highBet = 5000.0;
     List<BettingRow>? bestTable;
 

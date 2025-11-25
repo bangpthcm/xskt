@@ -20,6 +20,10 @@ dependencies:
   # State Management
   provider: ^6.1.1
 
+  dio: ^5.3.0
+  cookie_jar: ^4.0.0
+  dio_cookie_manager: ^3.0.0
+
   # Google Sheets API
   googleapis: ^11.4.0
   googleapis_auth: ^1.4.1

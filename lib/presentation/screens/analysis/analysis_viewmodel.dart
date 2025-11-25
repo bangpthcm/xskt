@@ -505,7 +505,7 @@ class AnalysisViewModel extends ChangeNotifier {
       );
 
       final budgetMax = budgetResult.budgetMax;
-      final budgetMin = budgetMax * 0.80;
+      final budgetMin = budgetMax * 0.9;
 
       print('   💰 Budget: ${NumberUtils.formatCurrency(budgetMin)} - ${NumberUtils.formatCurrency(budgetMax)}');
 

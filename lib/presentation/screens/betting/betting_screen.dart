@@ -4,12 +4,17 @@ import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'betting_viewmodel.dart';
+import 'select_account_screen.dart';
 import 'betting_detail_screen.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/models/betting_row.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../navigation/main_navigation.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../../app.dart';
+import '../settings/settings_viewmodel.dart';
+import 'select_account_screen.dart';
+import '../../../data/models/app_config.dart';
 import '../home/home_screen.dart';
 import '../../../data/services/service_manager.dart'; 
 
@@ -57,6 +62,62 @@ class _BettingScreenState extends State<BettingScreen> {
         }
       }
     });
+  }
+
+  void _showBettingOptionsDialog(BuildContext context) {
+    try {
+      final settingsVM = context.read<SettingsViewModel>();
+      final config = settingsVM.config;
+      
+      final validAccounts = config.apiAccounts
+          .where((a) => a.username.isNotEmpty && a.password.isNotEmpty)
+          .toList();
+
+      if (validAccounts.isEmpty) {
+        showDialog(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Chưa có tài khoản'),
+            content: const Text(
+              'Vui lòng cấu hình tài khoản Betting trong Settings → Tài khoản API',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  // ✅ Chuyển đến tab Settings (index 3)
+                  mainNavigationKey.currentState?.switchToTab(3);
+                },
+                child: const Text('Đi đến Settings'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      // ✅ Mở SelectAccountScreen với các tài khoản hợp lệ
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SelectAccountScreen(
+            accounts: validAccounts,
+          ),
+        ),
+      );
+    } catch (e) {
+      print('❌ Error opening betting: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -141,47 +202,63 @@ class _BettingScreenState extends State<BettingScreen> {
     final tongTienTongQuat = tongTienChuKy + tongTienXien;
 
     return Card(
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const BettingDetailScreen(initialTab: 0),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Theme.of(context).primaryColor, size: 32),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tổng tiền: ${NumberUtils.formatCurrency(tongTienTongQuat)}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Nhấn để xem chi tiết',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).primaryColor.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Theme.of(context).primaryColor),
+              ],
             ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Theme.of(context).primaryColor, size: 32),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Tổng tiền: ${NumberUtils.formatCurrency(tongTienTongQuat)}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Nhấn để xem chi tiết',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).primaryColor.withOpacity(0.8),
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 16),
+            const Divider(color: Colors.grey),
+            const SizedBox(height: 16),
+            
+            // ✅ THÊM: Button "Mở Betting"
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _showBettingOptionsDialog(context),
+                icon: const Icon(Icons.open_in_browser),
+                label: const Text('Mở Betting'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
-              Icon(Icons.chevron_right, color: Theme.of(context).primaryColor),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
