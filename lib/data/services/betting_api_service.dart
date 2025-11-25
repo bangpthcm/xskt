@@ -163,6 +163,8 @@ class BettingApiService {
         return null;
       }
 
+      await Future.delayed(Duration(seconds: 1));
+      
       // ✅ Bước 2: Get TP Token
       final token = await getTPToken();
       if (token == null) {

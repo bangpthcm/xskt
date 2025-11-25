@@ -1,41 +1,47 @@
 // lib/presentation/screens/settings/settings_viewmodel.dart
 import 'package:flutter/material.dart';
 import '../../../data/models/app_config.dart';
+import '../../../data/models/api_account.dart';
 import '../../../data/services/storage_service.dart';
 import '../../../data/services/google_sheets_service.dart';
 import '../../../data/services/telegram_service.dart';
-import '../../../data/services/backfill_service.dart';  // ✅ ADD
+import '../../../data/services/betting_api_service.dart';
+import '../../../data/services/backfill_service.dart';
 import '../../../data/services/rss_parser_service.dart';
 
 class SettingsViewModel extends ChangeNotifier {
   final StorageService _storageService;
   final GoogleSheetsService _sheetsService;
   final TelegramService _telegramService;
-  final RssParserService _rssService;  // ✅ PHẢI CÓ DÒNG NÀY
+  final RssParserService _rssService;
 
   SettingsViewModel({
     required StorageService storageService,
     required GoogleSheetsService sheetsService,
     required TelegramService telegramService,
-    required RssParserService rssService,  // ✅ PHẢI CÓ DÒNG NÀY
+    required RssParserService rssService,
   })  : _storageService = storageService,
         _sheetsService = sheetsService,
         _telegramService = telegramService,
-        _rssService = rssService;  // ✅ PHẢI CÓ DÒNG NÀY
+        _rssService = rssService;
 
   AppConfig _config = AppConfig.defaultConfig();
   bool _isLoading = false;
   String? _errorMessage;
   
-  // ✅ THÊM: Trạng thái kết nối
+  // ✅ Trạng thái kết nối
   bool _isGoogleSheetsConnected = false;
   bool _isTelegramConnected = false;
+  
+  // ✅ THÊM: Trạng thái API accounts
+  final List<bool?> _apiAccountStatus = [null, null, null]; // null = chưa test, true = thành công, false = thất bại
 
   AppConfig get config => _config;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  bool get isGoogleSheetsConnected => _isGoogleSheetsConnected;  // ✅ ADD
-  bool get isTelegramConnected => _isTelegramConnected;  // ✅ ADD
+  bool get isGoogleSheetsConnected => _isGoogleSheetsConnected;
+  bool get isTelegramConnected => _isTelegramConnected;
+  List<bool?> get apiAccountStatus => _apiAccountStatus; // ✅ THÊM getter
 
   Future<void> loadConfig() async {
     _isLoading = true;
@@ -73,7 +79,6 @@ class SettingsViewModel extends ChangeNotifier {
         print('✅ Services reinitialized successfully');
       } catch (e) {
         print('⚠️ Error reinitializing services: $e');
-        // Không throw error, chỉ log
       }
       
       _errorMessage = null;
@@ -89,9 +94,6 @@ class SettingsViewModel extends ChangeNotifier {
   }
 
   Future<bool> testGoogleSheetsConnection() async {
-    _isLoading = true;
-    notifyListeners();
-
     try {
       await _sheetsService.initialize(_config.googleSheets);
       _isGoogleSheetsConnected = await _sheetsService.testConnection();
@@ -100,41 +102,74 @@ class SettingsViewModel extends ChangeNotifier {
         _errorMessage = 'Không thể kết nối Google Sheets';
       }
       
-      _isLoading = false;
       notifyListeners();
       return _isGoogleSheetsConnected;
     } catch (e) {
       _errorMessage = 'Lỗi kết nối Google Sheets: $e';
       _isGoogleSheetsConnected = false;
-      _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
   Future<bool> testTelegramConnection() async {
-    _isLoading = true;
-    notifyListeners();
-
     try {
       _telegramService.initialize(_config.telegram);
-      
-      // ✅ Dùng testConnection() thay vì sendMessage()
       _isTelegramConnected = await _telegramService.testConnection();
       
       if (!_isTelegramConnected) {
         _errorMessage = 'Không thể kết nối Telegram (bot token không hợp lệ)';
       }
       
-      _isLoading = false;
       notifyListeners();
       return _isTelegramConnected;
     } catch (e) {
       _errorMessage = 'Lỗi kết nối Telegram: $e';
       _isTelegramConnected = false;
-      _isLoading = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  // ✅ THÊM: Test tất cả API accounts
+  Future<void> testAllApiAccounts(List<ApiAccount> accounts) async {
+    // Reset trạng thái
+    for (int i = 0; i < 3; i++) {
+      _apiAccountStatus[i] = null;
+    }
+    notifyListeners();
+
+    // Test từng account
+    for (int i = 0; i < accounts.length && i < 3; i++) {
+      final account = accounts[i];
+      
+      // Bỏ qua account rỗng
+      if (account.username.isEmpty || account.password.isEmpty) {
+        _apiAccountStatus[i] = null;
+        continue;
+      }
+
+      try {
+        print('🔐 Testing API account ${i + 1}: ${account.username}');
+        
+        final apiService = BettingApiService();
+        final token = await apiService.authenticateAndGetToken(account);
+        
+        _apiAccountStatus[i] = (token != null && token.isNotEmpty);
+        
+        if (_apiAccountStatus[i] == true) {
+          print('✅ Account ${i + 1} authentication successful');
+        } else {
+          print('❌ Account ${i + 1} authentication failed');
+        }
+        
+        apiService.clearCache();
+      } catch (e) {
+        print('❌ Error testing account ${i + 1}: $e');
+        _apiAccountStatus[i] = false;
+      }
+      
+      notifyListeners();
     }
   }
 
@@ -143,14 +178,16 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
   }
   
-  // ✅ THÊM: Reset trạng thái kết nối
+  // ✅ Reset trạng thái kết nối
   void resetConnectionStatus() {
     _isGoogleSheetsConnected = false;
     _isTelegramConnected = false;
+    for (int i = 0; i < 3; i++) {
+      _apiAccountStatus[i] = null;
+    }
     notifyListeners();
   }
 
-  // ✅ THÊM METHOD NÀY vào cuối class SettingsViewModel
   Future<String> syncRSSData() async {
     _isLoading = true;
     notifyListeners();
@@ -174,5 +211,4 @@ class SettingsViewModel extends ChangeNotifier {
       return 'Lỗi đồng bộ RSS: $e';
     }
   }
-
 }

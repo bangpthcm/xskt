@@ -609,7 +609,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildActionButtons(SettingsViewModel viewModel) {
     return Column(
       children: [
-        AnimatedButton(  // ✅ ĐỔI từ ElevatedButton
+        AnimatedButton(
           label: 'Lưu và kiểm tra kết nối',
           icon: Icons.save,
           backgroundColor: Theme.of(context).primaryColor.withOpacity(0.7),
@@ -617,16 +617,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
           isLoading: viewModel.isLoading,
           width: double.infinity,
         ),
-        const SizedBox(height: 12),
         
-        AnimatedButton(
-          label: 'Đồng bộ dữ liệu RSS',
-          icon: Icons.sync,
-          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.7),
-          onPressed: viewModel.isLoading ? () {} : () => _syncRSSData(viewModel),
-          isLoading: viewModel.isLoading,
-          width: double.infinity,
+        const SizedBox(height: 16),
+        
+        // ✅ THAY THẾ nút "Đồng bộ RSS" bằng 3 thẻ API accounts
+        Row(
+          children: [
+            Expanded(
+              child: _buildApiAccountStatus(viewModel, 0, 'API 1'),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildApiAccountStatus(viewModel, 1, 'API 2'),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildApiAccountStatus(viewModel, 2, 'API 3'),
+            ),
+          ],
         ),
+        
         const SizedBox(height: 12),
         
         Row(
@@ -754,6 +764,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     await viewModel.testGoogleSheetsConnection();
     await viewModel.testTelegramConnection();
+    await viewModel.testAllApiAccounts(apiAccounts);
 
     if (mounted) {
       String message = 'Đã lưu cấu hình.\n';
@@ -819,6 +830,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
   }
+
+  
 
   Widget _buildThemeSection() {
     return Card(
@@ -970,6 +983,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildApiAccountStatus(SettingsViewModel viewModel, int index, String label) {
+    final status = viewModel.apiAccountStatus[index];
+    
+    // Xác định màu và icon
+    Color cardColor;
+    Color iconColor;
+    IconData icon;
+    
+    if (status == null) {
+      // Chưa test hoặc không có tài khoản
+      cardColor = Colors.grey.shade100;
+      iconColor = Colors.grey;
+      icon = Icons.api;
+    } else if (status == true) {
+      // Thành công
+      cardColor = Theme.of(context).primaryColor.withOpacity(0.1);
+      iconColor = Theme.of(context).primaryColor.withOpacity(0.7);
+      icon = Icons.check_circle;
+    } else {
+      // Thất bại
+      cardColor = Colors.red.shade50;
+      iconColor = Colors.red;
+      icon = Icons.cancel;
+    }
+    
+    return Card(
+      color: cardColor,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: iconColor,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: iconColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
