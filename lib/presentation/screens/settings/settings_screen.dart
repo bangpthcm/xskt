@@ -28,6 +28,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _trungBudgetController;
   late TextEditingController _bacBudgetController;
   late TextEditingController _xienBudgetController;
+  late TextEditingController _bettingDomainController;
 
   final List<Map<String, TextEditingController>> _apiAccountControllers = [];
 
@@ -50,11 +51,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungBudgetController = TextEditingController();
     _bacBudgetController = TextEditingController();
     _xienBudgetController = TextEditingController();
+    _bettingDomainController = TextEditingController(); 
 
     for (int i = 0; i < 3; i++) {
       _apiAccountControllers.add({
         'username': TextEditingController(),
         'password': TextEditingController(),
+        'domain': TextEditingController(),
       });
     }
   }
@@ -65,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     
     _sheetNameController.text = config.googleSheets.sheetName;
     _chatIdsController.text = config.telegram.chatIds.join(', ');
+    _bettingDomainController.text = config.betting.domain;
     
     // ✅ Hiển thị giá trị rút gọn (chia 1000)
     _totalCapitalController.text = _formatToThousands(config.budget.totalCapital);
@@ -86,6 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungBudgetController.dispose();
     _bacBudgetController.dispose();
     _xienBudgetController.dispose();
+    _bettingDomainController.dispose();
     super.dispose();
 
     for (var controllers in _apiAccountControllers) {
@@ -108,18 +113,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 _buildThemeSection(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
+                _buildBettingConfigSection(),
+                const SizedBox(height: 10),
                 _buildApiAccountsSection(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
                 _buildGoogleSheetsSection(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
                 _buildTelegramSection(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
                 _buildBudgetSection(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
                 if (viewModel.errorMessage != null)
                   _buildErrorCard(viewModel.errorMessage!),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 _buildActionButtons(viewModel),
               ],
             ),
@@ -211,6 +218,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
                 return null;
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBettingConfigSection() {
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(Icons.language, color: Theme.of(context).primaryColor.withOpacity(0.7)),
+        title: const Text(
+          'Cấu hình Betting',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text(
+          'Domain chung cho tất cả tài khoản',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        initiallyExpanded: false,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: _bettingDomainController,
+                  decoration: InputDecoration(
+                    labelText: 'Domain/Host',
+                    hintText: 'sin88.pro',
+                    prefixIcon: const Icon(Icons.language),
+                    helperText: 'VD: sin88.pro, sin88.sx, xyz.com',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Vui lòng nhập domain';
+                    }
+                    return null;
+                  },
+                ),
+              ],
             ),
           ),
         ],
@@ -321,7 +373,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ),
-
+                const Divider(),
                 const SizedBox(height: 16),
 
                 // Miền Trung
@@ -341,7 +393,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   validator: (value) => _validateBudgetField(value, 'Miền Trung'),
                 ),
                 
-                const Divider(),
                 const SizedBox(height: 16),
 
                 // Miền Bắc
@@ -618,7 +669,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           width: double.infinity,
         ),
         
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         
         // ✅ THAY THẾ nút "Đồng bộ RSS" bằng 3 thẻ API accounts
         Row(
@@ -637,9 +688,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         
         Row(
+
           children: [
             Expanded(
               child: _buildConnectionStatus(
@@ -648,7 +700,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icons.cloud,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildConnectionStatus(
                 'Telegram',
@@ -715,14 +767,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    // ✅ THÊM: Thu thập API accounts
-    final apiAccounts = _apiAccountControllers
-        .map((controllers) => ApiAccount(
-              username: controllers['username']!.text.trim(),
-              password: controllers['password']!.text.trim(),
-            ))
-        .where((account) => account.username.isNotEmpty && account.password.isNotEmpty)
-        .toList();
+    // ✅ Thu thập API accounts (chỉ username + password, không có domain)
+    final apiAccounts = <ApiAccount>[];
+    for (int i = 0; i < _apiAccountControllers.length; i++) {
+      final username = _apiAccountControllers[i]['username']!.text.trim();
+      final password = _apiAccountControllers[i]['password']!.text.trim();
+      
+      if (username.isNotEmpty && password.isNotEmpty) {
+        apiAccounts.add(ApiAccount(
+          username: username,
+          password: password,
+        ));
+      }
+    }
 
     final config = AppConfig(
       googleSheets: GoogleSheetsConfig.withHardcodedCredentials(
@@ -742,10 +799,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         bacBudget: bacBudget,
         xienBudget: xienBudget,
       ),
-      apiAccounts: apiAccounts,  // ✅ THÊM DÒNG NÀY
+      apiAccounts: apiAccounts,
+      betting: BettingConfig(  // ✅ THÊM
+        domain: _bettingDomainController.text.trim().isEmpty 
+            ? 'sin88.pro'
+            : _bettingDomainController.text.trim(),
+      ),
     );
 
-    // ... phần còn lại giữ nguyên
     final viewModel = context.read<SettingsViewModel>();
     
     final saved = await viewModel.saveConfig(config);
@@ -764,7 +825,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     await viewModel.testGoogleSheetsConnection();
     await viewModel.testTelegramConnection();
-    await viewModel.testAllApiAccounts(apiAccounts);
+    await viewModel.testAllApiAccounts(apiAccounts, config.betting.domain);  // ✅ Truyền domain
 
     if (mounted) {
       String message = 'Đã lưu cấu hình.\n';

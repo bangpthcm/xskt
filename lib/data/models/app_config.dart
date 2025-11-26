@@ -1,25 +1,64 @@
-//lib/data/models/app_config.dart
+// lib/data/models/app_config.dart
+
 import 'api_account.dart';
+
+class BettingConfig {
+  final String domain;
+
+  BettingConfig({
+    this.domain = 'sin88.pro',
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'domain': domain,
+    };
+  }
+
+  factory BettingConfig.fromJson(Map<String, dynamic> json) {
+    return BettingConfig(
+      domain: json['domain'] ?? 'sin88.pro',
+    );
+  }
+
+  factory BettingConfig.empty() {
+    return BettingConfig(
+      domain: 'sin88.pro',
+    );
+  }
+
+  BettingConfig copyWith({
+    String? domain,
+  }) {
+    return BettingConfig(
+      domain: domain ?? this.domain,
+    );
+  }
+}
 
 class AppConfig {
   final GoogleSheetsConfig googleSheets;
   final TelegramConfig telegram;
   final BudgetConfig budget;
-  final List<ApiAccount> apiAccounts; // ✅ THÊM
+  final List<ApiAccount> apiAccounts;
+  final BettingConfig betting; // ✅ THÊM: Domain config
 
   AppConfig({
     required this.googleSheets,
     required this.telegram,
     required this.budget,
-    List<ApiAccount>? apiAccounts, // ✅ THÊM
-  }) : apiAccounts = apiAccounts ?? [];
+    List<ApiAccount>? apiAccounts,
+    BettingConfig? betting, // ✅ THÊM
+  }) : apiAccounts = apiAccounts ?? [],
+       betting = betting ?? BettingConfig.empty(); // ✅ THÊM
 
   Map<String, dynamic> toJson() {
     return {
       'googleSheets': googleSheets.toJson(),
       'telegram': telegram.toJson(),
       'budget': budget.toJson(),
-      'apiAccounts': apiAccounts.map((a) => a.toJson()).toList(), // ✅ THÊM
+      'apiAccounts': apiAccounts.map((a) => a.toJson()).toList(),
+      'betting': betting.toJson(), // ✅ THÊM
     };
   }
 
@@ -28,9 +67,10 @@ class AppConfig {
       googleSheets: GoogleSheetsConfig.fromJson(json['googleSheets'] ?? {}),
       telegram: TelegramConfig.fromJson(json['telegram'] ?? {}),
       budget: BudgetConfig.fromJson(json['budget'] ?? {}),
-      apiAccounts: (json['apiAccounts'] as List<dynamic>?) // ✅ THÊM
+      apiAccounts: (json['apiAccounts'] as List<dynamic>?)
           ?.map((item) => ApiAccount.fromJson(item))
           .toList() ?? [],
+      betting: BettingConfig.fromJson(json['betting'] ?? {}), // ✅ THÊM
     );
   }
 
@@ -41,7 +81,25 @@ class AppConfig {
       ),
       telegram: TelegramConfig.empty(),
       budget: BudgetConfig.defaultBudget(),
-      apiAccounts: [], // ✅ THÊM
+      apiAccounts: [],
+      betting: BettingConfig.empty(), // ✅ THÊM
+    );
+  }
+
+  // ✅ THÊM: copyWith method để update config
+  AppConfig copyWith({
+    GoogleSheetsConfig? googleSheets,
+    TelegramConfig? telegram,
+    BudgetConfig? budget,
+    List<ApiAccount>? apiAccounts,
+    BettingConfig? betting,
+  }) {
+    return AppConfig(
+      googleSheets: googleSheets ?? this.googleSheets,
+      telegram: telegram ?? this.telegram,
+      budget: budget ?? this.budget,
+      apiAccounts: apiAccounts ?? this.apiAccounts,
+      betting: betting ?? this.betting,
     );
   }
 }

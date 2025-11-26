@@ -15,43 +15,23 @@ class BettingApiService {
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           print('📤 REQUEST: ${options.method} ${options.path}');
-          print('   Headers: ${options.headers}');
-          
-          // ✅ QUAN TRỌNG: Kiểm tra cookie đang gửi
-          final cookies = await _cookieJar.loadForRequest(options.uri);
-          print('   🍪 Cookies being sent: ${cookies.map((c) => '${c.name}=${c.value.substring(0, 20)}...').join('; ')}');
-          
           return handler.next(options);
-        },
-        onResponse: (response, handler) async {
-          print('✅ RESPONSE: ${response.statusCode}');
-          print('   Data: ${response.data}');
-          
-          // ✅ Kiểm tra cookie nhận được
-          final cookies = await _cookieJar.loadForRequest(response.requestOptions.uri);
-          print('   🍪 Cookies after response: ${cookies.map((c) => '${c.name}=${c.value.substring(0, 20)}...').join('; ')}');
-          
-          return handler.next(response);
-        },
-        onError: (error, handler) {
-          print('❌ ERROR: ${error.message}');
-          print('   Response: ${error.response?.data}');
-          return handler.next(error);
         },
       ),
     );
   }
 
-  /// ✅ STEP 1: Login và lấy cookies
-  Future<bool> login(ApiAccount account) async {
+  /// ✅ STEP 1: Login - nhận domain làm parameter
+  Future<bool> login(ApiAccount account, String domain) async {
     try {
       print('🔐 Logging in with username: ${account.username}');
+      print('   Domain: $domain');
 
       final headers = {
         'accept': 'application/json',
         'accept-language': 'en-US,en;q=0.9,vi;q=0.8',
         'content-type': 'application/json',
-        'origin': 'https://sin88.pro',
+        'origin': 'https://$domain',
         'priority': 'u=1, i',
         'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
         'sec-ch-ua-mobile': '?0',
@@ -63,7 +43,7 @@ class BettingApiService {
       };
 
       final response = await _dio.post(
-        'https://sin88.pro/api/v1/login',
+        'https://$domain/api/v1/login',
         options: Options(headers: headers),
         data: {
           'username': account.username,
@@ -73,7 +53,6 @@ class BettingApiService {
 
       if (response.statusCode == 200) {
         print('✅ Login successful!');
-        print('   Data: ${response.data}');
         return true;
       } else {
         print('❌ Login failed: ${response.statusCode}');
@@ -86,9 +65,9 @@ class BettingApiService {
   }
 
   /// ✅ STEP 2: Lấy TP Token
-  Future<String?> getTPToken() async {
+  Future<String?> getTPToken(String domain) async {
     try {
-      print('🎫 Getting TP Token...');
+      print('🎫 Getting TP Token from domain: $domain');
 
       final headers = {
         'accept': '*/*',
@@ -104,19 +83,15 @@ class BettingApiService {
       };
 
       final response = await _dio.get(
-        'https://sin88.pro/api/v2/user/tp-token',
+        'https://$domain/api/v2/user/tp-token',
         options: Options(headers: headers),
       );
 
       if (response.statusCode == 200) {
-        // ✅ FIX: Kiểm tra cấu trúc response đúng
         final responseData = response.data;
-        
-        // Kiểm tra xem có wrap trong "data" object không
         final dataObject = responseData['data'];
         
         if (dataObject != null) {
-          // ✅ Lấy token từ trong object "data"
           final token = dataObject['tp_token'] ?? 
                       dataObject['token'] ?? 
                       dataObject['access_token'];
@@ -128,7 +103,6 @@ class BettingApiService {
           }
         }
         
-        // Fallback: Thử lấy từ level root (để tương thích với các API khác)
         final token = responseData['token'] ?? 
                     responseData['tp_token'] ?? 
                     responseData['access_token'];
@@ -152,12 +126,13 @@ class BettingApiService {
   }
 
   /// ✅ STEP 3: Complete flow - Login + Get Token
-  Future<String?> authenticateAndGetToken(ApiAccount account) async {
+  Future<String?> authenticateAndGetToken(ApiAccount account, String domain) async {
     try {
       print('🔄 Starting authentication flow...');
+      print('   Username: ${account.username}');
+      print('   Domain: $domain');
 
-      // ✅ Bước 1: Login
-      final loginSuccess = await login(account);
+      final loginSuccess = await login(account, domain);
       if (!loginSuccess) {
         print('❌ Authentication failed at login step');
         return null;
@@ -165,8 +140,7 @@ class BettingApiService {
 
       await Future.delayed(Duration(seconds: 1));
       
-      // ✅ Bước 2: Get TP Token
-      final token = await getTPToken();
+      final token = await getTPToken(domain);
       if (token == null) {
         print('❌ Authentication failed at token step');
         return null;
@@ -180,10 +154,8 @@ class BettingApiService {
     }
   }
 
-  /// ✅ Get cached token
   String? getCachedToken() => _cachedToken;
 
-  /// ✅ Clear cache
   void clearCache() {
     _cachedToken = null;
     _cookieJar.deleteAll();

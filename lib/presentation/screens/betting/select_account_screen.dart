@@ -1,16 +1,22 @@
 // lib/presentation/screens/betting/select_account_screen.dart
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:provider/provider.dart';
 import '../../../data/models/app_config.dart';
 import '../../../data/models/api_account.dart';
+import '../../../data/models/betting_row.dart';
 import '../../../data/services/betting_api_service.dart';
+import 'betting_viewmodel.dart';
+import '../../../core/utils/number_utils.dart';
 
 class SelectAccountScreen extends StatefulWidget {
   final List<ApiAccount> accounts;
+  final String domain;
 
   const SelectAccountScreen({
     Key? key,
     required this.accounts,
+    required this.domain,
   }) : super(key: key);
 
   @override
@@ -34,7 +40,7 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
     super.dispose();
   }
 
-  Future<void> _handleAccountSelect(int index) async {
+  Future<void> _handleAccountSelect(int index) async {  // ✅ REMOVE parameter domain
     final account = widget.accounts[index];
 
     setState(() {
@@ -44,22 +50,22 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
 
     try {
       print('🔐 Authenticating account: ${account.username}');
+      print('   Domain: ${widget.domain}');  // ✅ Dùng widget.domain
 
-      // ✅ Xác thực và lấy token
-      final token = await _apiService.authenticateAndGetToken(account);
+      final token = await _apiService.authenticateAndGetToken(account, widget.domain);  // ✅ Truyền domain
 
       if (!mounted) return;
 
       if (token != null && token.isNotEmpty) {
         print('✅ Token received, opening WebView...');
 
-        // ✅ Mở WebView với token
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => BettingWebViewScreen(
               token: token,
               accountUsername: account.username,
+              domain: widget.domain,  // ✅ Truyền domain
             ),
           ),
         );
@@ -221,11 +227,13 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
 class BettingWebViewScreen extends StatefulWidget {
   final String token;
   final String accountUsername;
+  final String domain;  // ✅ THÊM
 
   const BettingWebViewScreen({
     Key? key,
     required this.token,
     required this.accountUsername,
+    required this.domain,  // ✅ THÊM
   }) : super(key: key);
 
   @override
@@ -269,12 +277,295 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
       ..loadRequest(Uri.parse(url));
   }
 
+  void _showSummaryTable(BuildContext context, BettingViewModel viewModel) {
+    final now = DateTime.now();
+    final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+    
+    // Lấy dữ liệu chu kỳ + xiên hôm nay
+    final todayCycleRows = _getTodayCycleRows(viewModel, today);
+    final todayXienRows = viewModel.xienTable
+        ?.where((r) => r.ngay == today)
+        .toList() ?? [];
+
+    // ✅ KẾT HỢP 2 BẢNG THÀNH 1
+    final allRows = <BettingRow>[...todayCycleRows, ...todayXienRows];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.3,
+        minChildSize: 0.25,
+        maxChildSize: 0.8,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                width: 40,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade600,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              
+              // Content - BẢNG KẾT HỢP
+              Expanded(
+                child: allRows.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(40),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inbox_outlined,
+                                size: 64,
+                                color: Colors.grey.shade600,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Chưa có bảng cược cho ngày hôm nay',
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(12),
+                        children: [
+                          _buildUnifiedTable(allRows),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<BettingRow> _getTodayCycleRows(BettingViewModel viewModel, String today) {
+    final todayCycleRows = <BettingRow>[
+      ...viewModel.cycleTable?.where((r) => r.ngay == today) ?? [],
+      ...viewModel.trungTable?.where((r) => r.ngay == today) ?? [],
+      ...viewModel.bacTable?.where((r) => r.ngay == today) ?? [],
+    ];
+
+    todayCycleRows.sort((a, b) {
+      const mienOrder = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
+      final mienCompare = (mienOrder[a.mien] ?? 0).compareTo(mienOrder[b.mien] ?? 0);
+      return mienCompare;
+    });
+
+    return todayCycleRows;
+  }
+
+  Widget _buildUnifiedTable(List<BettingRow> rows) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade800),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2C2C),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
+              ),
+            ),
+            child: Row(
+              children: const [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Ngày',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Miền',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Số',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Cược/số',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Rows
+          ...rows.asMap().entries.map((entry) {
+            final index = entry.key;
+            final row = entry.value;
+            final isEven = index % 2 == 0;
+            
+            // ✅ Xác định loại cược: Chu kỳ (có cuocSo và > 0) hoặc Xiên (cuocSo null hoặc = 0)
+            final isCycleRow = row.cuocSo != null && row.cuocSo! > 0;
+            final cuocValue = isCycleRow ? row.cuocSo! : row.cuocMien;
+
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+              color: isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      row.ngay,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      row.mien,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      row.so,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      NumberUtils.formatCurrency(cuocValue),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Betting - ${widget.accountUsername}'),
         actions: [
+          // ✅ NÚT XEM BẢNG TÓM TẮT
+          Consumer<BettingViewModel>(
+            builder: (context, viewModel, child) {
+              final now = DateTime.now();
+              final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+              
+              final todayCycleRows = _getTodayCycleRows(viewModel, today);
+              final todayXienRows = viewModel.xienTable
+                  ?.where((r) => r.ngay == today)
+                  .toList() ?? [];
+              
+              final totalRows = todayCycleRows.length + todayXienRows.length;
+              
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.table_chart),
+                    tooltip: 'Xem bảng tóm tắt',
+                    onPressed: totalRows > 0 
+                        ? () => _showSummaryTable(context, viewModel)
+                        : null,
+                  ),
+                  if (totalRows > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Text(
+                          totalRows.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => _webViewController.reload(),

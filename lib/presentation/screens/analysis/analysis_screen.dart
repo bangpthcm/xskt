@@ -95,7 +95,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
-
                 _buildCycleSection(viewModel),
                 const SizedBox(height: 24),
                 _buildGanPairSection(viewModel),

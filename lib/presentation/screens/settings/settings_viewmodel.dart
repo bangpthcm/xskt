@@ -132,7 +132,7 @@ class SettingsViewModel extends ChangeNotifier {
   }
 
   // ✅ THÊM: Test tất cả API accounts
-  Future<void> testAllApiAccounts(List<ApiAccount> accounts) async {
+  Future<void> testAllApiAccounts(List<ApiAccount> accounts, String domain) async {  // ✅ THÊM domain
     // Reset trạng thái
     for (int i = 0; i < 3; i++) {
       _apiAccountStatus[i] = null;
@@ -143,7 +143,6 @@ class SettingsViewModel extends ChangeNotifier {
     for (int i = 0; i < accounts.length && i < 3; i++) {
       final account = accounts[i];
       
-      // Bỏ qua account rỗng
       if (account.username.isEmpty || account.password.isEmpty) {
         _apiAccountStatus[i] = null;
         continue;
@@ -153,7 +152,7 @@ class SettingsViewModel extends ChangeNotifier {
         print('🔐 Testing API account ${i + 1}: ${account.username}');
         
         final apiService = BettingApiService();
-        final token = await apiService.authenticateAndGetToken(account);
+        final token = await apiService.authenticateAndGetToken(account, domain);  // ✅ Truyền domain
         
         _apiAccountStatus[i] = (token != null && token.isNotEmpty);
         

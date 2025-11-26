@@ -1,5 +1,3 @@
-// lib/data/models/api_account.dart
-
 class ApiAccount {
   final String username;
   final String password;

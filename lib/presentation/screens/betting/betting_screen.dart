@@ -100,6 +100,7 @@ class _BettingScreenState extends State<BettingScreen> {
         MaterialPageRoute(
           builder: (context) => SelectAccountScreen(
             accounts: validAccounts,
+            domain: config.betting.domain,  // ✅ THÊM: Truyền domain
           ),
         ),
       );
@@ -197,65 +198,7 @@ class _BettingScreenState extends State<BettingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bảng cược'),
-        centerTitle: false,
-        actions: [
-          Consumer<BettingViewModel>(
-            builder: (context, viewModel, child) {
-              final now = DateTime.now();
-              final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
-              
-              final todayCycleRows = _getTodayCycleRows(viewModel, today);
-              final todayXienRows = viewModel.xienTable
-                  ?.where((r) => r.ngay == today)
-                  .toList() ?? [];
-              
-              final totalRows = todayCycleRows.length + todayXienRows.length;
-              
-              return Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.table_chart),
-                    tooltip: 'Xem bảng tóm tắt',
-                    onPressed: totalRows > 0 
-                        ? () => _showSummaryTable(context, viewModel)
-                        : null,
-                  ),
-                  if (totalRows > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).primaryColor,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
-                        child: Text(
-                          totalRows.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      
+    return Scaffold(      
       body: Consumer<BettingViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
@@ -300,7 +243,7 @@ class _BettingScreenState extends State<BettingScreen> {
             strokeWidth: 3.0,
             displacement: 40,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 _buildStatisticsSection(context, viewModel),
                 const SizedBox(height: 16),
@@ -549,9 +492,18 @@ class _BettingScreenState extends State<BettingScreen> {
           ),
         ),
         const SizedBox(width: 12),
-          Expanded(
+        Expanded(
           child: ElevatedButton.icon(
-            onPressed: () => const HomeScreen(),
+            // ✅ FIX: Thêm Navigator.push() thay vì chỉ tạo instance
+            onPressed: () {
+              print('🔴 Xem Live button pressed');
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const HomeScreen(),
+                ),
+              );
+            },
             icon: const Icon(Icons.live_tv),
             label: const Text('Xem Live'),
             style: ElevatedButton.styleFrom(
@@ -564,7 +516,7 @@ class _BettingScreenState extends State<BettingScreen> {
             ),
           ),
         ),
-      ]
+      ],
     );
   }
 
