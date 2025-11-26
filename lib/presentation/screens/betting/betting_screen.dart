@@ -30,14 +30,10 @@ class _BettingScreenState extends State<BettingScreen> {
   void initState() {
     super.initState();
     
-    // ✅ FIX: Use ServiceManager
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         print('📊 BettingScreen: Waiting for services...');
-        
-        // ✅ Use ServiceManager.waitForReady()
         await ServiceManager.waitForReady();
-        
         print('📊 BettingScreen: Services ready, loading tables...');
         
         if (mounted) {
@@ -89,7 +85,6 @@ class _BettingScreenState extends State<BettingScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(dialogContext);
-                  // ✅ Chuyển đến tab Settings (index 3)
                   mainNavigationKey.currentState?.switchToTab(3);
                 },
                 child: const Text('Đi đến Settings'),
@@ -100,7 +95,6 @@ class _BettingScreenState extends State<BettingScreen> {
         return;
       }
 
-      // ✅ Mở SelectAccountScreen với các tài khoản hợp lệ
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -120,13 +114,153 @@ class _BettingScreenState extends State<BettingScreen> {
     }
   }
 
+  // ✅ SHOW BẢNG TÓM TẮT TRONG BOTTOM SHEET (KẾT HỢP CHU KỲ + XIÊN)
+  void _showSummaryTable(BuildContext context, BettingViewModel viewModel) {
+    final now = DateTime.now();
+    final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+    
+    // Lấy dữ liệu chu kỳ + xiên hôm nay
+    final todayCycleRows = _getTodayCycleRows(viewModel, today);
+    final todayXienRows = viewModel.xienTable
+        ?.where((r) => r.ngay == today)
+        .toList() ?? [];
+
+    // ✅ KẾT HỢP 2 BẢNG THÀNH 1
+    final allRows = <BettingRow>[...todayCycleRows, ...todayXienRows];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.3,
+        minChildSize: 0.25,
+        maxChildSize: 0.8,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade600,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              
+              // Content - BẢNG KẾT HỢP
+              Expanded(
+                child: allRows.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(40),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inbox_outlined,
+                                size: 64,
+                                color: Colors.grey.shade600,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Chưa có bảng cược cho ngày hôm nay',
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(12),
+                        children: [
+                          _buildUnifiedTable(allRows),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // ✅ APPBAR VỚI NÚT XEM BẢNG TÓM TẮT
+      appBar: AppBar(
+        title: const Text('Bảng cược'),
+        centerTitle: false,
+        actions: [
+          Consumer<BettingViewModel>(
+            builder: (context, viewModel, child) {
+              final now = DateTime.now();
+              final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+              
+              final todayCycleRows = _getTodayCycleRows(viewModel, today);
+              final todayXienRows = viewModel.xienTable
+                  ?.where((r) => r.ngay == today)
+                  .toList() ?? [];
+              
+              final totalRows = todayCycleRows.length + todayXienRows.length;
+              
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.table_chart),
+                    tooltip: 'Xem bảng tóm tắt',
+                    onPressed: totalRows > 0 
+                        ? () => _showSummaryTable(context, viewModel)
+                        : null,
+                  ),
+                  if (totalRows > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Text(
+                          totalRows.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      
       body: Consumer<BettingViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
-            return const ShimmerLoading(type: ShimmerType.card);  // ✅ ĐỔI từ CircularProgressIndicator
+            return const ShimmerLoading(type: ShimmerType.card);
           }
 
           if (viewModel.errorMessage != null) {
@@ -162,13 +296,12 @@ class _BettingScreenState extends State<BettingScreen> {
                 HapticFeedback.lightImpact();
               }
             },
-
             color: Colors.grey.shade200,
             backgroundColor: const Color(0xFF1E1E1E),
             strokeWidth: 3.0,
             displacement: 40,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               children: [
                 _buildWarningCard(context, viewModel),
                 const SizedBox(height: 16),
@@ -183,7 +316,6 @@ class _BettingScreenState extends State<BettingScreen> {
     );
   }
 
-  // ✅ THẺ CẢNH BÁO
   Widget _buildWarningCard(BuildContext context, BettingViewModel viewModel) {
     final tongTienTatCa = viewModel.cycleTable?.isNotEmpty == true 
         ? viewModel.cycleTable!.last.tongTien 
@@ -225,7 +357,7 @@ class _BettingScreenState extends State<BettingScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Nhấn để xem chi tiết',
+                        'Nhấn đề xem chi tiết',
                         style: TextStyle(
                           fontSize: 14,
                           color: Theme.of(context).primaryColor.withOpacity(0.8),
@@ -241,7 +373,6 @@ class _BettingScreenState extends State<BettingScreen> {
             const Divider(color: Colors.grey),
             const SizedBox(height: 16),
             
-            // ✅ THÊM: Button "Mở Betting"
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -264,7 +395,6 @@ class _BettingScreenState extends State<BettingScreen> {
     );
   }
 
-  // ✅ THẺ CHU KỲ (CÓ BẢNG RÚT GỌN)
   Widget _buildCycleCard(BuildContext context, BettingViewModel viewModel) {
     final tongTienTatCa = viewModel.cycleTable?.isNotEmpty == true 
         ? viewModel.cycleTable!.last.tongTien 
@@ -277,19 +407,10 @@ class _BettingScreenState extends State<BettingScreen> {
         : 0.0;
     final tongTienChuKy = tongTienTatCa + tongTienTrung + tongTienBac;
 
-    // ✅ FIX: Format ngày KHÔNG có số 0 đứng trước (khớp với Google Sheets)
     final now = DateTime.now();
     final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
     final todayCycleRows = _getTodayCycleRows(viewModel, today);
     
-    // ✅ DEBUG LOG
-    print('🔍 Today: $today');
-    print('🔍 Cycle rows today: ${todayCycleRows.length}');
-    if (viewModel.cycleTable != null && viewModel.cycleTable!.isNotEmpty) {
-      print('🔍 Sample dates from cycleTable: ${viewModel.cycleTable!.take(3).map((r) => r.ngay).join(", ")}');
-    }
-
-    // ✅ CHECK: NẾU KHÔNG CÓ BẢNG NÀO THÌ HIỂN THỊ MESSAGE
     final hasAnyTable = viewModel.cycleTable != null || 
                         viewModel.trungTable != null || 
                         viewModel.bacTable != null;
@@ -332,13 +453,11 @@ class _BettingScreenState extends State<BettingScreen> {
             ),
             const Divider(color: Colors.grey),
             
-            // ✅ NẾU KHÔNG CÓ BẢNG
             if (!hasAnyTable)
-              EmptyStateWidget(  // ✅ ĐỔI từ Center(child: Text(...))
+              EmptyStateWidget(
                 title: 'Chưa có bảng cược',
                 message: 'Hãy phân tích và tạo bảng cược chu kỳ đầu tiên',
                 onAction: () {
-                  // Navigate to analysis tab
                   final mainNav = context.findAncestorStateOfType<MainNavigationState>();
                   mainNav?.switchToTab(0);
                 },
@@ -367,7 +486,6 @@ class _BettingScreenState extends State<BettingScreen> {
                 ),
               ),
 
-              // ✅ HIỂN THỊ BẢNG HÔM NAY (LUÔN HIỂN THỊ, KHÔNG CẦN CHECK isEmpty)
               const SizedBox(height: 8),
               Text(
                 'Bảng cược hôm nay ($today):',
@@ -378,11 +496,9 @@ class _BettingScreenState extends State<BettingScreen> {
               ),
               const SizedBox(height: 12),
               
-              // ✅ NẾU CÓ DỮ LIỆU → HIỂN THỊ BẢNG
               if (todayCycleRows.isNotEmpty)
                 _buildMiniTable(todayCycleRows, isCycle: true)
               else
-                // ✅ NẾU KHÔNG CÓ DỮ LIỆU HÔM NAY → MESSAGE
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -423,7 +539,6 @@ class _BettingScreenState extends State<BettingScreen> {
     );
   }
 
-  // ✅ THẺ XIÊN (CÓ BẢNG RÚT GỌN)
   Widget _buildXienCard(BuildContext context, BettingViewModel viewModel) {
     final tongTienXien = viewModel.xienTable?.isNotEmpty == true
         ? viewModel.xienTable!.last.tongTien
@@ -434,13 +549,6 @@ class _BettingScreenState extends State<BettingScreen> {
         ?.where((r) => r.ngay == today)
         .toList() ?? [];
     
-    // ✅ DEBUG LOG
-    print('🔍 Xien rows today: ${todayXienRows.length}');
-    if (viewModel.xienTable != null && viewModel.xienTable!.isNotEmpty) {
-      print('🔍 Sample dates from xienTable: ${viewModel.xienTable!.take(3).map((r) => r.ngay).join(", ")}');
-    }
-
-    // ✅ CHECK: NẾU KHÔNG CÓ BẢNG XIÊN
     final hasXienTable = viewModel.xienTable != null;
 
     return Card(
@@ -461,7 +569,6 @@ class _BettingScreenState extends State<BettingScreen> {
             ),
             const Divider(color: Colors.grey),
             
-            // ✅ NẾU KHÔNG CÓ BẢNG
             if (!hasXienTable)
               EmptyStateWidget(
                 title: 'Chưa có bảng xiên',
@@ -480,7 +587,6 @@ class _BettingScreenState extends State<BettingScreen> {
                 valueColor: Colors.grey,
               ),
 
-              // ✅ HIỂN THỊ BẢNG HÔM NAY (LUÔN HIỂN THỊ)
               const SizedBox(height: 8),
               Text(
                 'Bảng cược hôm nay ($today):',
@@ -491,11 +597,9 @@ class _BettingScreenState extends State<BettingScreen> {
               ),
               const SizedBox(height: 12),
               
-              // ✅ NẾU CÓ DỮ LIỆU → HIỂN THỊ BẢNG
               if (todayXienRows.isNotEmpty)
                 _buildMiniTable(todayXienRows, isCycle: false)
               else
-                // ✅ NẾU KHÔNG CÓ DỮ LIỆU HÔM NAY → MESSAGE
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -552,7 +656,143 @@ class _BettingScreenState extends State<BettingScreen> {
     return todayCycleRows;
   }
 
-  // ✅ BẢNG RÚT GỌN (MINI TABLE)
+  // ✅ BẢNG THỐNG NHẤT (KẾT HỢP CHU KỲ + XIÊN)
+  Widget _buildUnifiedTable(List<BettingRow> rows) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade800),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2C2C),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
+              ),
+            ),
+            child: Row(
+              children: const [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Ngày',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Miền',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Số',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Cược/số',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Rows
+          ...rows.asMap().entries.map((entry) {
+            final index = entry.key;
+            final row = entry.value;
+            final isEven = index % 2 == 0;
+            
+            // ✅ Xác định loại cược: Chu kỳ (có cuocSo và > 0) hoặc Xiên (cuocSo null hoặc = 0)
+            final isCycleRow = row.cuocSo != null && row.cuocSo! > 0;
+            final cuocValue = isCycleRow ? row.cuocSo! : row.cuocMien;
+
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+              color: isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      row.ngay,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      row.mien,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      row.so,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      NumberUtils.formatCurrency(cuocValue),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMiniTable(List<BettingRow> rows, {required bool isCycle}) {
     return Container(
       decoration: BoxDecoration(
@@ -615,7 +855,7 @@ class _BettingScreenState extends State<BettingScreen> {
                   ),
                   Expanded(
                     flex: 3,
-                    child: Text(row.so, style: TextStyle(fontSize: 13, color: Colors.white)),
+                    child: Text(row.so, style: const TextStyle(fontSize: 13, color: Colors.white)),
                   ),
                   Expanded(
                     flex: 3,
