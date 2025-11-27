@@ -305,7 +305,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _totalCapitalController,
                   decoration: InputDecoration(
                     labelText: 'Tổng vốn khả dụng',
-                    hintText: '600',
+                    hintText: '700',
                     suffixText: 'K',  // ✅ Thay VNĐ → K
                     prefixIcon: Icon(Icons.account_balance_wallet),
                   ),
@@ -381,7 +381,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _trungBudgetController,
                   decoration: const InputDecoration(
                     labelText: 'Miền Trung',
-                    hintText: '200',
+                    hintText: '300',
                     suffixText: 'K',  // ✅ Thay VNĐ → K
                     prefixIcon: Icon(Icons.filter_1),
                   ),
@@ -419,7 +419,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _xienBudgetController,
                   decoration: const InputDecoration(
                     labelText: 'Xiên',
-                    hintText: '150',
+                    hintText: '200',
                     suffixText: 'K',  // ✅ Thay VNĐ → K
                     prefixIcon: Icon(Icons.favorite_border),
                   ),

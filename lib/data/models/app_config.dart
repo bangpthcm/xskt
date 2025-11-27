@@ -284,8 +284,8 @@ class BudgetConfig {
 
   factory BudgetConfig.fromJson(Map<String, dynamic> json) {
     return BudgetConfig(
-      totalCapital: (json['totalCapital'] ?? 600000).toDouble(),
-      trungBudget: (json['trungBudget'] ?? 200000).toDouble(),
+      totalCapital: (json['totalCapital'] ?? 700000).toDouble(),
+      trungBudget: (json['trungBudget'] ?? 300000).toDouble(),
       bacBudget: (json['bacBudget'] ?? 200000).toDouble(),
       xienBudget: (json['xienBudget'] ?? 200000).toDouble(),
     );
@@ -293,8 +293,8 @@ class BudgetConfig {
 
   factory BudgetConfig.defaultBudget() {
     return BudgetConfig(
-      totalCapital: 600000,
-      trungBudget: 200000,
+      totalCapital: 700000,
+      trungBudget: 300000,
       bacBudget: 200000,
       xienBudget: 200000,
     );

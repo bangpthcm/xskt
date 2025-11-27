@@ -15,6 +15,8 @@ import '../../../app.dart';
 import '../settings/settings_viewmodel.dart';
 import 'select_account_screen.dart';
 import '../../../data/models/app_config.dart';
+import '../../../data/models/api_account.dart';
+import '../../../data/services/betting_api_service.dart';
 import '../home/home_screen.dart';
 import '../../../data/services/service_manager.dart'; 
 
@@ -37,6 +39,10 @@ class _BettingScreenState extends State<BettingScreen> {
         print('📊 BettingScreen: Services ready, loading tables...');
         
         if (mounted) {
+          // ✅ Load config từ Settings trước
+          await context.read<SettingsViewModel>().loadConfig();
+          
+          // ✅ Sau đó load betting tables
           await context.read<BettingViewModel>().loadBettingTables();
         }
         
@@ -60,6 +66,8 @@ class _BettingScreenState extends State<BettingScreen> {
     });
   }
 
+  // ✅ ĐỔI: Đọc tài khoản từ SettingsViewModel
+  // ✅ THÊM: Nếu chỉ 1 tài khoản, tự động vào không cần chọn
   void _showBettingOptionsDialog(BuildContext context) {
     try {
       final settingsVM = context.read<SettingsViewModel>();
@@ -95,12 +103,20 @@ class _BettingScreenState extends State<BettingScreen> {
         return;
       }
 
+      // ✅ THÊM: Nếu chỉ có 1 tài khoản, tự động vào
+      if (validAccounts.length == 1) {
+        print('✅ Chỉ có 1 tài khoản, tự động vào: ${validAccounts[0].username}');
+        _navigateToBettingWebView(context, validAccounts[0], config.betting.domain);
+        return;
+      }
+
+      // ✅ Nếu > 1 tài khoản, hiển thị dialog chọn
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => SelectAccountScreen(
             accounts: validAccounts,
-            domain: config.betting.domain,  // ✅ THÊM: Truyền domain
+            domain: config.betting.domain,
           ),
         ),
       );
@@ -115,18 +131,68 @@ class _BettingScreenState extends State<BettingScreen> {
     }
   }
 
-  // ✅ SHOW BẢNG TÓM TẮT TRONG BOTTOM SHEET (KẾT HỢP CHU KỲ + XIÊN)
+  // ✅ THÊM: Hàm xử lý xác thực và vào WebView
+  Future<void> _navigateToBettingWebView(
+    BuildContext context,
+    ApiAccount account,
+    String domain,
+  ) async {
+    try {
+      print('🔐 Authenticating: ${account.username}');
+      
+      final apiService = BettingApiService();
+      final token = await apiService.authenticateAndGetToken(account, domain);
+
+      if (!mounted) return;
+
+      if (token != null && token.isNotEmpty) {
+        print('✅ Token received, opening WebView...');
+
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => BettingWebViewScreen(
+                token: token,
+                accountUsername: account.username,
+                domain: domain,
+              ),
+            ),
+          );
+        }
+      } else {
+        print('❌ Failed to get token');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Xác thực thất bại. Vui lòng thử lại.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showSummaryTable(BuildContext context, BettingViewModel viewModel) {
     final now = DateTime.now();
     final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
     
-    // Lấy dữ liệu chu kỳ + xiên hôm nay
     final todayCycleRows = _getTodayCycleRows(viewModel, today);
     final todayXienRows = viewModel.xienTable
         ?.where((r) => r.ngay == today)
         .toList() ?? [];
 
-    // ✅ KẾT HỢP 2 BẢNG THÀNH 1
     final allRows = <BettingRow>[...todayCycleRows, ...todayXienRows];
 
     showModalBottomSheet(
@@ -144,7 +210,6 @@ class _BettingScreenState extends State<BettingScreen> {
           ),
           child: Column(
             children: [
-              // Handle bar
               Container(
                 margin: const EdgeInsets.only(top: 10, bottom: 6),
                 width: 40,
@@ -155,7 +220,6 @@ class _BettingScreenState extends State<BettingScreen> {
                 ),
               ),
               
-              // Content - BẢNG KẾT HỢP
               Expanded(
                 child: allRows.isEmpty
                     ? Center(
@@ -206,24 +270,35 @@ class _BettingScreenState extends State<BettingScreen> {
           }
 
           if (viewModel.errorMessage != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+            return RefreshIndicator(
+              onRefresh: () async {
+                HapticFeedback.mediumImpact();
+                await viewModel.loadBettingTables();
+              },
+              child: ListView(
                 children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    viewModel.errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      viewModel.clearError();
-                      viewModel.loadBettingTables();
-                    },
-                    child: const Text('Thử lại'),
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 100),
+                        const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text(
+                          viewModel.errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            viewModel.clearError();
+                            viewModel.loadBettingTables();
+                          },
+                          child: const Text('Thử lại'),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -273,7 +348,6 @@ class _BettingScreenState extends State<BettingScreen> {
     final tongTienChuKy = tongTienTatCa + tongTienTrung + tongTienBac;
     final tongTienTongQuat = tongTienChuKy + tongTienXien;
 
-    // Lấy dữ liệu hôm nay
     final now = DateTime.now();
     final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
     final todayCycleRows = _getTodayCycleRows(viewModel, today);
@@ -289,14 +363,12 @@ class _BettingScreenState extends State<BettingScreen> {
 
     return Column(
       children: [
-        // 📊 THẺ THỐNG KÊ
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // TỔNG TIỀN CHÍNH
                 Row(
                   children: [
                     Expanded(
@@ -347,7 +419,6 @@ class _BettingScreenState extends State<BettingScreen> {
                     ),
                   )
                 else ...[
-                  // a. CHU KỲ
                   Padding(
                     padding: const EdgeInsets.only(left: 16),
                     child: Column(
@@ -388,7 +459,6 @@ class _BettingScreenState extends State<BettingScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // b. XIÊN
                   Padding(
                     padding: const EdgeInsets.only(left: 16),
                     child: Text(
@@ -402,7 +472,6 @@ class _BettingScreenState extends State<BettingScreen> {
                   
                   const SizedBox(height: 16),
 
-                  // 📋 BẢNG TÓM TẮT HÔM NAY
                   if (hasAnyTable) ...[
                     Divider(color: Colors.grey.shade600),
                     const SizedBox(height: 16),
@@ -444,7 +513,6 @@ class _BettingScreenState extends State<BettingScreen> {
 
                     const SizedBox(height: 16),
 
-                    // NÚT XEM CHI TIẾT
                     SizedBox(
                       width: double.infinity,
                       child: TextButton.icon(
@@ -494,7 +562,6 @@ class _BettingScreenState extends State<BettingScreen> {
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton.icon(
-            // ✅ FIX: Thêm Navigator.push() thay vì chỉ tạo instance
             onPressed: () {
               print('🔴 Xem Live button pressed');
               Navigator.push(
@@ -536,7 +603,6 @@ class _BettingScreenState extends State<BettingScreen> {
     return todayCycleRows;
   }
 
-  // ✅ BẢNG THỐNG NHẤT (KẾT HỢP CHU KỲ + XIÊN)
   Widget _buildUnifiedTable(List<BettingRow> rows) {
     return Container(
       decoration: BoxDecoration(
@@ -545,7 +611,6 @@ class _BettingScreenState extends State<BettingScreen> {
       ),
       child: Column(
         children: [
-          // Header
           Container(
             padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
             decoration: BoxDecoration(
@@ -606,13 +671,11 @@ class _BettingScreenState extends State<BettingScreen> {
             ),
           ),
           
-          // Rows
           ...rows.asMap().entries.map((entry) {
             final index = entry.key;
             final row = entry.value;
             final isEven = index % 2 == 0;
             
-            // ✅ Xác định loại cược: Chu kỳ (có cuocSo và > 0) hoặc Xiên (cuocSo null hoặc = 0)
             final isCycleRow = row.cuocSo != null && row.cuocSo! > 0;
             final cuocValue = isCycleRow ? row.cuocSo! : row.cuocMien;
 
