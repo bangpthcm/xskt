@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:provider/provider.dart';
-import '../../../data/models/app_config.dart';
 import '../../../data/models/api_account.dart';
 import '../../../data/models/betting_row.dart';
 import '../../../data/services/betting_api_service.dart';
@@ -14,10 +13,10 @@ class SelectAccountScreen extends StatefulWidget {
   final String domain;
 
   const SelectAccountScreen({
-    Key? key,
+    super.key,
     required this.accounts,
     required this.domain,
-  }) : super(key: key);
+  });
 
   @override
   State<SelectAccountScreen> createState() => _SelectAccountScreenState();
@@ -230,11 +229,11 @@ class BettingWebViewScreen extends StatefulWidget {
   final String domain;  // ✅ THÊM
 
   const BettingWebViewScreen({
-    Key? key,
+    super.key,
     required this.token,
     required this.accountUsername,
     required this.domain,  // ✅ THÊM
-  }) : super(key: key);
+  });
 
   @override
   State<BettingWebViewScreen> createState() => _BettingWebViewScreenState();
@@ -384,15 +383,15 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
           // Header
           Container(
             padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2C),
-              borderRadius: const BorderRadius.only(
+            decoration: const BoxDecoration(
+              color: Color(0xFF2C2C2C),
+              borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(8),
                 topRight: Radius.circular(8),
               ),
             ),
-            child: Row(
-              children: const [
+            child: const Row(
+              children: [
                 Expanded(
                   flex: 4,
                   child: Text(
@@ -449,8 +448,8 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
             final isEven = index % 2 == 0;
             
             // ✅ Xác định loại cược: Chu kỳ (có cuocSo và > 0) hoặc Xiên (cuocSo null hoặc = 0)
-            final isCycleRow = row.cuocSo != null && row.cuocSo! > 0;
-            final cuocValue = isCycleRow ? row.cuocSo! : row.cuocMien;
+            final isCycleRow = row.cuocSo > 0;
+            final cuocValue = isCycleRow ? row.cuocSo : row.cuocMien;
 
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
@@ -503,7 +502,7 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );

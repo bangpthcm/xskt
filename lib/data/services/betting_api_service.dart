@@ -138,7 +138,7 @@ class BettingApiService {
         return null;
       }
 
-      await Future.delayed(Duration(seconds: 1));
+      await Future.delayed(const Duration(seconds: 1));
       
       final token = await getTPToken(domain);
       if (token == null) {

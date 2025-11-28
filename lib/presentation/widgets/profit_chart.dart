@@ -8,9 +8,9 @@ class ProfitChart extends StatelessWidget {
   final List<MonthlyProfit> data;
 
   const ProfitChart({
-    Key? key,
+    super.key,
     required this.data,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

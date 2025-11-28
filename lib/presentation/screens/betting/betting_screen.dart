@@ -2,26 +2,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'betting_viewmodel.dart';
 import 'select_account_screen.dart';
 import 'betting_detail_screen.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/models/betting_row.dart';
-import '../../widgets/empty_state_widget.dart';
-import '../../navigation/main_navigation.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../../app.dart';
 import '../settings/settings_viewmodel.dart';
-import 'select_account_screen.dart';
-import '../../../data/models/app_config.dart';
 import '../../../data/models/api_account.dart';
 import '../../../data/services/betting_api_service.dart';
 import '../home/home_screen.dart';
 import '../../../data/services/service_manager.dart'; 
 
 class BettingScreen extends StatefulWidget {
-  const BettingScreen({Key? key}) : super(key: key);
+  const BettingScreen({super.key});
 
   @override
   State<BettingScreen> createState() => _BettingScreenState();
@@ -374,7 +369,7 @@ class _BettingScreenState extends State<BettingScreen> {
                     Expanded(
                       child: Text(
                         'Tổng tiền: ${NumberUtils.formatCurrency(tongTienTongQuat)}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -613,15 +608,15 @@ class _BettingScreenState extends State<BettingScreen> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2C),
-              borderRadius: const BorderRadius.only(
+            decoration: const BoxDecoration(
+              color: Color(0xFF2C2C2C),
+              borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(8),
                 topRight: Radius.circular(8),
               ),
             ),
-            child: Row(
-              children: const [
+            child: const Row(
+              children: [
                 Expanded(
                   flex: 4,
                   child: Text(
@@ -676,8 +671,8 @@ class _BettingScreenState extends State<BettingScreen> {
             final row = entry.value;
             final isEven = index % 2 == 0;
             
-            final isCycleRow = row.cuocSo != null && row.cuocSo! > 0;
-            final cuocValue = isCycleRow ? row.cuocSo! : row.cuocMien;
+            final isCycleRow = row.cuocSo > 0;
+            final cuocValue = isCycleRow ? row.cuocSo : row.cuocMien;
 
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
@@ -730,7 +725,7 @@ class _BettingScreenState extends State<BettingScreen> {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -746,9 +741,9 @@ class _BettingScreenState extends State<BettingScreen> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2C),
-              borderRadius: const BorderRadius.only(
+            decoration: const BoxDecoration(
+              color: Color(0xFF2C2C2C),
+              borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(8),
                 topRight: Radius.circular(8),
               ),
@@ -817,7 +812,7 @@ class _BettingScreenState extends State<BettingScreen> {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );

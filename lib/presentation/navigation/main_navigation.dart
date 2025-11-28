@@ -4,12 +4,11 @@ import 'package:provider/provider.dart';
 import '../screens/betting/betting_screen.dart';
 import '../screens/analysis/analysis_screen.dart';
 import '../screens/analysis/analysis_viewmodel.dart';
-import '../screens/home/home_screen.dart';
 import '../screens/win_history/win_summary_screen.dart';
 import '../screens/settings/settings_screen.dart';
 
 class MainNavigation extends StatefulWidget {
-  const MainNavigation({Key? key}) : super(key: key);
+  const MainNavigation({super.key});
 
   @override
   State<MainNavigation> createState() => MainNavigationState();

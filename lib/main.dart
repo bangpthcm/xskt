@@ -2,8 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
-import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'app.dart';
 import 'data/services/storage_service.dart';
 import 'data/services/google_sheets_service.dart';
@@ -11,7 +9,6 @@ import 'data/services/rss_parser_service.dart';
 import 'data/services/analysis_service.dart';
 import 'data/services/betting_table_service.dart';
 import 'data/services/telegram_service.dart';
-import 'data/models/app_config.dart';
 import 'core/theme/theme_provider.dart';
 import 'data/services/cached_data_service.dart';
 

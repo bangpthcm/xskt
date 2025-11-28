@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/lottery_result.dart';
 
 /// ✅ OPTIMIZATION: Multi-level cache
 /// - Level 1: Memory (nhanh nhất, mất khi restart)

@@ -3,14 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:async';
-import 'package:data_table_2/data_table_2.dart';
 import 'home_viewmodel.dart';
 import '../betting/betting_viewmodel.dart';
 import '../../../data/models/betting_row.dart';
 import '../../../core/utils/number_utils.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -178,15 +177,15 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2C),
-              borderRadius: const BorderRadius.only(
+            decoration: const BoxDecoration(
+              color: Color(0xFF2C2C2C),
+              borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(8),
                 topRight: Radius.circular(8),
               ),
             ),
-            child: Row(
-              children: const [
+            child: const Row(
+              children: [
                 Expanded(
                   flex: 4,
                   child: Text(
@@ -241,8 +240,8 @@ class _HomeScreenState extends State<HomeScreen> {
             final row = entry.value;
             final isEven = index % 2 == 0;
             
-            final isCycleRow = row.cuocSo != null && row.cuocSo! > 0;
-            final cuocValue = isCycleRow ? row.cuocSo! : row.cuocMien;
+            final isCycleRow = row.cuocSo > 0;
+            final cuocValue = isCycleRow ? row.cuocSo : row.cuocMien;
 
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
@@ -295,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );

@@ -1,10 +1,7 @@
 // lib/presentation/screens/betting/betting_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:data_table_2/data_table_2.dart';
 import 'betting_viewmodel.dart';
-import '../settings/settings_viewmodel.dart';
-import '../../../core/utils/number_utils.dart';
 import '../../../data/models/betting_row.dart';
 import '../../widgets/responsive_data_table.dart';
 import '../../widgets/animated_button.dart';
@@ -13,9 +10,9 @@ class BettingDetailScreen extends StatefulWidget {
   final int initialTab;
 
   const BettingDetailScreen({
-    Key? key,
+    super.key,
     this.initialTab = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<BettingDetailScreen> createState() => _BettingDetailScreenState();

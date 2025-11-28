@@ -23,7 +23,7 @@ void main() {
     expect(loginSuccess, true, reason: 'Login should succeed');
 
     // Đợi 1 giây để đảm bảo cookie được lưu
-    await Future.delayed(Duration(seconds: 1));
+    await Future.delayed(const Duration(seconds: 1));
 
     // Test get token
     final token = await apiService.getTPToken();

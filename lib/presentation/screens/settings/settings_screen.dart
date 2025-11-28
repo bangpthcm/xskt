@@ -12,7 +12,7 @@ import '../../../data/services/cached_data_service.dart';
 import '../analysis/analysis_viewmodel.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -142,11 +142,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         leading: Icon(Icons.cloud, color: Theme.of(context).primaryColor.withOpacity(0.7)),
         title: const Text(
           'Google Sheets',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         subtitle: const Text(
           'Cấu hình kết nối',
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
         initiallyExpanded: false,  // ✅ THÊM: Mở mặc định
         children: [
@@ -303,7 +303,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 
                 TextFormField(
                   controller: _totalCapitalController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Tổng vốn khả dụng',
                     hintText: '700',
                     suffixText: 'K',  // ✅ Thay VNĐ → K

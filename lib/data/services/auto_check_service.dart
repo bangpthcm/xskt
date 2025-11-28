@@ -12,7 +12,6 @@ import 'google_sheets_service.dart';
 import 'telegram_service.dart';
 import '../../core/utils/date_utils.dart' as date_utils;
 import 'backfill_service.dart';
-import 'rss_parser_service.dart';
 
 class AutoCheckService {
   final WinCalculationService _winCalcService;

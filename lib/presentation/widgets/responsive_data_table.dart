@@ -9,10 +9,10 @@ class ResponsiveDataTable extends StatelessWidget {
   final bool isCycleTable;
 
   const ResponsiveDataTable({
-    Key? key,
+    super.key,
     required this.rows,
     this.isCycleTable = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -274,7 +274,7 @@ class ResponsiveDataTable extends StatelessWidget {
             color: Colors.white,
           ),
           dataTextStyle: const TextStyle(fontSize: 12, color: Colors.white),
-          headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
+          headingRowColor: WidgetStateProperty.all(const Color(0xFF2C2C2C)),
           columns: _getCompactColumns(),
           rows: rows.map((row) => _buildCompactDataRow(row)).toList(),
         ),
@@ -296,11 +296,11 @@ class ResponsiveDataTable extends StatelessWidget {
           dataRowHeight: 56,
           headingRowHeight: 48,
           // ✅ Hover effect
-          dataRowColor: MaterialStateProperty.resolveWith<Color?>((states) {
-            if (states.contains(MaterialState.hovered)) {
+          dataRowColor: WidgetStateProperty.resolveWith<Color?>((states) {
+            if (states.contains(WidgetState.hovered)) {
               return Colors.blue.withOpacity(0.08);
             }
-            if (states.contains(MaterialState.selected)) {
+            if (states.contains(WidgetState.selected)) {
               return Colors.blue.withOpacity(0.15);
             }
             return null;
@@ -311,7 +311,7 @@ class ResponsiveDataTable extends StatelessWidget {
             color: Colors.white,
           ),
           dataTextStyle: const TextStyle(fontSize: 13, color: Colors.white),
-          headingRowColor: MaterialStateProperty.all(const Color(0xFF2C2C2C)),
+          headingRowColor: WidgetStateProperty.all(const Color(0xFF2C2C2C)),
           columns: _getFullColumns(),
           rows: rows.asMap().entries.map((entry) {
             return _buildFullDataRow(entry.value, entry.key);
@@ -397,7 +397,7 @@ class ResponsiveDataTable extends StatelessWidget {
 
   DataRow2 _buildCompactDataRow(BettingRow row) {
     return DataRow2(
-      color: MaterialStateProperty.all(const Color(0xFF1E1E1E)),
+      color: WidgetStateProperty.all(const Color(0xFF1E1E1E)),
       cells: [
         DataCell(Center(child: Text(row.stt.toString()))),
         DataCell(Center(child: Text(row.ngay.substring(0, 5)))),
@@ -419,7 +419,7 @@ class ResponsiveDataTable extends StatelessWidget {
     final isEven = index % 2 == 0;
     
     return DataRow2(
-      color: MaterialStateProperty.all(
+      color: WidgetStateProperty.all(
         isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525),
       ),
       cells: isCycleTable

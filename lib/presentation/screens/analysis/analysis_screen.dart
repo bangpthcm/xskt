@@ -7,12 +7,11 @@ import '../settings/settings_viewmodel.dart';
 import '../betting/betting_viewmodel.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../app.dart';
-import '../../../data/models/cycle_analysis_result.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../../data/services/service_manager.dart';
 
 class AnalysisScreen extends StatefulWidget {
-  const AnalysisScreen({Key? key}) : super(key: key);
+  const AnalysisScreen({super.key});
 
   @override
   State<AnalysisScreen> createState() => _AnalysisScreenState();
@@ -299,7 +298,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       ],
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ],
           ],
@@ -386,7 +385,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     style: const TextStyle(color: Colors.grey, fontSize: 16),
                   ),
                 );
-              }).toList(),
+              }),
             ],
           ],
         ),
@@ -861,7 +860,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           width: MediaQuery.of(context).size.width * 0.95,
           constraints: const BoxConstraints(maxWidth: 500),
           decoration: BoxDecoration(
-            color: Color(0xFF1E1E1E),
+            color: const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -875,7 +874,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   children: [
                     Text(
                       'Thông tin $number theo từng miền:',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -999,7 +998,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         // ✅ MÀU TỐI GIỐNG HEADER
-        color: Color(0xFF1E1E1E),
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: accentColor.withOpacity(0.3),

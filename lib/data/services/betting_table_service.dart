@@ -154,10 +154,7 @@ class BettingTableService {
 
       if (foundTable != null) {
         // ✅ LƯU NGAY NẾU CHƯA CÓ BEST TABLE
-        if (bestTable == null) {
-          bestTable = foundTable;
-          //print('   💾 Saved first valid table as backup');
-        }
+        bestTable ??= foundTable;
         
         final adjustedProfit = midProfit * 3.5 / 4.2;
         final optimizedTable = await _optimizeStartBet(
@@ -329,7 +326,7 @@ class BettingTableService {
     bool isFirstDay = true;
 
     outerLoop:
-    while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(Duration(days: 1)))) {  // ✅ SỬ DỤNG maxMienCount
+    while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(const Duration(days: 1)))) {  // ✅ SỬ DỤNG maxMienCount
       final ngayStr = _formatDateWith2Digits(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
@@ -387,7 +384,7 @@ class BettingTableService {
       }
 
       isFirstDay = false;
-      currentDate = currentDate.add(Duration(days: 1));
+      currentDate = currentDate.add(const Duration(days: 1));
     }
 
     //print('✅ Table generation completed: ${tableData.length} rows, total: $tongTien');
@@ -566,16 +563,16 @@ class BettingTableService {
     // ✅ FIXED: CHỈ CƯỢC MIỀN BẮC, LOOP ĐẾN KHI ĐẠT 35 NGÀY
     // KHÔNG CẦN đếm mienCount từ trước vì đây là bảng riêng
     while (dayCount < _bacGanDurationBase && 
-           currentDate.isBefore(endDate.add(Duration(days: 1)))) {
+           currentDate.isBefore(endDate.add(const Duration(days: 1)))) {
       
       final ngayStr = _formatDateWith2Digits(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
-      final mien = 'Bắc';
+      const mien = 'Bắc';
       final soLo = NumberUtils.calculateSoLo(mien, weekday);
 
       if (_bacGanWinMultiplier - soLo <= 0) {
-        currentDate = currentDate.add(Duration(days: 1));
+        currentDate = currentDate.add(const Duration(days: 1));
         continue;
       }
 
@@ -609,7 +606,7 @@ class BettingTableService {
       ));
       
       dayCount++;
-      currentDate = currentDate.add(Duration(days: 1));
+      currentDate = currentDate.add(const Duration(days: 1));
     }
 
     //print('✅ Bac Gan table completed: ${tableData.length} rows, total: $tongTien');
@@ -770,16 +767,16 @@ class BettingTableService {
     // ✅ FIXED: CHỈ CƯỢC MIỀN TRUNG, LOOP ĐẾN KHI ĐẠT 30 NGÀY
     // KHÔNG CẦN đếm mienCount từ trước vì đây là bảng riêng
     while (dayCount < _trungGanDurationBase && 
-           currentDate.isBefore(endDate.add(Duration(days: 1)))) {
+           currentDate.isBefore(endDate.add(const Duration(days: 1)))) {
       
       final ngayStr = _formatDateWith2Digits(currentDate);
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
-      final mien = 'Trung';
+      const mien = 'Trung';
       final soLo = NumberUtils.calculateSoLo(mien, weekday);
 
       if (_trungGanWinMultiplier - soLo <= 0) {
-        currentDate = currentDate.add(Duration(days: 1));
+        currentDate = currentDate.add(const Duration(days: 1));
         continue;
       }
 
@@ -813,7 +810,7 @@ class BettingTableService {
       ));
       
       dayCount++;
-      currentDate = currentDate.add(Duration(days: 1));
+      currentDate = currentDate.add(const Duration(days: 1));
     }
 
     //print('✅ Trung Gan table completed: ${tableData.length} rows, total: $tongTien');

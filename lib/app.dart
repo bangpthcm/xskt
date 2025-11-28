@@ -16,8 +16,6 @@ import 'data/services/win_tracking_service.dart';
 import 'data/services/auto_check_service.dart';
 import 'data/models/app_config.dart';
 import 'data/services/cached_data_service.dart';
-
-// ✅ ADD: Import ServiceManager
 import 'data/services/service_manager.dart';
 
 // ViewModels
@@ -31,7 +29,6 @@ import 'presentation/screens/win_history/win_history_viewmodel.dart';
 import 'presentation/navigation/main_navigation.dart';
 import 'core/theme/theme_provider.dart';
 
-// ✅ Global key for navigation
 final GlobalKey<MainNavigationState> mainNavigationKey = GlobalKey<MainNavigationState>();
 
 class MyApp extends StatefulWidget {
@@ -42,155 +39,135 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  // ✅ REMOVE: Local _servicesInitialized flag (dùng ServiceManager thay thế)
-  
   @override
   void initState() {
     super.initState();
-    
-    // ✅ OPTIMIZATION: Initialize services AFTER first frame
-    // Không block UI rendering
+    // Khởi tạo ngầm sau khi UI vẽ xong frame đầu tiên
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeServicesInBackground();
     });
   }
 
-  /// ✅ OPTIMIZATION: Background initialization (không block UI)
   Future<void> _initializeServicesInBackground() async {
-    // Không await, không block
     unawaited(_initServices());
   }
 
-  /// ✅ Initialize services với error handling
   Future<void> _initServices() async {
     try {
       print('🔄 Background: Starting service initialization...');
-      
+      // context.read sẽ trigger Lazy Loading của các service trong main.dart
       final storageService = context.read<StorageService>();
       final sheetsService = context.read<GoogleSheetsService>();
       final telegramService = context.read<TelegramService>();
       
-      // ✅ STEP 1: Load config (fast - from SharedPreferences)
       var config = await storageService.loadConfig();
-      
       if (config == null) {
-        print('⚠️ Background: No config found, using default');
         config = AppConfig.defaultConfig();
         await storageService.saveConfig(config);
       }
       
-      // ✅ STEP 2: Initialize services in parallel (fast)
-      print('🔄 Background: Initializing services in parallel...');
       await Future.wait([
         sheetsService.initialize(config!.googleSheets),
         Future(() => telegramService.initialize(config!.telegram)),
-      ], eagerError: false);
+      ]);
       
-      // ✅ CHANGE: Use ServiceManager
       ServiceManager.markReady();
       print('✅ Background: Core services initialized');
       
-      // ✅ THÊM: Warm up cache
       unawaited(_warmUpCache());
-      
     } catch (e) {
       print('⚠️ Background: Error initializing services: $e');
       ServiceManager.markNotReady();
     }
   }
 
-  /// ✅ Test connections sau khi init (non-blocking)
-  Future<void> _testConnections(
-    GoogleSheetsService sheetsService,
-    TelegramService telegramService,
-  ) async {
+  Future<void> _warmUpCache() async {
     try {
-      print('🔄 Background: Testing connections...');
-      
-      final results = await Future.wait([
-        sheetsService.testConnection(),
-        telegramService.testConnection(),
-      ], eagerError: false);
-      
-      print('✅ Background: Connection test complete');
-      print('   - Google Sheets: ${results[0] ? "✓" : "✗"}');
-      print('   - Telegram: ${results[1] ? "✓" : "✗"}');
-      
+      if (!mounted) return;
+      await context.read<CachedDataService>().loadKQXS(minimalMode: true);
     } catch (e) {
-      print('⚠️ Background: Error testing connections: $e');
+      print('⚠️ Cache warming error: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Lấy services từ Provider
-    final googleSheetsService = context.read<GoogleSheetsService>();
-    final analysisService = context.read<AnalysisService>();
-    final storageService = context.read<StorageService>();
-    final telegramService = context.read<TelegramService>();
-    final bettingService = context.read<BettingTableService>();
-    final rssService = context.read<RssParserService>();
-    
-    // ✅ Khởi tạo các services mới
-    final winCalcService = WinCalculationService();
-    final winTrackingService = WinTrackingService(
-      sheetsService: googleSheetsService,
-    );
-
-    final backfillService = BackfillService(
-      sheetsService: googleSheetsService,
-      rssService: rssService,
-    );
-
-    final autoCheckService = AutoCheckService(
-      winCalcService: winCalcService,
-      trackingService: winTrackingService,
-      sheetsService: googleSheetsService,
-      telegramService: telegramService,
-      backfillService: backfillService,
-    );
-
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         return MultiProvider(
           providers: [
-            ChangeNotifierProvider(
-              create: (_) => HomeViewModel(),
+            // ✅ Đưa các Business Logic Services vào đây (tối ưu hơn)
+            Provider(create: (_) => WinCalculationService()),
+            
+            ProxyProvider<GoogleSheetsService, WinTrackingService>(
+              update: (_, sheets, __) => WinTrackingService(sheetsService: sheets),
             ),
-            ChangeNotifierProvider(
-              create: (_) {
-                final cachedService = context.read<CachedDataService>();
-                
-                return AnalysisViewModel(
-                  cachedDataService: cachedService,
-                  sheetsService: googleSheetsService,
-                  analysisService: analysisService,
-                  storageService: storageService,
-                  telegramService: telegramService,
-                  bettingService: bettingService,
-                  rssService: rssService,
-                );
-              },
-            ),
-            ChangeNotifierProvider(
-              create: (_) => BettingViewModel(
-                sheetsService: googleSheetsService,
-                telegramService: telegramService,
+            
+            ProxyProvider2<GoogleSheetsService, RssParserService, BackfillService>(
+              update: (_, sheets, rss, __) => BackfillService(
+                sheetsService: sheets,
+                rssService: rss,
               ),
             ),
-            ChangeNotifierProvider(
-              create: (_) => SettingsViewModel(
-                storageService: storageService,
-                sheetsService: googleSheetsService,
-                telegramService: telegramService,
-                rssService: rssService,
+
+            ProxyProvider5<WinCalculationService, WinTrackingService, GoogleSheetsService, TelegramService, BackfillService, AutoCheckService>(
+              update: (_, winCalc, winTrack, sheets, telegram, backfill, __) => AutoCheckService(
+                winCalcService: winCalc,
+                trackingService: winTrack,
+                sheetsService: sheets,
+                telegramService: telegram,
+                backfillService: backfill,
               ),
             ),
-            ChangeNotifierProvider(
-              create: (_) => WinHistoryViewModel(
-                trackingService: winTrackingService,
-                autoCheckService: autoCheckService,
+
+            // ✅ ViewModels
+            ChangeNotifierProvider(create: (_) => HomeViewModel()),
+            
+            ChangeNotifierProxyProvider6<CachedDataService, GoogleSheetsService, AnalysisService, StorageService, TelegramService, BettingTableService, AnalysisViewModel>(
+              create: (context) => AnalysisViewModel(
+                  cachedDataService: context.read<CachedDataService>(),
+                  sheetsService: context.read<GoogleSheetsService>(),
+                  analysisService: context.read<AnalysisService>(),
+                  storageService: context.read<StorageService>(),
+                  telegramService: context.read<TelegramService>(),
+                  bettingService: context.read<BettingTableService>(),
+                  rssService: context.read<RssParserService>(), // Lưu ý: RssParserService cần thêm vào generic nếu dùng
               ),
+              update: (context, cached, sheets, analysis, storage, telegram, betting, prev) => prev ?? AnalysisViewModel(
+                  cachedDataService: cached,
+                  sheetsService: sheets,
+                  analysisService: analysis,
+                  storageService: storage,
+                  telegramService: telegram,
+                  bettingService: betting,
+                  rssService: context.read<RssParserService>(),
+              ),
+            ),
+
+            ChangeNotifierProxyProvider2<GoogleSheetsService, TelegramService, BettingViewModel>(
+              create: (context) => BettingViewModel(
+                sheetsService: context.read<GoogleSheetsService>(),
+                telegramService: context.read<TelegramService>(),
+              ),
+              update: (_, sheets, telegram, prev) => prev!,
+            ),
+            
+            ChangeNotifierProxyProvider3<StorageService, GoogleSheetsService, TelegramService, SettingsViewModel>(
+              create: (context) => SettingsViewModel(
+                storageService: context.read<StorageService>(),
+                sheetsService: context.read<GoogleSheetsService>(),
+                telegramService: context.read<TelegramService>(),
+                rssService: context.read<RssParserService>(),
+              ),
+               update: (_, storage, sheets, telegram, prev) => prev!,
+            ),
+
+            ChangeNotifierProxyProvider2<WinTrackingService, AutoCheckService, WinHistoryViewModel>(
+              create: (context) => WinHistoryViewModel(
+                trackingService: context.read<WinTrackingService>(),
+                autoCheckService: context.read<AutoCheckService>(),
+              ),
+              update: (_, tracking, autoCheck, prev) => prev!,
             ),
           ],
           child: MaterialApp(
@@ -204,23 +181,5 @@ class _MyAppState extends State<MyApp> {
         );
       },
     );
-  }
-  
-  Future<void> _warmUpCache() async {
-    print('🔥 Warming up cache...');
-    
-    try {
-      final cachedService = context.read<CachedDataService>();
-      
-      // Preload minimal data
-      await cachedService.loadKQXS(
-        forceRefresh: false,
-        minimalMode: true,
-      );
-      
-      print('✅ Cache warmed up');
-    } catch (e) {
-      print('⚠️ Cache warming error: $e');
-    }
   }
 }

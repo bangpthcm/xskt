@@ -1,5 +1,4 @@
 // lib/data/models/gan_pair_info.dart
-import 'dart:math';
 
 class GanPairInfo {
   final int daysGan;

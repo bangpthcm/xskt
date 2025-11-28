@@ -18,7 +18,6 @@ import '../../../data/services/backfill_service.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../data/services/budget_calculation_service.dart';
 import '../../../core/utils/number_utils.dart';
-import '../../../data/services/budget_calculation_service.dart';
 import '../../../data/services/cached_data_service.dart';
 
 // ✅ THÊM: Constants cho thresholds
@@ -390,7 +389,7 @@ class AnalysisViewModel extends ChangeNotifier {
         print('   📊 TATCA logic: checking Tuesday...');
         
         String targetMien = 'Nam';
-        for (final entry in cycleResult!.mienGroups.entries) {
+        for (final entry in cycleResult.mienGroups.entries) {
           if (entry.value.contains(cycleResult.targetNumber)) {
             targetMien = entry.key;
             break;
@@ -525,7 +524,7 @@ class AnalysisViewModel extends ChangeNotifier {
       try {
         final newTable = await tableType.generateTable(
           bettingService: _bettingService,
-          cycleResult: cycleResult!,
+          cycleResult: cycleResult,
           startDate: startDate,
           endDate: endDate,
           startMienIndex: startMienIndex,
@@ -560,7 +559,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
           final testTable = await tableType.generateTable(
             bettingService: _bettingService,
-            cycleResult: cycleResult!,
+            cycleResult: cycleResult,
             startDate: startDate,
             endDate: endDate,
             startMienIndex: startMienIndex,
@@ -570,7 +569,7 @@ class AnalysisViewModel extends ChangeNotifier {
             maxMienCount: targetMienCount,
           );
 
-          if (testTable == null || testTable.isEmpty) {
+          if (testTable.isEmpty) {
             throw Exception('Không tìm được giải pháp ngay cả với budget 100x');
           }
 
@@ -591,7 +590,7 @@ class AnalysisViewModel extends ChangeNotifier {
             try {
               final result = await tableType.generateTable(
                 bettingService: _bettingService,
-                cycleResult: cycleResult!,
+                cycleResult: cycleResult,
                 startDate: startDate,
                 endDate: endDate,
                 startMienIndex: startMienIndex,
@@ -601,7 +600,7 @@ class AnalysisViewModel extends ChangeNotifier {
                 maxMienCount: targetMienCount,
               );
 
-              if (result != null && result.isNotEmpty) {
+              if (result.isNotEmpty) {
                 bestTable = result;
                 actualMinimumRequired = result.last.tongTien;
                 highBudget = midBudget - 1;
@@ -626,7 +625,7 @@ class AnalysisViewModel extends ChangeNotifier {
             await tableType.saveTable(
               sheetsService: _sheetsService,
               table: bestTable!,
-              cycleResult: cycleResult!,
+              cycleResult: cycleResult,
             );
             _isLoading = false;
             notifyListeners();
@@ -849,7 +848,7 @@ class AnalysisViewModel extends ChangeNotifier {
           .reduce((a, b) => a!.isAfter(b!) ? a : b);
 
       final startDate = latestDate!.add(const Duration(days: 1));
-      final endDate = latestDate!.add(const Duration(days: 175));
+      final endDate = latestDate.add(const Duration(days: 175));
       
       final config = await _storageService.loadConfig();
       

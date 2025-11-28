@@ -14,9 +14,9 @@ class WinHistoryScreen extends StatefulWidget {
   final int initialTab;
   
   const WinHistoryScreen({
-    Key? key,
+    super.key,
     this.initialTab = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<WinHistoryScreen> createState() => _WinHistoryScreenState();
@@ -142,7 +142,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
           return Column(
             children: [
               Container(
-                color: Color(0xFF1E1E1E),
+                color: const Color(0xFF1E1E1E),
                 child: TabBar(
                   controller: _tabController,
                   isScrollable: true,
@@ -178,7 +178,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
   // ✅ Cycle Tab với ScrollController
   Widget _buildCycleTab(WinHistoryViewModel viewModel) {
     if (viewModel.cycleHistory.isEmpty && !viewModel.isLoading) {
-      return EmptyStateWidget(
+      return const EmptyStateWidget(
         title: 'Chưa có lịch sử',
         message: 'Lịch sử trúng số sẽ hiển thị ở đây sau khi bạn có kết quả trúng',
       );
@@ -369,8 +369,8 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
 
   Widget _buildCycleDataTable(List<CycleWinHistory> history) {
     // ✅ Tính chiều cao dựa trên số dòng (tối đa 10 dòng mỗi lần)
-    final rowHeight = 52.0;
-    final headerHeight = 56.0;
+    const rowHeight = 52.0;
+    const headerHeight = 56.0;
     final visibleRows = history.length.clamp(0, 10);
     final tableHeight = headerHeight + (rowHeight * visibleRows);
     
@@ -430,8 +430,8 @@ class _WinHistoryScreenState extends State<WinHistoryScreen>
 
   Widget _buildXienDataTable(List<XienWinHistory> history) {
     // ✅ Tính chiều cao dựa trên số dòng
-    final rowHeight = 52.0;
-    final headerHeight = 56.0;
+    const rowHeight = 52.0;
+    const headerHeight = 56.0;
     final visibleRows = history.length.clamp(0, 10);
     final tableHeight = headerHeight + (rowHeight * visibleRows);
     

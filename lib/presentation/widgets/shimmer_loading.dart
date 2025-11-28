@@ -6,9 +6,9 @@ class ShimmerLoading extends StatelessWidget {
   final ShimmerType type;
 
   const ShimmerLoading({
-    Key? key,
+    super.key,
     this.type = ShimmerType.card,
-  }) : super(key: key);
+  });
   
   @override
   Widget build(BuildContext context) {
