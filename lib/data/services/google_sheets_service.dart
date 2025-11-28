@@ -1,59 +1,86 @@
-// lib/data/services/google_sheets_service.dart
-import 'package:googleapis/sheets/v4.dart';
+import 'package:dio/dio.dart';
 import 'package:googleapis_auth/auth_io.dart';
+import 'package:http/http.dart' as http; // ✅ Thêm import này để dùng cho Auth
 import '../models/app_config.dart';
 
 class GoogleSheetsService {
-  SheetsApi? _sheetsApi;
+  final Dio _dio = Dio();
   GoogleSheetsConfig? _config;
   
-  // ✅ NEW: Cache for batch operations
+  // Quản lý Token
+  AccessCredentials? _credentials;
+  static const List<String> _scopes = ['https://www.googleapis.com/auth/spreadsheets'];
+
+  // Cache
   final Map<String, List<List<String>>> _batchReadCache = {};
   DateTime? _batchReadCacheTime;
   static const Duration _batchCacheDuration = Duration(minutes: 5);
 
   Future<void> initialize(GoogleSheetsConfig config) async {
     _config = config;
-    
-    final credentials = ServiceAccountCredentials.fromJson({
+    // Lấy token lần đầu để kiểm tra
+    await _getAccessToken();
+    print('✅ Google Sheets Service initialized (REST Mode)');
+  }
+
+  /// ✅ Lấy hoặc làm mới Access Token
+  Future<String> _getAccessToken() async {
+    if (_config == null) throw Exception('Config is null');
+
+    // Nếu token còn hạn thì dùng tiếp
+    if (_credentials != null && _credentials!.accessToken.expiry.isAfter(DateTime.now())) {
+      return _credentials!.accessToken.data;
+    }
+
+    // Nếu hết hạn hoặc chưa có, lấy mới từ googleapis_auth
+    final serviceAccountCredentials = ServiceAccountCredentials.fromJson({
       "type": "service_account",
-      "project_id": config.projectId,
-      "private_key_id": config.privateKeyId,
-      "private_key": config.privateKey,
-      "client_email": config.clientEmail,
-      "client_id": config.clientId,
-      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+      "project_id": _config!.projectId,
+      "private_key_id": _config!.privateKeyId,
+      "private_key": _config!.privateKey,
+      "client_email": _config!.clientEmail,
+      "client_id": _config!.clientId,
       "token_uri": "https://oauth2.googleapis.com/token",
-      "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/xskt-0311%40fresh-heuristic-469212-h6.iam.gserviceaccount.com",
-      "universe_domain": "googleapis.com"
     });
 
-    final scopes = [SheetsApi.spreadsheetsScope];
-    
+    // ✅ FIX: Tạo http.Client để truyền vào hàm obtainAccessCredentialsViaServiceAccount
+    final client = http.Client();
     try {
-      final client = await clientViaServiceAccount(credentials, scopes);
-      _sheetsApi = SheetsApi(client);
-      print('✅ Google Sheets initialized successfully');
-    } catch (e) {
-      print('❌ Error initializing Google Sheets: $e');
-      rethrow;
+      _credentials = await obtainAccessCredentialsViaServiceAccount(
+        serviceAccountCredentials,
+        _scopes,
+        client, // ✅ Tham số thứ 3 bắt buộc
+      );
+    } finally {
+      client.close(); // Đóng client sau khi dùng xong
     }
+    
+    return _credentials!.accessToken.data;
+  }
+
+  /// ✅ Helper để tạo Header có Auth
+  Future<Options> _getAuthOptions() async {
+    final token = await _getAccessToken();
+    return Options(
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
   }
 
   Future<bool> testConnection() async {
-    if (_sheetsApi == null || _config == null) {
-      print('❌ Sheets API or config is null');
-      return false;
-    }
-    
     try {
-      print('Testing connection with Sheet ID: ${_config!.sheetName}');
-      final spreadsheet = await _sheetsApi!.spreadsheets.get(
-        _config!.sheetName,
+      final token = await _getAccessToken();
+      final url = 'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}';
+      
+      final response = await _dio.get(
+        url,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
-      print('✅ Connection successful! Sheet: ${spreadsheet.properties?.title}');
-      return spreadsheet.spreadsheetId != null;
+      
+      print('✅ Connection successful! Sheet: ${response.data['properties']['title']}');
+      return response.statusCode == 200;
     } catch (e) {
       print('❌ Connection test failed: $e');
       return false;
@@ -61,131 +88,93 @@ class GoogleSheetsService {
   }
 
   // ============================================
-  // ✅ NEW: BATCH READ OPERATIONS
+  // ✅ BATCH READ (REST API)
   // ============================================
-  
-  /// Batch read multiple worksheets at once
-  /// Returns: Map<worksheetName, List<List<String>>>
   Future<Map<String, List<List<String>>>> batchGetValues(
     List<String> worksheetNames, {
     bool useCache = true,
   }) async {
-    if (_sheetsApi == null || _config == null) {
-      throw Exception('Google Sheets not initialized');
-    }
-    
-    // ✅ Check cache
     if (useCache && _isBatchCacheValid()) {
-      print('📦 Using batch cache (${_batchReadCache.length} sheets)');
       final result = <String, List<List<String>>>{};
+      bool allCached = true;
       for (final name in worksheetNames) {
         if (_batchReadCache.containsKey(name)) {
           result[name] = _batchReadCache[name]!;
+        } else {
+          allCached = false;
+          break;
         }
       }
-      if (result.length == worksheetNames.length) {
-        return result;
-      }
+      if (allCached) return result;
     }
-    
+
     try {
-      print('📥 Batch reading ${worksheetNames.length} worksheets...');
+      final url = 'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values:batchGet';
       
-      // ✅ Build ranges for batch request
+      // Tạo query parameters: ranges=Sheet1!A:AD&ranges=Sheet2!A:AD
       final ranges = worksheetNames.map((name) => '$name!A:AD').toList();
       
-      // ✅ Single API call for all sheets
-      final response = await _sheetsApi!.spreadsheets.values.batchGet(
-        _config!.sheetName,
-        ranges: ranges,
+      final response = await _dio.get(
+        url,
+        queryParameters: {'ranges': ranges},
+        options: (await _getAuthOptions()).copyWith(
+          listFormat: ListFormat.multi, // Quan trọng: hỗ trợ nhiều param 'ranges'
+        ),
       );
-      
-      // ✅ Parse results
+
       final result = <String, List<List<String>>>{};
-      final valueRanges = response.valueRanges ?? [];
-      
+      final valueRanges = response.data['valueRanges'] as List;
+
       for (int i = 0; i < worksheetNames.length; i++) {
         if (i < valueRanges.length) {
-          final values = valueRanges[i].values ?? [];
-          final parsed = values.map((row) {
-            return row.map((cell) => cell?.toString() ?? '').toList();
-          }).toList();
-          
-          result[worksheetNames[i]] = parsed;
-          _batchReadCache[worksheetNames[i]] = parsed; // Cache it
+          final item = valueRanges[i];
+          final values = (item['values'] as List?)?.map((row) {
+            return (row as List).map((cell) => cell.toString()).toList();
+          }).toList() ?? [];
+
+          result[worksheetNames[i]] = values;
+          _batchReadCache[worksheetNames[i]] = values;
         } else {
           result[worksheetNames[i]] = [];
         }
       }
       
       _batchReadCacheTime = DateTime.now();
-      
-      print('✅ Batch read complete (1 API call instead of ${worksheetNames.length})');
       return result;
-      
+
     } catch (e) {
       print('❌ Batch read error: $e');
       rethrow;
     }
   }
 
-  /// Check if batch cache is still valid
-  bool _isBatchCacheValid() {
-    if (_batchReadCacheTime == null || _batchReadCache.isEmpty) {
-      return false;
-    }
-    
-    final age = DateTime.now().difference(_batchReadCacheTime!);
-    return age < _batchCacheDuration;
-  }
-
-  /// Clear batch cache
-  void clearBatchCache() {
-    _batchReadCache.clear();
-    _batchReadCacheTime = null;
-    print('🗑️ Batch cache cleared');
-  }
-
   // ============================================
-  // ✅ NEW: BATCH WRITE OPERATIONS
+  // ✅ BATCH UPDATE (REST API)
   // ============================================
-  
-  /// Batch update multiple ranges at once
-  Future<void> batchUpdateRanges(
-    Map<String, BatchUpdateData> updates,
-  ) async {
-    if (_sheetsApi == null || _config == null) {
-      throw Exception('Google Sheets not initialized');
-    }
-    
+  Future<void> batchUpdateRanges(Map<String, BatchUpdateData> updates) async {
     if (updates.isEmpty) return;
-    
+
     try {
-      print('📤 Batch updating ${updates.length} ranges...');
+      final url = 'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values:batchUpdate';
       
-      // ✅ Build batch update request
-      final batchUpdateRequest = BatchUpdateValuesRequest(
-        valueInputOption: 'USER_ENTERED',
-        data: updates.entries.map((entry) {
-          return ValueRange(
-            range: '${entry.key}!${entry.value.range}',
-            values: entry.value.values,
-          );
-        }).toList(),
+      final body = {
+        "valueInputOption": "USER_ENTERED",
+        "data": updates.entries.map((entry) => {
+          "range": "${entry.key}!${entry.value.range}",
+          "values": entry.value.values
+        }).toList()
+      };
+
+      await _dio.post(
+        url,
+        data: body,
+        options: await _getAuthOptions(),
       );
-      
-      // ✅ Single API call for all updates
-      await _sheetsApi!.spreadsheets.values.batchUpdate(
-        batchUpdateRequest,
-        _config!.sheetName,
-      );
-      
-      // ✅ Invalidate cache for updated sheets
+
+      // Invalidate cache
       for (final worksheetName in updates.keys) {
         _batchReadCache.remove(worksheetName);
       }
-      
-      print('✅ Batch update complete (1 API call instead of ${updates.length})');
       
     } catch (e) {
       print('❌ Batch update error: $e');
@@ -194,49 +183,33 @@ class GoogleSheetsService {
   }
 
   // ============================================
-  // EXISTING METHODS (Keep for backward compatibility)
+  // EXISTING METHODS (REST Implementation)
   // ============================================
-  
   Future<List<List<String>>> getAllValues(String worksheetName) async {
-    if (_sheetsApi == null || _config == null) {
-      throw Exception('Google Sheets not initialized');
-    }
-    
     try {
-      final range = '$worksheetName!A:AD';
+      final url = 'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!A:AD';
+      final response = await _dio.get(url, options: await _getAuthOptions());
       
-      final response = await _sheetsApi!.spreadsheets.values.get(
-        _config!.sheetName,
-        range,
-      );
+      final values = (response.data['values'] as List?)?.map((row) {
+        return (row as List).map((cell) => cell.toString()).toList();
+      }).toList() ?? [];
       
-      final values = response.values ?? [];
-      return values.map((row) {
-        return row.map((cell) => cell?.toString() ?? '').toList();
-      }).toList();
+      return values;
     } catch (e) {
       print('Error getting values: $e');
       rethrow;
     }
   }
 
-  Future<void> updateRange(
-    String worksheetName,
-    String range,
-    List<List<String>> values,
-  ) async {
-    if (_sheetsApi == null || _config == null) {
-      throw Exception('Google Sheets not initialized');
-    }
-    
+  Future<void> updateRange(String worksheetName, String range, List<List<String>> values) async {
     try {
-      final valueRange = ValueRange(values: values);
+      final url = 'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!$range';
       
-      await _sheetsApi!.spreadsheets.values.update(
-        valueRange,
-        _config!.sheetName,
-        '$worksheetName!$range',
-        valueInputOption: 'USER_ENTERED',
+      await _dio.put(
+        url,
+        queryParameters: {'valueInputOption': 'USER_ENTERED'},
+        data: {"values": values},
+        options: await _getAuthOptions(),
       );
     } catch (e) {
       print('Error updating range: $e');
@@ -244,22 +217,15 @@ class GoogleSheetsService {
     }
   }
 
-  Future<void> appendRows(
-    String worksheetName,
-    List<List<String>> rows,
-  ) async {
-    if (_sheetsApi == null || _config == null) {
-      throw Exception('Google Sheets not initialized');
-    }
-    
+  Future<void> appendRows(String worksheetName, List<List<String>> rows) async {
     try {
-      final valueRange = ValueRange(values: rows);
+      final url = 'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!A:AD:append';
       
-      await _sheetsApi!.spreadsheets.values.append(
-        valueRange,
-        _config!.sheetName,
-        '$worksheetName!A:AD',
-        valueInputOption: 'USER_ENTERED',
+      await _dio.post(
+        url,
+        queryParameters: {'valueInputOption': 'USER_ENTERED'},
+        data: {"values": rows},
+        options: await _getAuthOptions(),
       );
     } catch (e) {
       print('Error appending rows: $e');
@@ -268,34 +234,28 @@ class GoogleSheetsService {
   }
 
   Future<void> clearSheet(String worksheetName) async {
-    if (_sheetsApi == null || _config == null) {
-      throw Exception('Google Sheets not initialized');
-    }
-    
     try {
-      await _sheetsApi!.spreadsheets.values.clear(
-        ClearValuesRequest(),
-        _config!.sheetName,
-        '$worksheetName!A:AD',
-      );
+      final url = 'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!A:AD:clear';
+      await _dio.post(url, options: await _getAuthOptions());
     } catch (e) {
       print('Error clearing sheet: $e');
       rethrow;
     }
   }
+
+  bool _isBatchCacheValid() {
+    if (_batchReadCacheTime == null || _batchReadCache.isEmpty) return false;
+    return DateTime.now().difference(_batchReadCacheTime!) < _batchCacheDuration;
+  }
+  
+  void clearBatchCache() {
+    _batchReadCache.clear();
+    _batchReadCacheTime = null;
+  }
 }
 
-// ============================================
-// ✅ NEW: Helper Classes
-// ============================================
-
-/// Data for batch update operation
 class BatchUpdateData {
   final String range;
   final List<List<String>> values;
-
-  BatchUpdateData({
-    required this.range,
-    required this.values,
-  });
+  BatchUpdateData({required this.range, required this.values});
 }

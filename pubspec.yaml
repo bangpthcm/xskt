@@ -25,11 +25,7 @@ dependencies:
   dio_cookie_manager: ^3.0.0
 
   # Google Sheets API
-  googleapis: ^11.4.0
   googleapis_auth: ^1.4.1
-
-  # HTTP & XML
-  http: ^1.1.0
   xml: ^6.3.0
 
   # WebView

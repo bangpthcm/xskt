@@ -1,10 +1,12 @@
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart'; // ✅ Thay thế http
 import 'package:xml/xml.dart';
 import '../models/lottery_result.dart';
 import '../../core/utils/date_utils.dart' as date_utils;
 import '../../core/utils/number_utils.dart';
 
 class RssParserService {
+  final Dio _dio = Dio(); // ✅ Khởi tạo Dio
+
   static const Map<String, String> _rssSources = {
     "Nam": "http://xskt.me/rssfeed/xsmn.rss",
     "Trung": "http://xskt.me/rssfeed/xsmt.rss",
@@ -16,13 +18,19 @@ class RssParserService {
     
     for (final entry in _rssSources.entries) {
       try {
-        final response = await http.get(
-          Uri.parse(entry.value),
-          headers: {'Accept': 'application/xml'},
-        ).timeout(const Duration(seconds: 15));
+        // ✅ Dùng Dio get
+        final response = await _dio.get(
+          entry.value,
+          options: Options(
+            headers: {'Accept': 'application/xml'},
+            responseType: ResponseType.plain, // ✅ Quan trọng: Lấy text thô để XML parse
+            sendTimeout: const Duration(seconds: 15),
+            receiveTimeout: const Duration(seconds: 15),
+          ),
+        );
         
         if (response.statusCode == 200) {
-          results[entry.key] = XmlDocument.parse(response.body);
+          results[entry.key] = XmlDocument.parse(response.data.toString());
         } else {
           results[entry.key] = null;
         }
@@ -35,21 +43,25 @@ class RssParserService {
     return results;
   }
 
-  // ✅ METHOD parseRSS cho BackfillService
   Future<List<LotteryResult>> parseRSS(String url, String mien) async {
     try {
       print('📡 Fetching RSS from: $url');
       
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Accept': 'application/xml'},
-      ).timeout(const Duration(seconds: 15));
+      // ✅ Dùng Dio
+      final response = await _dio.get(
+        url,
+        options: Options(
+          headers: {'Accept': 'application/xml'},
+          responseType: ResponseType.plain, // Lấy dữ liệu dạng chuỗi
+          sendTimeout: const Duration(seconds: 15),
+        ),
+      );
       
       if (response.statusCode != 200) {
         throw Exception('HTTP ${response.statusCode}');
       }
 
-      final xml = XmlDocument.parse(response.body);
+      final xml = XmlDocument.parse(response.data.toString());
       final results = <LotteryResult>[];
       final items = xml.findAllElements('item');
       
@@ -64,17 +76,10 @@ class RssParserService {
         final linkText = linkElement.innerText;
         final description = descriptionElement.innerText;
         
-        // ✅ FIX: Lấy ngày từ RSS và format lại
         final rawDateStr = date_utils.DateUtils.getDateFromRssLink(linkText);
-        if (rawDateStr == null) {
-          print('   ⚠️ Could not extract date from: $linkText');
-          continue;
-        }
+        if (rawDateStr == null) continue;
         
-        // ✅ Parse và format lại với 2 chữ số
         final dateStr = _formatDateWith2Digits(rawDateStr);
-        print('   📅 Formatted date: $rawDateStr → $dateStr');
-        
         final provincesData = _parseProvincesData(description, mien);
         
         for (final entry in provincesData.entries) {
@@ -83,7 +88,7 @@ class RssParserService {
           
           if (numbers.isNotEmpty) {
             results.add(LotteryResult(
-              ngay: dateStr,  // ✅ Dùng ngày đã format
+              ngay: dateStr,
               mien: mien,
               tinh: tinh,
               numbers: numbers,
@@ -91,8 +96,6 @@ class RssParserService {
           }
         }
       }
-
-      print('   Parsed ${results.length} results');
       return results;
 
     } catch (e) {
