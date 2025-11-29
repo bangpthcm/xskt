@@ -7,17 +7,14 @@ import '../../core/utils/date_utils.dart' as date_utils;
 import '../models/number_detail.dart';
 
 class AnalysisService {
-  // ✅ ADD: Cache cho analysis results
   final Map<String, GanPairInfo> _ganPairCache = {};
   final Map<String, CycleAnalysisResult> _cycleCache = {};
   
   Future<GanPairInfo?> findGanPairsMienBac(
     List<LotteryResult> allResults,
   ) async {
-    // ✅ THÊM: Check cache
     final cacheKey = 'ganpair_${allResults.length}';
     if (_ganPairCache.containsKey(cacheKey)) {
-      print('📦 Using cached gan pair analysis');
       return _ganPairCache[cacheKey];
     }
     
@@ -69,7 +66,6 @@ class AnalysisService {
     
     final now = DateTime.now();
     
-    print("=== TOP 2 CẶP GAN NHẤT ===");
     for (var i = 0; i < top2Pairs.length; i++) {
       final entry = top2Pairs[i];
       final daysGan = now.difference(entry.value).inDays;
@@ -95,9 +91,7 @@ class AnalysisService {
       pairs: pairsWithDays,
     );
     
-    // ✅ THÊM: Store in cache
     _ganPairCache[cacheKey] = ganPairResult;
-    print('💾 Cached gan pair analysis');
     
     return ganPairResult;
   }
@@ -105,10 +99,8 @@ class AnalysisService {
   Future<CycleAnalysisResult?> analyzeCycle(
     List<LotteryResult> allResults,
   ) async {
-    // ✅ THÊM: Check cache
     final cacheKey = 'cycle_${allResults.length}';
     if (_cycleCache.containsKey(cacheKey)) {
-      print('📦 Using cached cycle analysis');
       return _cycleCache[cacheKey];
     }
     
@@ -216,7 +208,6 @@ class AnalysisService {
       targetNumber: targetNumber,
     );
     
-    // ✅ THÊM: Store in cache
     _cycleCache[cacheKey] = cycleResult;
     print('💾 Cached cycle analysis');
     
@@ -230,7 +221,6 @@ class AnalysisService {
     DateTime endDate,
     String targetMien,
   ) {
-    // ✅ SỬ DỤNG SET ĐỂ TRÁNH TRÙNG LẶP NGÀY
     final uniqueDates = <String>{};
     
     for (final result in allResults) {
@@ -246,7 +236,6 @@ class AnalysisService {
       }
     }
     
-    // ✅ TRẢ VỀ SỐ NGÀY DUY NHẤT
     return uniqueDates.length;
   }
 
@@ -315,6 +304,5 @@ class AnalysisService {
   void clearCache() {
     _cycleCache.clear();
     _ganPairCache.clear();
-    print('🗑️ Analysis cache cleared');
   }
 }

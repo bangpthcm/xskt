@@ -6,7 +6,6 @@ class AppConstants {
     "Bắc": "http://xskt.me/rssfeed/xsmb.rss",
   };
 
-  // Miền order
   static const List<String> mienOrder = ["Nam", "Trung", "Bắc"];
 
   // Budget defaults

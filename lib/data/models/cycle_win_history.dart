@@ -2,22 +2,21 @@
 
 class CycleWinHistory {
   final int stt;
-  final String ngayKiemTra;        // Ngày kiểm tra
-  final String soMucTieu;           // Số mục tiêu
-  final String ngayBatDau;          // Ngày bắt đầu cược
-  final String ngayTrung;           // Ngày trúng (có thể rỗng nếu chưa trúng)
-  final String? mienTrung;          // Miền trúng (có thể null)
-  final int soLanTrung;             // Số lần trúng
-  final String cacTinhTrung;        // Các tỉnh trúng
-  final double tienCuocSo;          // Tiền cược/số
-  final double tongTienCuoc;        // Tổng tiền đã cược
-  final double tienVe;              // Tiền về
-  final double loiLo;               // Lời/Lỗ
-  final double roi;                 // ROI %
-  final int soNgayCuoc;             // Số ngày cược
-  final String trangThai;           // WIN/TRACKING/LOSE
-  final String? ghiChu;             // Ghi chú
-
+  final String ngayKiemTra;
+  final String soMucTieu;
+  final String ngayBatDau;
+  final String ngayTrung;
+  final String? mienTrung;
+  final int soLanTrung;
+  final String cacTinhTrung;
+  final double tienCuocSo;
+  final double tongTienCuoc;
+  final double tienVe;
+  final double loiLo;
+  final double roi;
+  final int soNgayCuoc;
+  final String trangThai; 
+  final String? ghiChu;
   CycleWinHistory({
     required this.stt,
     required this.ngayKiemTra,

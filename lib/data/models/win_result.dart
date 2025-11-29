@@ -1,14 +1,14 @@
 // lib/data/models/win_result.dart
 
 class WinResult {
-  final double profit;              // Tiền lời
-  final int occurrences;            // Số lần trúng
-  final String winningMien;         // Miền trúng
-  final List<ProvinceWin> provinces; // Các tỉnh trúng với số lần
-  final DateTime winDate;           // Ngày trúng
-  final String targetNumber;        // Số/cặp mục tiêu
-  final double totalBet;            // Tổng tiền đã cược
-  final double totalReturn;         // Tổng tiền về
+  final double profit;
+  final int occurrences;
+  final String winningMien;
+  final List<ProvinceWin> provinces;
+  final DateTime winDate;
+  final String targetNumber;
+  final double totalBet;
+  final double totalReturn;
 
   WinResult({
     required this.profit,

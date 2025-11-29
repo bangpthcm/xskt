@@ -97,13 +97,12 @@ class TelegramService {
     buffer.writeln('<pre>');
 
     // Header
-    buffer.writeln('Ngày |Miền | Cược |  Tổng | Lời');
-    buffer.writeln('-----|-----|------|-------|-----');
+    buffer.writeln('Ngày | Cược |  Tổng | Lời');
+    buffer.writeln('-----|------|-------|-----');
 
     // Rows
     for (final row in table) {
       final ngay = row.ngay.substring(0, 5); // dd/mm
-      final mien = row.mien.padRight(5);
       final cuoc = _formatNumber(row.cuocMien);
       final tong = _formatNumber(row.tongTien);
       final loi = _formatNumber(row.loi1So);

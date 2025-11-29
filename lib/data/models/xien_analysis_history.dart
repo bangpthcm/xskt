@@ -2,11 +2,11 @@
 
 class XienAnalysisHistory {
   final int stt;
-  final String ngayCuoiKQXS;        // Ngày cuối cùng trong KQXS
-  final String mienCuoiKQXS;        // Miền cuối cùng trong KQXS
-  final int soNgayGan;              // Số ngày gan của cặp này
-  final String ngayLanCuoiVe;       // Ngày lần cuối về của cặp số
-  final String capSo;               // Cặp số (vd: "36-24")
+  final String ngayCuoiKQXS;
+  final String mienCuoiKQXS;
+  final int soNgayGan;
+  final String ngayLanCuoiVe;
+  final String capSo;
 
   XienAnalysisHistory({
     required this.stt,

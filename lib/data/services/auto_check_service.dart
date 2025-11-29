@@ -18,19 +18,19 @@ class AutoCheckService {
   final WinTrackingService _trackingService;
   final GoogleSheetsService _sheetsService;
   final TelegramService _telegramService;
-  final BackfillService _backfillService;  // ✅ THÊM
+  final BackfillService _backfillService;
 
   AutoCheckService({
     required WinCalculationService winCalcService,
     required WinTrackingService trackingService,
     required GoogleSheetsService sheetsService,
     required TelegramService telegramService,
-    required BackfillService backfillService,  // ✅ THÊM
+    required BackfillService backfillService,
   })  : _winCalcService = winCalcService,
         _trackingService = trackingService,
         _sheetsService = sheetsService,
         _telegramService = telegramService,
-        _backfillService = backfillService;  // ✅ THÊM
+        _backfillService = backfillService;
 
   /// Kiểm tra kết quả hàng ngày
   Future<CheckDailyResult> checkDailyResults({

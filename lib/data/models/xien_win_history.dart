@@ -3,19 +3,19 @@
 class XienWinHistory {
   final int stt;
   final String ngayKiemTra;
-  final String capSoMucTieu;        // Cặp số mục tiêu (vd: "36-24")
+  final String capSoMucTieu;
   final String ngayBatDau;
   final String ngayTrung;
-  final String? mienTrung;          // Luôn là "Bắc" nếu trúng
-  final int soLanTrungCap;          // Số lần cặp xuất hiện cùng nhau
-  final String chiTietTrung;        // Chi tiết (vd: "36: 3x, 24: 2x, cùng nhau: 2x")
+  final String? mienTrung;
+  final int soLanTrungCap;
+  final String chiTietTrung;
   final double tienCuocMien;
   final double tongTienCuoc;
   final double tienVe;
   final double loiLo;
   final double roi;
   final int soNgayCuoc;
-  final String trangThai;           // WIN/TRACKING/LOSE
+  final String trangThai;
   final String? ghiChu;
 
   XienWinHistory({
