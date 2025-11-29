@@ -402,9 +402,8 @@ class AvailableBudgetResult {
     buffer.writeln('  • Còn thiếu: ${NumberUtils.formatCurrency(shortage)} VNĐ');
     buffer.writeln('');
     buffer.writeln('💡 Giải pháp:');
-    buffer.writeln('  - Tăng tổng vốn thêm ${NumberUtils.formatCurrency(shortage)} VNĐ');
+    buffer.writeln('  - Tăng tổng vốn thêm');
     buffer.writeln('  - Hoặc đợi đến khi một số bảng kết thúc để giải phóng vốn');
-    buffer.writeln('  - Hoặc xóa/giảm budget các bảng khác (nếu có thể)');
     
     return buffer.toString();
   }
@@ -425,7 +424,6 @@ class AvailableBudgetResult {
     buffer.writeln('  phù hợp trong khoảng budget cho phép.');
     buffer.writeln('');
     buffer.writeln('💡 Giải pháp:');
-    buffer.writeln('  - Thử lại (có thể do điều kiện biên)');
     buffer.writeln('  - Điều chỉnh tăng budget nếu cần');
     
     return buffer.toString();

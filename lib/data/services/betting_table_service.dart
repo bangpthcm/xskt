@@ -123,11 +123,6 @@ class BettingTableService {
         break;
       }
     }
-    
-    //print('🎯 Target number: $targetNumber');
-    //print('🌍 Target mien: $targetMien');
-    //print('📊 Current gan days (by mien): ${cycleResult.maxGanDays}');
-    //print('🔢 Max mien count: $maxMienCount');  // ✅ LOG
 
     double lowProfit = 100.0;
     double highProfit = 100000.0;
@@ -241,10 +236,6 @@ class BettingTableService {
     required List<LotteryResult> allResults,
     required int maxMienCount,
   }) async {
-    //print('🔧 _optimizeStartBet called:');
-    //print('   budgetMin: ${NumberUtils.formatCurrency(budgetMin)}');
-    //print('   budgetMax: ${NumberUtils.formatCurrency(budgetMax)}');
-    //print('   profitTarget: ${NumberUtils.formatCurrency(profitTarget)}');
     
     double lowBet = profitTarget/2.2/54;
     double highBet = 1000.0;
@@ -461,7 +452,7 @@ class BettingTableService {
       );
 
       if (foundTable != null) {
-        final adjustedProfit = midProfit * 3.5 / 4.2;
+        final adjustedProfit = midProfit;
         bestTable = await _optimizeStartBetForBacGan(
           targetNumber: targetNumber,
           startDate: startDate,
@@ -511,7 +502,7 @@ class BettingTableService {
     required double budgetMin,
     required double budgetMax,
   }) async {
-    double lowBet = profitTarget/2.5/27;
+    double lowBet = profitTarget/3/27;
     double highBet = 1000.0;
     List<BettingRow>? bestTable;
 

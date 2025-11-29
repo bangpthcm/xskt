@@ -88,6 +88,7 @@ class TelegramService {
   }
 
   // ✅ FORMAT XIÊN - GIỮ NGUYÊN NHƯNG CẬP NHẬT TIÊU ĐỀ
+// ✅ FORMAT XIÊN - ĐÃ SỬA LỖI HIỂN THỊ CỘT MIỀN
   String formatXienTableMessage(List<BettingRow> table, String capSo, int soNgayGan, String lanCuoiVe) {
     final buffer = StringBuffer();
     buffer.writeln('<b>💎 BẢNG CƯỢC XIÊN BẮC 💎</b>\n');
@@ -97,8 +98,8 @@ class TelegramService {
     buffer.writeln('<pre>');
 
     // Header
-    buffer.writeln('Ngày |Miền | Cược  |  Tổng | Lời');
-    buffer.writeln('-----|-----|-------|-------|-----');
+    buffer.writeln('Ngày |Miền| Cược  |  Tổng | Lời ');
+    buffer.writeln('-----|----|-------|-------|------');
 
     // Rows
     for (final row in table) {
@@ -108,7 +109,8 @@ class TelegramService {
       final tong = _formatNumber(row.tongTien);
       final loi = _formatNumber(row.loi1So);
 
-      buffer.writeln('${ngay.padRight(5)}|${cuoc.padLeft(7)}|${tong.padLeft(7)}|${loi.padLeft(6)}');
+      // ✅ Đã thêm biến $mien vào chuỗi in ra
+      buffer.writeln('${ngay.padRight(5)}|$mien|${cuoc.padLeft(7)}|${tong.padLeft(7)}|${loi.padLeft(6)}');
     }
 
     buffer.writeln('</pre>');
