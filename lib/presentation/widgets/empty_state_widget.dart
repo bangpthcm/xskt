@@ -1,4 +1,4 @@
-// ✅ TẠO FILE MỚI
+// lib/presentation/widgets/empty_state_widget.dart
 import 'package:flutter/material.dart';
 
 class EmptyStateWidget extends StatelessWidget {
@@ -22,76 +22,36 @@ class EmptyStateWidget extends StatelessWidget {
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [        
-            // ✅ Fade in title
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.easeIn,
-              builder: (context, value, child) {
-                return Opacity(
-                  opacity: value,
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor,
                   ),
-                );
-              },
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 6),
-            
-            // ✅ Fade in message
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.easeIn,
-              builder: (context, value, child) {
-                return Opacity(
-                  opacity: value,
-                  child: Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.grey.shade400,
-                      fontSize: 16,
-                    ),
-                  ),
-                );
-              },
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade400,
+                fontSize: 16,
+              ),
             ),
-            
             if (onAction != null) ...[
               const SizedBox(height: 32),
-              // ✅ Animated button
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 600),
-                curve: Curves.easeIn,
-                builder: (context, value, child) {
-                  return Transform.translate(
-                    offset: Offset(0, 20 * (1 - value)),
-                    child: Opacity(
-                      opacity: value,
-                      child: ElevatedButton.icon(
-                        onPressed: onAction,
-                        icon: const Icon(Icons.add_circle_outline),
-                        label: Text(actionLabel ?? 'Bắt đầu'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 16,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
+              ElevatedButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.add_circle_outline),
+                label: Text(actionLabel ?? 'Bắt đầu'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                ),
               ),
             ],
           ],

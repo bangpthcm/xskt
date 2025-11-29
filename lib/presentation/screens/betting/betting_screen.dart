@@ -545,12 +545,8 @@ class _BettingScreenState extends State<BettingScreen> {
             icon: const Icon(Icons.open_in_browser),
             label: const Text('Mở Betting'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(vertical: 16),
             ),
           ),
         ),
@@ -569,12 +565,8 @@ class _BettingScreenState extends State<BettingScreen> {
             icon: const Icon(Icons.live_tv),
             label: const Text('Xem Live'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(vertical: 16),
             ),
           ),
         ),

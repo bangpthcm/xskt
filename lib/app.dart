@@ -2,8 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-
-// Services
+// ... giữ nguyên các import service/viewmodels
 import 'data/services/google_sheets_service.dart';
 import 'data/services/analysis_service.dart';
 import 'data/services/storage_service.dart';
@@ -16,14 +15,12 @@ import 'data/models/app_config.dart';
 import 'data/services/cached_data_service.dart';
 import 'data/services/service_manager.dart';
 
-// ViewModels
 import 'presentation/screens/home/home_viewmodel.dart';
 import 'presentation/screens/analysis/analysis_viewmodel.dart';
 import 'presentation/screens/betting/betting_viewmodel.dart';
 import 'presentation/screens/settings/settings_viewmodel.dart';
 import 'presentation/screens/win_history/win_history_viewmodel.dart';
 
-// Screens
 import 'presentation/navigation/main_navigation.dart';
 import 'core/theme/theme_provider.dart';
 
@@ -37,6 +34,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  // ... (giữ nguyên logic initState, _initServices, _warmUpCache)
   @override
   void initState() {
     super.initState();
@@ -92,7 +90,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, themeProvider, child) {
         return MultiProvider(
           providers: [
-            // --- Services ---
+            // ... (Giữ nguyên toàn bộ block providers như cũ)
             ProxyProvider<GoogleSheetsService, WinTrackingService>(
               update: (_, sheets, __) => WinTrackingService(sheetsService: sheets),
             ),
@@ -104,7 +102,6 @@ class _MyAppState extends State<MyApp> {
               ),
             ),
 
-            // --- ViewModels ---
             ChangeNotifierProvider(create: (_) => HomeViewModel()),
             
             ChangeNotifierProxyProvider6<CachedDataService, GoogleSheetsService, AnalysisService, StorageService, TelegramService, BettingTableService, AnalysisViewModel>(
@@ -146,12 +143,10 @@ class _MyAppState extends State<MyApp> {
                update: (_, storage, sheets, telegram, prev) => prev!,
             ),
 
-            // ✅ ĐIỀU CHỈNH QUAN TRỌNG: Dùng ChangeNotifierProxyProvider cho WinHistoryViewModel
             ChangeNotifierProxyProvider<WinTrackingService, WinHistoryViewModel>(
               create: (context) => WinHistoryViewModel(
                 trackingService: context.read<WinTrackingService>(),
               ),
-              // Giữ lại instance cũ (prev) để không bị reset state khi rebuild
               update: (_, tracking, prev) => prev ?? WinHistoryViewModel(
                 trackingService: tracking,
               ),
@@ -159,9 +154,9 @@ class _MyAppState extends State<MyApp> {
           ],
           child: MaterialApp(
             title: 'XSKT Bot',
-            theme: themeProvider.getLightTheme(),
-            darkTheme: themeProvider.getDarkTheme(),
-            themeMode: themeProvider.themeMode,
+            // ✅ CHỈ DÙNG 1 THEME
+            theme: themeProvider.getTheme(),
+            // ❌ Đã bỏ darkTheme và themeMode
             home: MainNavigation(key: mainNavigationKey),
             debugShowCheckedModeBanner: false,
           ),

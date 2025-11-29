@@ -1,215 +1,114 @@
 // lib/core/theme/theme_provider.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeProvider extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.dark;
-  Color _accentColor = Colors.blue;
+  // 1. Định nghĩa hệ thống màu chuẩn (Hardcoded)
+  static const Color background = Color(0xFF121212); // Nền chính
+  static const Color surface = Color(0xFF1E1E1E);    // Khối/Card
+  static const Color accent = Color(0xFFFFD700);     // Màu nhấn (Vàng)
+  static const Color textPrimary = Color(0xFFE0E0E0);
+  static const Color textSecondary = Color(0xFFA0A0A0);
   
-  static const String _themeModeKey = 'theme_mode';
-  static const String _accentColorKey = 'accent_color';
+  static const Color profit = Color(0xFF00897B); // Tăng trưởng (Xanh)
+  static const Color loss = Color(0xFFD32F2F);   // Chi phí (Đỏ)
 
-  ThemeMode get themeMode => _themeMode;
-  Color get accentColor => _accentColor;
-
-  ThemeProvider() {
-    _loadFromPrefs();
-  }
-
-  Future<void> _loadFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    final themeModeStr = prefs.getString(_themeModeKey);
-    if (themeModeStr != null) {
-      _themeMode = ThemeMode.values.firstWhere(
-        (e) => e.toString() == themeModeStr,
-        orElse: () => ThemeMode.dark,
-      );
-    }
-    
-    final accentColorValue = prefs.getInt(_accentColorKey);
-    if (accentColorValue != null) {
-      _accentColor = Color(accentColorValue);
-    }
-    
-    notifyListeners();
-  }
-
-  Future<void> setThemeMode(ThemeMode mode) async {
-    _themeMode = mode;
-    notifyListeners();
-    
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_themeModeKey, mode.toString());
-  }
-
-  Future<void> setAccentColor(Color color) async {
-    _accentColor = color;
-    notifyListeners();
-    
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_accentColorKey, color.value);
-  }
-
-  ThemeData getLightTheme() {
-    // ✅ FIX: Tạo MaterialColor và dùng nó trong colorScheme
-    final materialColor = _generateMaterialColor(_accentColor);
-    
+  // 2. Trả về Theme duy nhất
+  ThemeData getTheme() {
     return ThemeData(
-      brightness: Brightness.light,
-      primarySwatch: materialColor,
-      primaryColor: _accentColor,  // ✅ THÊM: Set primary color trực tiếp
-      scaffoldBackgroundColor: Colors.grey.shade50,
-      cardColor: Colors.white,
-      appBarTheme: AppBarTheme(
-        backgroundColor: _accentColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      // ✅ FIX: Dùng colorScheme để đảm bảo màu được áp dụng đúng
-      colorScheme: ColorScheme.light(
-        primary: _accentColor,
-        secondary: _accentColor,
-        surface: Colors.white,
-      ),
-      // ✅ THÊM: Cấu hình màu cho các component cụ thể
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _accentColor,
-          foregroundColor: Colors.white,
-        ),
-      ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: _accentColor,
-      ),
-      tabBarTheme: TabBarThemeData(
-        labelColor: _accentColor,
-        indicatorColor: _accentColor,
-      ),
-      segmentedButtonTheme: SegmentedButtonThemeData(
-        style: ButtonStyle(
-          backgroundColor: WidgetStateProperty.resolveWith<Color>(
-            (states) {
-              if (states.contains(WidgetState.selected)) {
-                return _accentColor.withOpacity(0.3);
-              }
-              return Colors.grey.shade200;
-            },
-          ),
-          foregroundColor: WidgetStateProperty.resolveWith<Color>(
-            (states) {
-              if (states.contains(WidgetState.selected)) {
-                return _accentColor;
-              }
-              return Colors.grey.shade700;
-            },
-          ),
-        ),
-      ),
       useMaterial3: true,
-    );
-  }
-
-  ThemeData getDarkTheme() {
-    return ThemeData(
       brightness: Brightness.dark,
-      primaryColor: _accentColor,
-      scaffoldBackgroundColor: const Color(0xFF121212),
-      cardColor: const Color(0xFF1E1E1E),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF1E1E1E),
-        foregroundColor: Colors.white,
-        elevation: 0,
+      scaffoldBackgroundColor: background,
+      primaryColor: accent,
+      canvasColor: surface,
+      cardColor: surface,
+      
+      // Cấu hình ColorScheme
+      colorScheme: const ColorScheme.dark(
+        primary: accent,
+        secondary: accent,
+        surface: surface,
+        surfaceContainer: surface,
+        onSurface: textPrimary,
+        error: loss,
       ),
-      cardTheme: const CardThemeData(
-        color: Color(0xFF1E1E1E),
-        elevation: 2,
+
+      // Cấu hình Text mặc định
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(color: textPrimary),
+        bodyMedium: TextStyle(color: textPrimary),
+        bodySmall: TextStyle(color: textSecondary),
+        titleLarge: TextStyle(color: textPrimary, fontWeight: FontWeight.bold),
+        titleMedium: TextStyle(color: textPrimary),
+        titleSmall: TextStyle(color: textSecondary),
+      ),
+
+      // AppBar
+      appBarTheme: const AppBarTheme(
+        backgroundColor: surface,
+        foregroundColor: accent,
+        elevation: 0,
+        centerTitle: true,
+        titleTextStyle: TextStyle(
+          color: accent,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+        iconTheme: IconThemeData(color: accent),
+      ),
+
+      // ✅ FIX: Dùng CardThemeData thay vì CardTheme
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 12),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide.none, // Đảm bảo không có border
         ),
       ),
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: Colors.grey),
-        bodyMedium: TextStyle(color: Colors.grey),
-        bodySmall: TextStyle(color: Colors.grey),
-        titleLarge: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
-      ),
-      colorScheme: ColorScheme.dark(
-        primary: _accentColor,
-        secondary: _accentColor,
-        surface: const Color(0xFF1E1E1E),
-      ),
+      
+      // Button: CÓ border màu Accent, nền trong suốt hoặc Surface
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: _accentColor,
-          foregroundColor: Colors.white,
+          backgroundColor: surface,
+          foregroundColor: accent,  // Màu chữ/icon
+          shadowColor: Colors.transparent,
+          // ✅ BẮT BUỘC: Border cho nút
+          side: const BorderSide(color: accent, width: 1.0), 
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: _accentColor,
-      ),
-      tabBarTheme: TabBarThemeData(
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.grey,
-        indicatorColor: _accentColor,
-      ),
-      segmentedButtonTheme: SegmentedButtonThemeData(
-        style: ButtonStyle(
-          backgroundColor: WidgetStateProperty.resolveWith<Color>(
-            (states) {
-              if (states.contains(WidgetState.selected)) {
-                return _accentColor.withOpacity(0.3);
-              }
-              return const Color(0xFF2C2C2C);
-            },
-          ),
-          foregroundColor: WidgetStateProperty.resolveWith<Color>(
-            (states) {
-              if (states.contains(WidgetState.selected)) {
-                return _accentColor;
-              }
-              return Colors.grey.shade400;
-            },
-          ),
+
+      // Input (TextField)
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: surface,
+        labelStyle: const TextStyle(color: textSecondary),
+        hintStyle: const TextStyle(color: textSecondary),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        // Border mặc định (khi chưa focus)
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: textSecondary.withOpacity(0.3)),
+        ),
+        // Border khi focus (màu Accent)
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: accent),
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
-      useMaterial3: true,
-    );
-  }
+      
+      dividerTheme: DividerThemeData(
+        color: textSecondary.withOpacity(0.2),
+        thickness: 1,
+      ),
 
-  MaterialColor _generateMaterialColor(Color color) {
-    return MaterialColor(
-      color.value,
-      <int, Color>{
-        50: _tintColor(color, 0.9),
-        100: _tintColor(color, 0.8),
-        200: _tintColor(color, 0.6),
-        300: _tintColor(color, 0.4),
-        400: _tintColor(color, 0.2),
-        500: color,
-        600: _shadeColor(color, 0.1),
-        700: _shadeColor(color, 0.2),
-        800: _shadeColor(color, 0.3),
-        900: _shadeColor(color, 0.4),
-      },
-    );
-  }
-
-  Color _tintColor(Color color, double factor) {
-    return Color.fromRGBO(
-      color.red + ((255 - color.red) * factor).round(),
-      color.green + ((255 - color.green) * factor).round(),
-      color.blue + ((255 - color.blue) * factor).round(),
-      1,
-    );
-  }
-
-  Color _shadeColor(Color color, double factor) {
-    return Color.fromRGBO(
-      (color.red * (1 - factor)).round(),
-      (color.green * (1 - factor)).round(),
-      (color.blue * (1 - factor)).round(),
-      1,
+      iconTheme: const IconThemeData(color: textSecondary),
     );
   }
 }

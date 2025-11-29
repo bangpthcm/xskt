@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'betting_viewmodel.dart';
 import '../../../data/models/betting_row.dart';
 import '../../widgets/responsive_data_table.dart';
-import '../../widgets/animated_button.dart';
+// ✅ ĐÃ XÓA import animated_button.dart
 
 class BettingDetailScreen extends StatefulWidget {
   final int initialTab;
@@ -42,7 +42,7 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chi tiết bảng cược'),
+        title: const Text('Bảng cược chi tiết'),
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
@@ -247,19 +247,20 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
   }
 
   Widget _buildCycleDataTable(List<BettingRow> table) {
-    return ResponsiveDataTable(  // ✅ ĐỔI từ Card + DataTable2
+    return ResponsiveDataTable(
       rows: table,
       isCycleTable: true,
     );
   }
 
   Widget _buildXienDataTable(List<BettingRow> table) {
-    return ResponsiveDataTable(  // ✅ ĐỔI từ Card + DataTable2
+    return ResponsiveDataTable(
       rows: table,
       isCycleTable: false,
     );
   }
 
+  // ✅ SỬA: Thay AnimatedButton bằng ElevatedButton
   Widget _buildActionButtons(BettingViewModel viewModel, BettingTableType type) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -276,20 +277,26 @@ class _BettingDetailScreenState extends State<BettingDetailScreen>
       child: Row(
         children: [
           Expanded(
-            child: AnimatedButton(
-              label: 'Xóa bảng cược',
-              icon: Icons.delete_outline,
-              backgroundColor: Colors.red.withOpacity(0.7),
+            child: ElevatedButton.icon(
               onPressed: () => _showDeleteDialog(context, viewModel, type),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Xóa bảng cược'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: AnimatedButton(
-              label: 'Gửi Telegram',
-              icon: Icons.send,
-              backgroundColor: Colors.blue.withOpacity(0.7),
+            child: ElevatedButton.icon(
               onPressed: () => _showSendTelegramDialog(context, viewModel, type),
+              icon: const Icon(Icons.send),
+              label: const Text('Gửi Telegram'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
             ),
           ),
         ],

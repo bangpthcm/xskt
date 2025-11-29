@@ -1,15 +1,11 @@
 // lib/presentation/screens/settings/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'settings_viewmodel.dart';
 import 'package:flutter/services.dart';
+import 'settings_viewmodel.dart';
 import '../../../data/models/app_config.dart';
 import '../../../data/models/api_account.dart';
 import '../../../core/utils/number_utils.dart';
-import '../../widgets/animated_button.dart';
-import '../../../core/theme/theme_provider.dart';
-import '../../../data/services/cached_data_service.dart';
-import '../analysis/analysis_viewmodel.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,7 +17,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // ✅ CONTROLLERS
   late TextEditingController _sheetNameController;
   late TextEditingController _chatIdsController;
   late TextEditingController _totalCapitalController;
@@ -62,7 +57,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-
   void _updateControllersFromConfig() {
     final config = context.read<SettingsViewModel>().config;
     
@@ -70,7 +64,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _chatIdsController.text = config.telegram.chatIds.join(', ');
     _bettingDomainController.text = config.betting.domain;
     
-    // ✅ Hiển thị giá trị rút gọn (chia 1000)
     _totalCapitalController.text = _formatToThousands(config.budget.totalCapital);
     _trungBudgetController.text = _formatToThousands(config.budget.trungBudget);
     _bacBudgetController.text = _formatToThousands(config.budget.bacBudget);
@@ -91,17 +84,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _bacBudgetController.dispose();
     _xienBudgetController.dispose();
     _bettingDomainController.dispose();
-    super.dispose();
-
     for (var controllers in _apiAccountControllers) {
       controllers['username']?.dispose();
       controllers['password']?.dispose();
     }
-    
     super.dispose();
   }
 
-  // ✅ SỬA: build() method - thêm _buildThemeSection()
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -112,8 +101,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
-                _buildThemeSection(),
-                const SizedBox(height: 10),
                 _buildBettingConfigSection(),
                 const SizedBox(height: 10),
                 _buildApiAccountsSection(),
@@ -123,6 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildTelegramSection(),
                 const SizedBox(height: 10),
                 _buildBudgetSection(),
+                // ✅ Đã xóa _buildAdvancedSection
                 const SizedBox(height: 10),
                 if (viewModel.errorMessage != null)
                   _buildErrorCard(viewModel.errorMessage!),
@@ -138,48 +126,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildGoogleSheetsSection() {
     return Card(
-      child: ExpansionTile(  // ✅ ĐỔI từ Padding
-        leading: Icon(Icons.cloud, color: Theme.of(context).primaryColor.withOpacity(0.7)),
-        title: const Text(
-          'Google Sheets',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        subtitle: const Text(
-          'Cấu hình kết nối',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        initiallyExpanded: false,  // ✅ THÊM: Mở mặc định
+      child: ExpansionTile(
+        leading: Icon(Icons.cloud, color: Theme.of(context).primaryColor),
+        title: const Text('Google Sheets', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Cấu hình kết nối', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        initiallyExpanded: false,
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Credentials đã được cấu hình sẵn trong code',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontStyle: FontStyle.italic,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _sheetNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Sheet ID',
-                    hintText: 'XSKT hoặc 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-                    helperText: 'ID của Google Sheet',
-                    prefixIcon: Icon(Icons.description),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập Sheet ID';
-                    }
-                    return null;
-                  },
-                ),
-              ],
+            child: TextFormField(
+              controller: _sheetNameController,
+              decoration: const InputDecoration(
+                labelText: 'Sheet ID',
+                prefixIcon: Icon(Icons.description),
+              ),
+              validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập Sheet ID' : null,
             ),
           ),
         ],
@@ -187,20 +148,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // ✅ SỬA: _buildTelegramSection
   Widget _buildTelegramSection() {
     return Card(
-      child: ExpansionTile(  // ✅ ĐỔI từ Padding
-        leading: Icon(Icons.telegram, color: Theme.of(context).primaryColor.withOpacity(0.7)),
-        title: const Text(
-          'Telegram',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        subtitle: const Text(
-          'Cấu hình thông báo',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        initiallyExpanded: false,  // ✅ THÊM
+      child: ExpansionTile(
+        leading: Icon(Icons.telegram, color: Theme.of(context).primaryColor),
+        title: const Text('Telegram', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Cấu hình thông báo', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        initiallyExpanded: false,
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
@@ -208,16 +162,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               controller: _chatIdsController,
               decoration: const InputDecoration(
                 labelText: 'Chat IDs',
-                hintText: '-1001234567890, -1009876543210',
-                helperText: 'Nhiều Chat ID cách nhau bằng dấu phẩy',
+                helperText: 'Nhiều ID cách nhau bằng dấu phẩy',
                 prefixIcon: Icon(Icons.chat),
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập Chat ID';
-                }
-                return null;
-              },
+              validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập Chat ID' : null,
             ),
           ),
         ],
@@ -228,15 +176,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildBettingConfigSection() {
     return Card(
       child: ExpansionTile(
-        leading: Icon(Icons.language, color: Theme.of(context).primaryColor.withOpacity(0.7)),
-        title: const Text(
-          'Cấu hình Betting',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        subtitle: const Text(
-          'Domain chung cho tất cả tài khoản',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
+        leading: Icon(Icons.language, color: Theme.of(context).primaryColor),
+        title: const Text('Cấu hình Betting', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Domain chung', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        initiallyExpanded: false,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextFormField(
+              controller: _bettingDomainController,
+              decoration: const InputDecoration(
+                labelText: 'Domain/Host',
+                hintText: 'sin88.pro',
+                prefixIcon: Icon(Icons.language),
+              ),
+              validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập domain' : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetSection() {
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(Icons.attach_money, color: Theme.of(context).primaryColor),
+        title: const Text('Ngân sách', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('700 => 700.000K', style: TextStyle(fontSize: 12, color: Colors.grey)),
         initiallyExpanded: false,
         children: [
           Padding(
@@ -245,195 +212,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TextFormField(
-                  controller: _bettingDomainController,
-                  decoration: InputDecoration(
-                    labelText: 'Domain/Host',
-                    hintText: 'sin88.pro',
-                    prefixIcon: const Icon(Icons.language),
-                    helperText: 'VD: sin88.pro, sin88.sx, xyz.com',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập domain';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ✅ SỬA: _buildBudgetSection
-  Widget _buildBudgetSection() {
-    return Card(
-      child: ExpansionTile(  // ✅ ĐỔI từ Padding
-        leading: Icon(Icons.attach_money, color: Theme.of(context).primaryColor.withOpacity(0.7)),
-        title: const Text(
-          'Ngân sách',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        subtitle: const Text(
-          'Nhập số nghìn (VD: 700 = 700.000đ)',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        initiallyExpanded: false,  // ✅ THÊM
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // TỔNG VỐN
-                const Text(
-                  'Tổng vốn:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                
-                TextFormField(
                   controller: _totalCapitalController,
                   decoration: const InputDecoration(
-                    labelText: 'Tổng vốn khả dụng',
-                    hintText: '700',
-                    suffixText: 'K',  // ✅ Thay VNĐ → K
+                    labelText: 'Tổng vốn (triệu)',
                     prefixIcon: Icon(Icons.account_balance_wallet),
                   ),
                   keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,  // ✅ THÊM
-                  ],
-                  onChanged: (value) => setState(() {}),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập tổng vốn';
-                    }
-                    final number = double.tryParse(value);
-                    if (number == null || number <= 0) {
-                      return 'Số tiền không hợp lệ';
-                    }
-                    return null;
-                  },
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (_) => setState(() {}),
                 ),
-                
                 const SizedBox(height: 16),
-                
-                // PHÂN BỔ HEADER
-                const Text(
-                  '── Phân bổ theo bảng ──',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                // INFO
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.grey.shade300, size: 24),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Budget "Tất cả" sẽ tự động tính:',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade300,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Tổng vốn - (Tổng tiền dòng thứ 5 của 3 bảng)',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(),
-                const SizedBox(height: 16),
-
-                // Miền Trung
+                const Text('Phân bổ:', style: TextStyle(color: Colors.grey)),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: _trungBudgetController,
-                  decoration: const InputDecoration(
-                    labelText: 'Miền Trung',
-                    hintText: '300',
-                    suffixText: 'K',  // ✅ Thay VNĐ → K
-                    prefixIcon: Icon(Icons.filter_1),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Miền Trung (triệu)', prefixIcon: Icon(Icons.filter_1)),
                   keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,  // ✅ THÊM
-                  ],
-                  onChanged: (value) => setState(() {}),
-                  validator: (value) => _validateBudgetField(value, 'Miền Trung'),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (_) => setState(() {}),
                 ),
-                
                 const SizedBox(height: 16),
-
-                // Miền Bắc
                 TextFormField(
                   controller: _bacBudgetController,
-                  decoration: const InputDecoration(
-                    labelText: 'Miền Bắc',
-                    hintText: '200',
-                    suffixText: 'K',  // ✅ Thay VNĐ → K
-                    prefixIcon: Icon(Icons.filter_2),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Miền Bắc (triệu)', prefixIcon: Icon(Icons.filter_2)),
                   keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,  // ✅ THÊM
-                  ],
-                  onChanged: (value) => setState(() {}),
-                  validator: (value) => _validateBudgetField(value, 'Miền Bắc'),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (_) => setState(() {}),
                 ),
-
                 const SizedBox(height: 16),
-
-                // Xiên
                 TextFormField(
                   controller: _xienBudgetController,
-                  decoration: const InputDecoration(
-                    labelText: 'Xiên',
-                    hintText: '200',
-                    suffixText: 'K',  // ✅ Thay VNĐ → K
-                    prefixIcon: Icon(Icons.favorite_border),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Xiên (triệu)', prefixIcon: Icon(Icons.favorite_border)),
                   keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,  // ✅ THÊM
-                  ],
-                  onChanged: (value) => setState(() {}),
-                  validator: (value) => _validateBudgetField(value, 'Xiên'),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (_) => setState(() {}),
                 ),
-
                 const SizedBox(height: 16),
-
-                // SUMMARY
                 _buildBudgetSummary(),
               ],
             ),
@@ -443,97 +257,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildAdvancedSection() {
-    return Card(
-      child: ExpansionTile(
-        leading: Icon(Icons.storage, color: Theme.of(context).primaryColor.withOpacity(0.7)),
-        title: const Text('Nâng cao'),
-        subtitle: const Text('Quản lý cache và tối ưu'),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Show cache status
-                FutureBuilder<CacheStatus>(
-                  future: context.read<CachedDataService>().getCacheStatus(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const CircularProgressIndicator();
-                    }
-                    
-                    final status = snapshot.data!;
-                    return ListTile(
-                      leading: Icon(
-                        status.isValid ? Icons.check_circle : Icons.error,
-                        color: status.isValid ? Colors.green : Colors.orange,
-                      ),
-                      title: Text(
-                        status.isValid ? 'Cache hợp lệ' : 'Cache hết hạn',
-                      ),
-                      subtitle: Text(
-                        '${status.rowCount} rows - ${status.age.inMinutes} phút',
-                      ),
-                    );
-                  },
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Clear cache button
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Xóa cache'),
-                        content: const Text(
-                          'Xóa cache sẽ tải lại toàn bộ dữ liệu từ Google Sheets. '
-                          'Bạn có chắc chắn?'
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Hủy'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Xóa'),
-                          ),
-                        ],
-                      ),
-                    );
-                    
-                    if (confirm == true && context.mounted) {
-                      await context.read<AnalysisViewModel>().clearCacheAndReload();
-                      
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Đã xóa cache và tải lại dữ liệu'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.delete_sweep),
-                  label: const Text('Xóa cache'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ✅ BUDGET SUMMARY
   Widget _buildBudgetSummary() {
-    // ✅ Sử dụng _parseFromThousands để chuyển về giá trị thực
     final totalCapital = _parseFromThousands(_totalCapitalController.text);
     final trungBudget = _parseFromThousands(_trungBudgetController.text);
     final bacBudget = _parseFromThousands(_bacBudgetController.text);
@@ -542,503 +266,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final totalAllocated = trungBudget + bacBudget + xienBudget;
     final remaining = totalCapital - totalAllocated;
     final isValid = totalAllocated <= totalCapital;
+    final color = isValid ? Theme.of(context).primaryColor : Theme.of(context).colorScheme.error;
     
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isValid ? const Color(0xFF2C2C2C) : Colors.red.shade50,
+        color: Theme.of(context).canvasColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isValid ? const Color(0xFF2C2C2C) : Colors.red.shade200,
-        ),
+        border: Border.all(color: color.withOpacity(0.5)),
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Tổng phân bổ:',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: isValid ? Theme.of(context).primaryColor : Colors.red.shade700,
-                ),
-              ),
-              Text(
-                '${NumberUtils.formatCurrency(totalAllocated)} đ',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: isValid ? Theme.of(context).primaryColor : Colors.red.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Vốn còn lại:',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: isValid ? Theme.of(context).primaryColor : Colors.red.shade700,
-                ),
-              ),
-              Text(
-                '${NumberUtils.formatCurrency(remaining)} đ',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: isValid ? Theme.of(context).primaryColor : Colors.red.shade700,
-                ),
-              ),
-            ],
-          ),
-          if (!isValid) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.red.shade700, size: 16),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    'Tổng phân bổ vượt quá tổng vốn!',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.red.shade700,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+          _buildSummaryRow('Tổng phân bổ:', totalAllocated, color),
+          _buildSummaryRow('Vốn còn lại:', remaining, color),
         ],
       ),
     );
   }
 
-  String? _validateBudgetField(String? value, String fieldName) {
-    if (value == null || value.isEmpty) {
-      return 'Vui lòng nhập budget $fieldName';
-    }
-    final number = double.tryParse(value);
-    if (number == null || number < 0) {
-      return 'Số tiền không hợp lệ';
-    }
-    return null;
-  }
-
-  Widget _buildErrorCard(String error) {
-    return Card(
-      color: Colors.red.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                error,
-                style: const TextStyle(color: Colors.red),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () {
-                context.read<SettingsViewModel>().clearError();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButtons(SettingsViewModel viewModel) {
-    return Column(
+  Widget _buildSummaryRow(String label, double value, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        AnimatedButton(
-          label: 'Lưu và kiểm tra kết nối',
-          icon: Icons.save,
-          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.7),
-          onPressed: viewModel.isLoading ? () {} : _saveConfigAndTest,
-          isLoading: viewModel.isLoading,
-          width: double.infinity,
-        ),
-        
-        const SizedBox(height: 8),
-        
-        // ✅ THAY THẾ nút "Đồng bộ RSS" bằng 3 thẻ API accounts
-        Row(
-          children: [
-            Expanded(
-              child: _buildApiAccountStatus(viewModel, 0, 'API 1'),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildApiAccountStatus(viewModel, 1, 'API 2'),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildApiAccountStatus(viewModel, 2, 'API 3'),
-            ),
-          ],
-        ),
-        
-        const SizedBox(height: 8),
-        
-        Row(
-
-          children: [
-            Expanded(
-              child: _buildConnectionStatus(
-                'Google Sheets',
-                viewModel.isGoogleSheetsConnected,
-                Icons.cloud,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildConnectionStatus(
-                'Telegram',
-                viewModel.isTelegramConnected,
-                Icons.telegram,
-              ),
-            ),
-          ],
-        ),
+        Text(label, style: TextStyle(color: color)),
+        Text('${NumberUtils.formatCurrency(value)} đ', style: TextStyle(fontWeight: FontWeight.bold, color: color)),
       ],
-    );
-  }
-
-  Widget _buildConnectionStatus(String label, bool isConnected, IconData icon) {
-    return Card(
-      color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.1) : Colors.grey.shade100,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.7) : Colors.grey,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.4) : Colors.grey,
-                ),
-              ),
-            ),
-            Icon(
-              isConnected ? Icons.check_circle : Icons.cancel,
-              color: isConnected ? Theme.of(context).primaryColor.withOpacity(0.7) : Colors.grey,
-              size: 18,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _saveConfigAndTest() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    final totalCapital = _parseFromThousands(_totalCapitalController.text);
-    final trungBudget = _parseFromThousands(_trungBudgetController.text);
-    final bacBudget = _parseFromThousands(_bacBudgetController.text);
-    final xienBudget = _parseFromThousands(_xienBudgetController.text);
-    
-    if (trungBudget + bacBudget + xienBudget > totalCapital) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tổng phân bổ vượt quá tổng vốn!'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // ✅ Thu thập API accounts (chỉ username + password, không có domain)
-    final apiAccounts = <ApiAccount>[];
-    for (int i = 0; i < _apiAccountControllers.length; i++) {
-      final username = _apiAccountControllers[i]['username']!.text.trim();
-      final password = _apiAccountControllers[i]['password']!.text.trim();
-      
-      if (username.isNotEmpty && password.isNotEmpty) {
-        apiAccounts.add(ApiAccount(
-          username: username,
-          password: password,
-        ));
-      }
-    }
-
-    final config = AppConfig(
-      googleSheets: GoogleSheetsConfig.withHardcodedCredentials(
-        sheetName: _sheetNameController.text.trim(),
-      ),
-      telegram: TelegramConfig(
-        botToken: TelegramConfig.defaultBotToken,
-        chatIds: _chatIdsController.text
-            .split(',')
-            .map((id) => id.trim())
-            .where((id) => id.isNotEmpty)
-            .toList(),
-      ),
-      budget: BudgetConfig(
-        totalCapital: totalCapital,
-        trungBudget: trungBudget,
-        bacBudget: bacBudget,
-        xienBudget: xienBudget,
-      ),
-      apiAccounts: apiAccounts,
-      betting: BettingConfig(  // ✅ THÊM
-        domain: _bettingDomainController.text.trim().isEmpty 
-            ? 'sin88.pro'
-            : _bettingDomainController.text.trim(),
-      ),
-    );
-
-    final viewModel = context.read<SettingsViewModel>();
-    
-    final saved = await viewModel.saveConfig(config);
-    
-    if (!saved) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Lưu cấu hình thất bại!'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
-    await viewModel.testGoogleSheetsConnection();
-    await viewModel.testTelegramConnection();
-    await viewModel.testAllApiAccounts(apiAccounts, config.betting.domain);  // ✅ Truyền domain
-
-    if (mounted) {
-      String message = 'Đã lưu cấu hình.\n';
-      
-      if (viewModel.isGoogleSheetsConnected && viewModel.isTelegramConnected) {
-        message += 'Cả 2 kết nối đều thành công!';
-      } else if (viewModel.isGoogleSheetsConnected) {
-        message += 'Google Sheets: ✓\nTelegram: ✗';
-      } else if (viewModel.isTelegramConnected) {
-        message += 'Google Sheets: ✗\nTelegram: ✓';
-      } else {
-        message += 'Cả 2 kết nối đều thất bại!';
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: (viewModel.isGoogleSheetsConnected && 
-                          viewModel.isTelegramConnected)
-              ? Colors.green
-              : Colors.orange,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-  
-  Future<void> _syncRSSData(SettingsViewModel viewModel) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: const Text(
-          'Đồng bộ dữ liệu mới từ RSS vào Google Sheet?\n\n'
-          'Quá trình này có thể mất vài phút.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Đồng bộ'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    final message = await viewModel.syncRSSData();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: viewModel.errorMessage != null
-              ? Colors.red
-              : Colors.green,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-
-  
-
-  Widget _buildThemeSection() {
-    return Card(
-      child: ExpansionTile(
-        leading: Icon(Icons.palette, color: Theme.of(context).primaryColor.withOpacity(0.7)),
-        title: const Text(
-          'Giao diện',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        subtitle: const Text(
-          'Tùy chỉnh chủ đề',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Consumer<ThemeProvider>(
-              builder: (context, themeProvider, child) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Theme mode selector
-                    const Text(
-                      'Chủ đề:',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 12),
-                    SegmentedButton<ThemeMode>(
-                      segments: const [
-                        ButtonSegment(
-                          value: ThemeMode.light,
-                          label: Text('Sáng'),
-                          icon: Icon(Icons.light_mode),
-                        ),
-                        ButtonSegment(
-                          value: ThemeMode.dark,
-                          label: Text('Tối'),
-                          icon: Icon(Icons.dark_mode),
-                        ),
-                        ButtonSegment(
-                          value: ThemeMode.system,
-                          label: Text('Hệ thống'),
-                          icon: Icon(Icons.brightness_auto),
-                        ),
-                      ],
-                      selected: {themeProvider.themeMode},
-                      onSelectionChanged: (Set<ThemeMode> newSelection) {
-                        themeProvider.setThemeMode(newSelection.first);
-                      },
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Accent color selector
-                    const Text(
-                      'Màu chủ đạo:',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        Colors.green,
-                        Colors.orange,
-                        Colors.blue,
-                        Colors.grey,
-                      ].map((color) {
-                        final isSelected = themeProvider.accentColor.value == color.value;
-                        return GestureDetector(
-                          onTap: () => themeProvider.setAccentColor(color),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: isSelected
-                                  ? Border.all(color: Colors.white, width: 4)
-                                  : null,
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: color.withOpacity(0.5),
-                                        blurRadius: 8,
-                                        spreadRadius: 2,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: isSelected
-                                ? const Icon(
-                                    Icons.check,
-                                    color: Colors.white,
-                                    size: 28,
-                                  )
-                                : null,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildApiAccountsSection() {
     return Card(
       child: ExpansionTile(
-        leading: Icon(Icons.vpn_key, color: Theme.of(context).primaryColor.withOpacity(0.7)),
-        title: const Text(
-          'Tài khoản API',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        subtitle: const Text(
-          'Quản lý tài khoản API (tối đa 3)',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
+        leading: Icon(Icons.vpn_key, color: Theme.of(context).primaryColor),
+        title: const Text('Tài khoản API', style: TextStyle(fontWeight: FontWeight.w600)),
         initiallyExpanded: false,
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [                
-                // API Account 1
+              children: [
                 ..._buildApiAccountFields(0, 'Tài khoản 1'),
-                
-                const SizedBox(height: 20),
-                const Divider(),
-                const SizedBox(height: 20),
-                
-                // API Account 2
+                const Divider(height: 32),
                 ..._buildApiAccountFields(1, 'Tài khoản 2'),
-                
-                const SizedBox(height: 20),
-                const Divider(),
-                const SizedBox(height: 20),
-                
-                // API Account 3
+                const Divider(height: 32),
                 ..._buildApiAccountFields(2, 'Tài khoản 3'),
               ],
             ),
@@ -1048,110 +318,146 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  List<Widget> _buildApiAccountFields(int index, String label) {
+    return [
+      Align(alignment: Alignment.centerLeft, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+      const SizedBox(height: 12),
+      TextFormField(
+        controller: _apiAccountControllers[index]['username'],
+        decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.person)),
+      ),
+      const SizedBox(height: 8),
+      TextFormField(
+        controller: _apiAccountControllers[index]['password'],
+        obscureText: true,
+        decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock)),
+      ),
+    ];
+  }
+
+  Widget _buildErrorCard(String error) {
+    return Card(
+      color: Theme.of(context).colorScheme.error.withOpacity(0.1),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(error, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(SettingsViewModel viewModel) {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: viewModel.isLoading ? null : _saveConfigAndTest,
+            icon: viewModel.isLoading 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.save),
+            label: Text(viewModel.isLoading ? 'Đang xử lý...' : 'Lưu và kiểm tra kết nối'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: _buildApiAccountStatus(viewModel, 0, 'API 1')),
+            const SizedBox(width: 8),
+            Expanded(child: _buildApiAccountStatus(viewModel, 1, 'API 2')),
+            const SizedBox(width: 8),
+            Expanded(child: _buildApiAccountStatus(viewModel, 2, 'API 3')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: _buildConnectionStatus('Google Sheets', viewModel.isGoogleSheetsConnected, Icons.cloud)),
+            const SizedBox(width: 8),
+            Expanded(child: _buildConnectionStatus('Telegram', viewModel.isTelegramConnected, Icons.telegram)),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildApiAccountStatus(SettingsViewModel viewModel, int index, String label) {
     final status = viewModel.apiAccountStatus[index];
-    
-    // Xác định màu và icon
-    Color cardColor;
-    Color iconColor;
-    IconData icon;
-    
-    if (status == null) {
-      // Chưa test hoặc không có tài khoản
-      cardColor = Colors.grey.shade100;
-      iconColor = Colors.grey;
-      icon = Icons.api;
-    } else if (status == true) {
-      // Thành công
-      cardColor = Theme.of(context).primaryColor.withOpacity(0.1);
-      iconColor = Theme.of(context).primaryColor.withOpacity(0.7);
-      icon = Icons.check_circle;
-    } else {
-      // Thất bại
-      cardColor = Colors.red.shade50;
-      iconColor = Colors.red;
-      icon = Icons.cancel;
-    }
+    final color = status == true ? Colors.green : (status == false ? Colors.red : Colors.grey);
+    final icon = status == true ? Icons.check_circle : (status == false ? Icons.cancel : Icons.api);
     
     return Card(
-      color: cardColor,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: iconColor,
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: iconColor,
-              ),
-            ),
+            Icon(icon, color: color, size: 24),
+            Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
     );
   }
-  
-  List<Widget> _buildApiAccountFields(int index, String label) {
-    return [
-      Text(
-        label,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-          color: Theme.of(context).primaryColor.withOpacity(0.7),
+
+  Widget _buildConnectionStatus(String label, bool isConnected, IconData icon) {
+    final color = isConnected ? Colors.green : Colors.grey;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(label, style: TextStyle(color: color, fontSize: 12))),
+            Icon(isConnected ? Icons.check_circle : Icons.cancel, color: color, size: 18),
+          ],
         ),
       ),
-      const SizedBox(height: 12),
-      
-      // Username field
-      TextFormField(
-        controller: _apiAccountControllers[index]['username'],
-        decoration: InputDecoration(
-          labelText: 'Username',
-          hintText: 'Nhập username',
-          prefixIcon: const Icon(Icons.person),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      ),
-      
-      const SizedBox(height: 12),
-      
-      // Password field
-      TextFormField(
-        controller: _apiAccountControllers[index]['password'],
-        obscureText: true,
-        decoration: InputDecoration(
-          labelText: 'Password',
-          hintText: 'Nhập password',
-          prefixIcon: const Icon(Icons.lock),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      ),
-    ];
+    );
   }
 
-  // Helper: Chuyển 700000 → "700"
-  String _formatToThousands(double value) {
-    if (value == 0) return '';
-    return (value / 1000).toStringAsFixed(0);
+  Future<void> _saveConfigAndTest() async {
+    if (!_formKey.currentState!.validate()) return;
+    
+    final totalCapital = _parseFromThousands(_totalCapitalController.text);
+    final trungBudget = _parseFromThousands(_trungBudgetController.text);
+    final bacBudget = _parseFromThousands(_bacBudgetController.text);
+    final xienBudget = _parseFromThousands(_xienBudgetController.text);
+    
+    if (trungBudget + bacBudget + xienBudget > totalCapital) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vốn phân bổ không hợp lệ'), backgroundColor: Colors.red));
+      return;
+    }
+
+    final apiAccounts = <ApiAccount>[];
+    for (int i = 0; i < _apiAccountControllers.length; i++) {
+      final u = _apiAccountControllers[i]['username']!.text.trim();
+      final p = _apiAccountControllers[i]['password']!.text.trim();
+      if (u.isNotEmpty && p.isNotEmpty) apiAccounts.add(ApiAccount(username: u, password: p));
+    }
+
+    final config = AppConfig(
+      googleSheets: GoogleSheetsConfig.withHardcodedCredentials(sheetName: _sheetNameController.text.trim()),
+      telegram: TelegramConfig(botToken: TelegramConfig.defaultBotToken, chatIds: _chatIdsController.text.split(',').map((e)=>e.trim()).where((e)=>e.isNotEmpty).toList()),
+      budget: BudgetConfig(totalCapital: totalCapital, trungBudget: trungBudget, bacBudget: bacBudget, xienBudget: xienBudget),
+      apiAccounts: apiAccounts,
+      betting: BettingConfig(domain: _bettingDomainController.text.trim().isEmpty ? 'sin88.pro' : _bettingDomainController.text.trim()),
+    );
+
+    final viewModel = context.read<SettingsViewModel>();
+    final saved = await viewModel.saveConfig(config);
+    if (!saved) return;
+    
+    await viewModel.testGoogleSheetsConnection();
+    await viewModel.testTelegramConnection();
+    await viewModel.testAllApiAccounts(apiAccounts, config.betting.domain);
+    
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu và kiểm tra'), backgroundColor: Colors.green));
   }
 
-  // Helper: Chuyển "700" → 700000
-  double _parseFromThousands(String text) {
-    if (text.isEmpty) return 0;
-    final value = double.tryParse(text) ?? 0;
-    return value * 1000;
-  }
+  String _formatToThousands(double value) => (value / 1000).toStringAsFixed(0);
+  double _parseFromThousands(String text) => (double.tryParse(text) ?? 0) * 1000;
 }
