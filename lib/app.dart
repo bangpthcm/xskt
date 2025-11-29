@@ -11,9 +11,7 @@ import 'data/services/telegram_service.dart';
 import 'data/services/betting_table_service.dart';
 import 'data/services/rss_parser_service.dart';
 import 'data/services/backfill_service.dart';
-import 'data/services/win_calculation_service.dart';
 import 'data/services/win_tracking_service.dart';
-import 'data/services/auto_check_service.dart';
 import 'data/models/app_config.dart';
 import 'data/services/cached_data_service.dart';
 import 'data/services/service_manager.dart';
@@ -42,7 +40,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    // Khởi tạo ngầm sau khi UI vẽ xong frame đầu tiên
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeServicesInBackground();
     });
@@ -55,7 +52,6 @@ class _MyAppState extends State<MyApp> {
   Future<void> _initServices() async {
     try {
       print('🔄 Background: Starting service initialization...');
-      // context.read sẽ trigger Lazy Loading của các service trong main.dart
       final storageService = context.read<StorageService>();
       final sheetsService = context.read<GoogleSheetsService>();
       final telegramService = context.read<TelegramService>();
@@ -96,9 +92,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, themeProvider, child) {
         return MultiProvider(
           providers: [
-            // ✅ Đưa các Business Logic Services vào đây (tối ưu hơn)
-            Provider(create: (_) => WinCalculationService()),
-            
+            // --- Services ---
             ProxyProvider<GoogleSheetsService, WinTrackingService>(
               update: (_, sheets, __) => WinTrackingService(sheetsService: sheets),
             ),
@@ -110,17 +104,7 @@ class _MyAppState extends State<MyApp> {
               ),
             ),
 
-            ProxyProvider5<WinCalculationService, WinTrackingService, GoogleSheetsService, TelegramService, BackfillService, AutoCheckService>(
-              update: (_, winCalc, winTrack, sheets, telegram, backfill, __) => AutoCheckService(
-                winCalcService: winCalc,
-                trackingService: winTrack,
-                sheetsService: sheets,
-                telegramService: telegram,
-                backfillService: backfill,
-              ),
-            ),
-
-            // ✅ ViewModels
+            // --- ViewModels ---
             ChangeNotifierProvider(create: (_) => HomeViewModel()),
             
             ChangeNotifierProxyProvider6<CachedDataService, GoogleSheetsService, AnalysisService, StorageService, TelegramService, BettingTableService, AnalysisViewModel>(
@@ -131,7 +115,7 @@ class _MyAppState extends State<MyApp> {
                   storageService: context.read<StorageService>(),
                   telegramService: context.read<TelegramService>(),
                   bettingService: context.read<BettingTableService>(),
-                  rssService: context.read<RssParserService>(), // Lưu ý: RssParserService cần thêm vào generic nếu dùng
+                  rssService: context.read<RssParserService>(),
               ),
               update: (context, cached, sheets, analysis, storage, telegram, betting, prev) => prev ?? AnalysisViewModel(
                   cachedDataService: cached,
@@ -162,12 +146,15 @@ class _MyAppState extends State<MyApp> {
                update: (_, storage, sheets, telegram, prev) => prev!,
             ),
 
-            ChangeNotifierProxyProvider2<WinTrackingService, AutoCheckService, WinHistoryViewModel>(
+            // ✅ ĐIỀU CHỈNH QUAN TRỌNG: Dùng ChangeNotifierProxyProvider cho WinHistoryViewModel
+            ChangeNotifierProxyProvider<WinTrackingService, WinHistoryViewModel>(
               create: (context) => WinHistoryViewModel(
                 trackingService: context.read<WinTrackingService>(),
-                autoCheckService: context.read<AutoCheckService>(),
               ),
-              update: (_, tracking, autoCheck, prev) => prev!,
+              // Giữ lại instance cũ (prev) để không bị reset state khi rebuild
+              update: (_, tracking, prev) => prev ?? WinHistoryViewModel(
+                trackingService: tracking,
+              ),
             ),
           ],
           child: MaterialApp(

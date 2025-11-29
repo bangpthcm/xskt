@@ -4,17 +4,14 @@ import 'package:flutter/material.dart';
 import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/xien_win_history.dart';
 import '../../../data/services/win_tracking_service.dart';
-import '../../../data/services/auto_check_service.dart';
 
 class WinHistoryViewModel extends ChangeNotifier {
   final WinTrackingService _trackingService;
-  final AutoCheckService _autoCheckService;
 
+  // Đã xóa AutoCheckService khỏi constructor
   WinHistoryViewModel({
     required WinTrackingService trackingService,
-    required AutoCheckService autoCheckService,
-  })  : _trackingService = trackingService,
-        _autoCheckService = autoCheckService;
+  }) : _trackingService = trackingService;
 
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -23,8 +20,9 @@ class WinHistoryViewModel extends ChangeNotifier {
   List<XienWinHistory> _xienHistory = [];
   List<CycleWinHistory> _trungHistory = [];
   List<CycleWinHistory> _bacHistory = [];
-  CheckDailyResult? _lastCheckResult;
   
+  // Đã xóa biến _lastCheckResult
+
   static const int _pageSize = 50;
   bool _hasMoreCycle = true;
   bool _hasMoreXien = true;
@@ -38,7 +36,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   List<XienWinHistory> get xienHistory => _xienHistory;
   List<CycleWinHistory> get trungHistory => _trungHistory;
   List<CycleWinHistory> get bacHistory => _bacHistory;
-  CheckDailyResult? get lastCheckResult => _lastCheckResult;
+  
   bool get hasMoreCycle => _hasMoreCycle;
   bool get hasMoreXien => _hasMoreXien;
   bool get hasMoreTrung => _hasMoreTrung;
@@ -295,45 +293,8 @@ class WinHistoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// Kiểm tra kết quả cho ngày cụ thể
-  Future<void> checkSpecificDate(String date) async {
-    print('🔍 Checking results for $date...');
-    
-    _isLoading = true;
-    _errorMessage = null;
-    _lastCheckResult = null;
-    notifyListeners();
-
-    try {
-      _lastCheckResult = await _autoCheckService.checkDailyResults(
-        specificDate: date,
-      );
-
-      if (_lastCheckResult!.success) {
-        await loadHistory();
-      } else {
-        _errorMessage = 'Kiểm tra không thành công';
-      }
-
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      print('❌ Error checking date: $e');
-      _errorMessage = 'Lỗi kiểm tra: $e';
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  /// Kiểm tra tự động (ngày hôm qua)
-  Future<void> checkYesterday() async {
-    final yesterday = DateTime.now().subtract(const Duration(days: 1));
-    final dateStr = '${yesterday.day.toString().padLeft(2, '0')}/'
-        '${yesterday.month.toString().padLeft(2, '0')}/'
-        '${yesterday.year}';
-    
-    await checkSpecificDate(dateStr);
-  }
+  // ĐÃ XÓA checkSpecificDate()
+  // ĐÃ XÓA checkYesterday()
 
   void clearError() {
     _errorMessage = null;
