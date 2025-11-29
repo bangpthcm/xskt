@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-
 import 'data/services/google_sheets_service.dart';
 import 'data/services/analysis_service.dart';
 import 'data/services/storage_service.dart';
@@ -11,14 +10,11 @@ import 'data/services/betting_table_service.dart';
 import 'data/services/win_tracking_service.dart';
 import 'data/models/app_config.dart';
 import 'data/services/cached_data_service.dart';
-import 'data/services/service_manager.dart';
-
 import 'presentation/screens/home/home_viewmodel.dart';
 import 'presentation/screens/analysis/analysis_viewmodel.dart';
 import 'presentation/screens/betting/betting_viewmodel.dart';
 import 'presentation/screens/settings/settings_viewmodel.dart';
 import 'presentation/screens/win_history/win_history_viewmodel.dart';
-
 import 'presentation/navigation/main_navigation.dart';
 import 'core/theme/theme_provider.dart';
 
@@ -35,13 +31,10 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    // Vẫn gọi khởi tạo nền nhưng không bắt UI phải chờ
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeServicesInBackground();
+      _initServices();
     });
-  }
-
-  Future<void> _initializeServicesInBackground() async {
-    unawaited(_initServices());
   }
 
   Future<void> _initServices() async {
@@ -57,18 +50,18 @@ class _MyAppState extends State<MyApp> {
         await storageService.saveConfig(config);
       }
       
+      // Khởi tạo các service quan trọng
       await Future.wait([
         sheetsService.initialize(config!.googleSheets),
         Future(() => telegramService.initialize(config!.telegram)),
       ]);
       
-      ServiceManager.markReady();
       print('✅ Background: Core services initialized');
       
-      unawaited(_warmUpCache());
+      // Cache warm-up (chạy ngầm)
+      _warmUpCache();
     } catch (e) {
       print('⚠️ Background: Error initializing services: $e');
-      ServiceManager.markNotReady();
     }
   }
 

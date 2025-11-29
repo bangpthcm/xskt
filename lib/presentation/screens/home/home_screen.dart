@@ -1,4 +1,3 @@
-// lib/presentation/screens/home/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -7,6 +6,7 @@ import 'home_viewmodel.dart';
 import '../betting/betting_viewmodel.dart';
 import '../../../data/models/betting_row.dart';
 import '../../../core/utils/number_utils.dart';
+import '../../../core/theme/theme_provider.dart'; // ✅ Import ThemeProvider
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,7 +15,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+// ✅ Thêm WidgetsBindingObserver để tự động tắt Timer khi ẩn app
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late WebViewController _webViewController;
   Timer? _urlCheckTimer;
   bool _isLoading = true;
@@ -23,48 +24,33 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // Đăng ký observer
     _initializeWebView();
     _startUrlCheckTimer();
   }
 
-  void _initializeWebView() {
-    final viewModel = context.read<HomeViewModel>();
-    final initialUrl = viewModel.getUrlForCurrentTime();
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Hủy observer
+    _stopUrlCheckTimer(); // Hủy timer
+    super.dispose();
+  }
 
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0x00000000))
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (String url) {
-            setState(() {
-              _isLoading = true;
-            });
-          },
-          onPageFinished: (String url) {
-            setState(() {
-              _isLoading = false;
-            });
-          },
-          onWebResourceError: (WebResourceError error) {
-            setState(() {
-              _isLoading = false;
-            });
-            
-            print('⚠️ WebView Error: ${error.description}');
-            print('   Error code: ${error.errorCode}');
-            print('   URL: ${error.url}');
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(initialUrl));
+  // ✅ Tự động Dừng/Chạy Timer để tiết kiệm pin
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startUrlCheckTimer();
+      _webViewController.reload();
+    } else if (state == AppLifecycleState.paused) {
+      _stopUrlCheckTimer();
+    }
   }
 
   void _startUrlCheckTimer() {
+    _stopUrlCheckTimer();
     _urlCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (!mounted) return;
       final viewModel = context.read<HomeViewModel>();
       final newUrl = viewModel.getUrlForCurrentTime();
       
@@ -75,16 +61,29 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _showSummaryTable(BuildContext context, BettingViewModel viewModel) {
-    final now = DateTime.now();
-    final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
-    
-    final todayCycleRows = _getTodayCycleRows(viewModel, today);
-    final todayXienRows = viewModel.xienTable
-        ?.where((r) => r.ngay == today)
-        .toList() ?? [];
+  void _stopUrlCheckTimer() {
+    _urlCheckTimer?.cancel();
+    _urlCheckTimer = null;
+  }
 
-    final allRows = <BettingRow>[...todayCycleRows, ...todayXienRows];
+  void _initializeWebView() {
+    final viewModel = context.read<HomeViewModel>();
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.transparent)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) => setState(() => _isLoading = true),
+          onPageFinished: (_) => setState(() => _isLoading = false),
+          onNavigationRequest: (request) => NavigationDecision.navigate,
+        ),
+      )
+      ..loadRequest(Uri.parse(viewModel.getUrlForCurrentTime()));
+  }
+
+  void _showSummaryTable(BuildContext context, BettingViewModel viewModel) {
+    // ✅ Logic lấy dữ liệu sạch sẽ từ ViewModel
+    final allRows = [...viewModel.todayCycleRows, ...viewModel.todayXienRows];
 
     showModalBottomSheet(
       context: context,
@@ -96,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
         maxChildSize: 0.8,
         builder: (context, scrollController) => Container(
           decoration: const BoxDecoration(
-            color: Color(0xFF1E1E1E),
+            color: ThemeProvider.surface, // ✅ Dùng màu từ ThemeProvider
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
@@ -106,42 +105,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 40,
                 height: 3,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade600,
+                  color: ThemeProvider.textSecondary, // ✅ Dùng màu từ ThemeProvider
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              
               Expanded(
                 child: allRows.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(40),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.inbox_outlined,
-                                size: 64,
-                                color: Colors.grey.shade600,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Chưa có bảng cược cho ngày hôm nay',
-                                style: TextStyle(
-                                  color: Colors.grey.shade400,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
+                    ? const Center(
+                        child: Text(
+                          'Chưa có bảng cược cho ngày hôm nay',
+                          style: TextStyle(color: ThemeProvider.textSecondary, fontSize: 16),
                         ),
                       )
                     : ListView(
                         controller: scrollController,
                         padding: const EdgeInsets.all(12),
-                        children: [
-                          _buildUnifiedTable(allRows),
-                        ],
+                        children: [_buildUnifiedTable(allRows)],
                       ),
               ),
             ],
@@ -151,90 +130,32 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  List<BettingRow> _getTodayCycleRows(BettingViewModel viewModel, String today) {
-    final todayCycleRows = <BettingRow>[
-      ...viewModel.cycleTable?.where((r) => r.ngay == today) ?? [],
-      ...viewModel.trungTable?.where((r) => r.ngay == today) ?? [],
-      ...viewModel.bacTable?.where((r) => r.ngay == today) ?? [],
-    ];
-
-    todayCycleRows.sort((a, b) {
-      const mienOrder = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
-      final mienCompare = (mienOrder[a.mien] ?? 0).compareTo(mienOrder[b.mien] ?? 0);
-      return mienCompare;
-    });
-
-    return todayCycleRows;
-  }
-
   Widget _buildUnifiedTable(List<BettingRow> rows) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade800),
+        border: Border.all(color: ThemeProvider.borderColor), // ✅ Dùng màu viền
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         children: [
+          // Header
           Container(
             padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
             decoration: const BoxDecoration(
-              color: Color(0xFF2C2C2C),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
+              color: ThemeProvider.tableHeader, // ✅ Dùng màu Header mới thêm
+              borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
             ),
             child: const Row(
               children: [
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    'Ngày',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    'Miền',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    'Số',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    'Cược/số',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
+                Expanded(flex: 4, child: Text('Ngày', style: TextStyle(fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
+                Expanded(flex: 3, child: Text('Miền', style: TextStyle(fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
+                Expanded(flex: 4, child: Text('Số', style: TextStyle(fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
+                Expanded(flex: 4, child: Text('Cược/số', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
               ],
             ),
           ),
           
+          // Rows
           ...rows.asMap().entries.map((entry) {
             final index = entry.key;
             final row = entry.value;
@@ -245,52 +166,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
-              color: isEven ? const Color(0xFF1E1E1E) : const Color(0xFF252525),
+              // ✅ Logic màu chẵn/lẻ dùng ThemeProvider
+              color: isEven ? ThemeProvider.surface : ThemeProvider.tableRowOdd,
               child: Row(
                 children: [
-                  Expanded(
-                    flex: 4,
-                    child: Text(
-                      row.ngay,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      row.mien,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 4,
-                    child: Text(
-                      row.so,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 4,
-                    child: Text(
-                      NumberUtils.formatCurrency(cuocValue),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
+                  Expanded(flex: 4, child: Text(row.ngay, style: const TextStyle(fontSize: 13, color: ThemeProvider.textPrimary))),
+                  Expanded(flex: 3, child: Text(row.mien, style: const TextStyle(fontSize: 13, color: ThemeProvider.textPrimary))),
+                  Expanded(flex: 4, child: Text(row.so, style: const TextStyle(fontSize: 13, color: ThemeProvider.textPrimary, fontWeight: FontWeight.w500))),
+                  Expanded(flex: 4, child: Text(NumberUtils.formatCurrency(cuocValue), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
                 ],
               ),
             );
@@ -301,60 +184,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  void dispose() {
-    _urlCheckTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kết quả XS'),
         actions: [
-          // ✅ NÚT XEM BẢNG TÓM TẮT
           Consumer<BettingViewModel>(
             builder: (context, viewModel, child) {
-              final now = DateTime.now();
-              final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
-              
-              final todayCycleRows = _getTodayCycleRows(viewModel, today);
-              final todayXienRows = viewModel.xienTable
-                  ?.where((r) => r.ngay == today)
-                  .toList() ?? [];
-              
-              final totalRows = todayCycleRows.length + todayXienRows.length;
-              
+              final totalRows = viewModel.todayCycleRows.length + viewModel.todayXienRows.length;
               return Stack(
                 children: [
                   IconButton(
                     icon: const Icon(Icons.table_chart),
                     tooltip: 'Xem bảng tóm tắt',
-                    onPressed: totalRows > 0 
-                        ? () => _showSummaryTable(context, viewModel)
-                        : null,
+                    onPressed: totalRows > 0 ? () => _showSummaryTable(context, viewModel) : null,
                   ),
                   if (totalRows > 0)
                     Positioned(
-                      right: 8,
-                      top: 8,
+                      right: 8, top: 8,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: Theme.of(context).primaryColor,
                           shape: BoxShape.circle,
                         ),
-                        constraints: const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
+                        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                         child: Text(
                           totalRows.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -365,19 +222,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              _webViewController.reload();
-            },
+            onPressed: () => _webViewController.reload(),
           ),
         ],
       ),
       body: Stack(
         children: [
           WebViewWidget(controller: _webViewController),
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
+          if (_isLoading) const Center(child: CircularProgressIndicator()),
         ],
       ),
     );

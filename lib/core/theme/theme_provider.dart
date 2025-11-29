@@ -12,6 +12,10 @@ class ThemeProvider extends ChangeNotifier {
   static const Color profit = Color(0xFF00897B); // Tăng trưởng (Xanh)
   static const Color loss = Color(0xFFD32F2F);   // Chi phí (Đỏ)
 
+  static const Color tableHeader = Color(0xFF2C2C2C);
+  static const Color tableRowOdd = Color(0xFF252525); // Màu dòng lẻ
+  static const Color borderColor = Color(0xFF424242);
+
   // 2. Trả về Theme duy nhất
   ThemeData getTheme() {
     return ThemeData(

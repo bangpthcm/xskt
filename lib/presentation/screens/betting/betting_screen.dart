@@ -13,7 +13,7 @@ import '../settings/settings_viewmodel.dart';
 import '../../../data/models/api_account.dart';
 import '../../../data/services/betting_api_service.dart';
 import '../home/home_screen.dart';
-import '../../../data/services/service_manager.dart'; 
+import '../../../data/services/google_sheets_service.dart';
 
 class BettingScreen extends StatefulWidget {
   const BettingScreen({super.key});
@@ -27,42 +27,28 @@ class _BettingScreenState extends State<BettingScreen> {
   void initState() {
     super.initState();
     
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        print('📊 BettingScreen: Waiting for services...');
-        await ServiceManager.waitForReady();
-        print('📊 BettingScreen: Services ready, loading tables...');
+    // ✅ SỬA LẠI LOGIC INIT:
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final settingsVM = context.read<SettingsViewModel>();
+        final bettingVM = context.read<BettingViewModel>();
+        final sheetsService = context.read<GoogleSheetsService>(); // Lấy service
         
-        if (mounted) {
-          // ✅ Load config từ Settings trước
-          await context.read<SettingsViewModel>().loadConfig();
-          
-          // ✅ Sau đó load betting tables
-          await context.read<BettingViewModel>().loadBettingTables();
-        }
-        
-      } catch (e) {
-        print('❌ BettingScreen: Error loading: $e');
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Không thể kết nối. Vui lòng pull-to-refresh'),
-              action: SnackBarAction(
-                label: 'Thử lại',
-                onPressed: () {
-                  context.read<BettingViewModel>().loadBettingTables();
-                },
-              ),
-            ),
-          );
-        }
+        settingsVM.loadConfig().then((_) async {
+          // 🛡️ BẢO VỆ: Init lại Sheets Service bằng config vừa load để chắc chắn nó không null
+          if (settingsVM.config != null) {
+             await sheetsService.initialize(settingsVM.config.googleSheets);
+          }
+
+          // Sau đó mới tải bảng cược
+          if (mounted) {
+             bettingVM.loadBettingTables();
+          }
+        });
       }
     });
   }
 
-  // ✅ ĐỔI: Đọc tài khoản từ SettingsViewModel
-  // ✅ THÊM: Nếu chỉ 1 tài khoản, tự động vào không cần chọn
   void _showBettingOptionsDialog(BuildContext context) {
     try {
       final settingsVM = context.read<SettingsViewModel>();

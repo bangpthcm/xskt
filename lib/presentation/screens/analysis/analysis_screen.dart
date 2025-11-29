@@ -8,7 +8,6 @@ import '../betting/betting_viewmodel.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../app.dart';
 import '../../widgets/shimmer_loading.dart';
-import '../../../data/services/service_manager.dart';
 import '../../../data/models/number_detail.dart';
 
 class AnalysisScreen extends StatefulWidget {
@@ -21,7 +20,6 @@ class AnalysisScreen extends StatefulWidget {
 class _AnalysisScreenState extends State<AnalysisScreen> 
     with SingleTickerProviderStateMixin {
 
-  // State để quản lý việc hiển thị chi tiết số Inline
   String? _selectedNumber;
   NumberDetail? _currentNumberDetail;
   bool _isLoadingDetail = false;
@@ -29,20 +27,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        print('📊 AnalysisScreen: Waiting for services...');
-        await ServiceManager.waitForReady();
-        if (mounted) {
-          context.read<AnalysisViewModel>().loadAnalysis();
-        }
-      } catch (e) {
-        print('❌ AnalysisScreen: Error: $e');
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AnalysisViewModel>().loadAnalysis();
       }
     });
   }
 
-  // ✅ CẬP NHẬT: Chọn số -> Hiện chi tiết + Set Target Number
   Future<void> _onNumberSelected(String number) async {
     final viewModel = context.read<AnalysisViewModel>();
 
@@ -62,8 +54,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       _currentNumberDetail = null;
     });
 
-    // 🎯 QUAN TRỌNG: Cập nhật số mục tiêu trong ViewModel
-    // Điều này sẽ làm cho các nút chính (Tạo bảng, Gửi Tele ở trên header) áp dụng cho số này
     viewModel.setTargetNumber(number);
 
     // Load chi tiết số

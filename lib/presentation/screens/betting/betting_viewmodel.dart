@@ -37,6 +37,32 @@ class BettingViewModel extends ChangeNotifier {
   Map<String, dynamic>? get cycleMetadata => _cycleMetadata;
   Map<String, dynamic>? get trungMetadata => _trungMetadata;
   Map<String, dynamic>? get bacMetadata => _bacMetadata;
+  
+  // 1. Getter lấy danh sách cược Chu kỳ hôm nay (đã gộp và sắp xếp)
+  List<BettingRow> get todayCycleRows {
+    final now = DateTime.now();
+    final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+
+    final rows = <BettingRow>[
+      ...cycleTable?.where((r) => r.ngay == today) ?? [],
+      ...trungTable?.where((r) => r.ngay == today) ?? [],
+      ...bacTable?.where((r) => r.ngay == today) ?? [],
+    ];
+
+    rows.sort((a, b) {
+      const mienOrder = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
+      return (mienOrder[a.mien] ?? 0).compareTo(mienOrder[b.mien] ?? 0);
+    });
+
+    return rows;
+  }
+
+  // 2. Getter lấy danh sách cược Xiên hôm nay
+  List<BettingRow> get todayXienRows {
+    final now = DateTime.now();
+    final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+    return xienTable?.where((r) => r.ngay == today).toList() ?? [];
+  }
 
   /// Parse number từ Google Sheets (format VN: dấu chấm = nghìn)
   static double _parseSheetNumber(dynamic value) {

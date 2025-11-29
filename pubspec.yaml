@@ -11,9 +11,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Thêm dòng này
-  flutter_launcher_icons: ^0.13.1
-
   shimmer: ^3.0.0
   fl_chart: ^0.66.0
   
@@ -47,6 +44,8 @@ dependencies:
   cupertino_icons: ^1.0.6
 
 dev_dependencies:
+  # Thêm dòng này
+  flutter_launcher_icons: ^0.13.1
   flutter_lints: ^3.0.0
 
 flutter:
