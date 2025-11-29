@@ -9,6 +9,7 @@ import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../app.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../../data/services/service_manager.dart';
+import '../../../data/models/number_detail.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -17,21 +18,21 @@ class AnalysisScreen extends StatefulWidget {
   State<AnalysisScreen> createState() => _AnalysisScreenState();
 }
 
-
 class _AnalysisScreenState extends State<AnalysisScreen> 
     with SingleTickerProviderStateMixin {
+
+  // State để quản lý việc hiển thị chi tiết số Inline
+  String? _selectedNumber;
+  NumberDetail? _currentNumberDetail;
+  bool _isLoadingDetail = false;
 
   @override
   void initState() {
     super.initState();
-    // ✅ FIX: Use ServiceManager
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         print('📊 AnalysisScreen: Waiting for services...');
-        
-        // ✅ Use ServiceManager.waitForReady()
         await ServiceManager.waitForReady();
-        
         if (mounted) {
           context.read<AnalysisViewModel>().loadAnalysis();
         }
@@ -39,6 +40,41 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         print('❌ AnalysisScreen: Error: $e');
       }
     });
+  }
+
+  // ✅ CẬP NHẬT: Chọn số -> Hiện chi tiết + Set Target Number
+  Future<void> _onNumberSelected(String number) async {
+    final viewModel = context.read<AnalysisViewModel>();
+
+    // Nếu bấm lại số đang chọn -> đóng
+    if (_selectedNumber == number) {
+      setState(() {
+        _selectedNumber = null;
+        _currentNumberDetail = null;
+      });
+      return;
+    }
+
+    // Reset và bắt đầu load số mới
+    setState(() {
+      _selectedNumber = number;
+      _isLoadingDetail = true;
+      _currentNumberDetail = null;
+    });
+
+    // 🎯 QUAN TRỌNG: Cập nhật số mục tiêu trong ViewModel
+    // Điều này sẽ làm cho các nút chính (Tạo bảng, Gửi Tele ở trên header) áp dụng cho số này
+    viewModel.setTargetNumber(number);
+
+    // Load chi tiết số
+    final detail = await viewModel.analyzeNumberDetail(number);
+
+    if (mounted) {
+      setState(() {
+        _currentNumberDetail = detail;
+        _isLoadingDetail = false;
+      });
+    }
   }
 
   @override
@@ -77,12 +113,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
           return RefreshIndicator(
             onRefresh: ()  async {
-              // ✅ THÊM: Haptic feedback
               HapticFeedback.mediumImpact();
-              
               await viewModel.loadAnalysis(useCache: false);
-              
-              // ✅ THÊM: Success feedback
               if (viewModel.errorMessage == null) {
                 HapticFeedback.lightImpact();
               }
@@ -105,7 +137,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-
   Widget _buildCycleSection(AnalysisViewModel viewModel) {
     final cycleResult = viewModel.cycleResult;
 
@@ -115,22 +146,21 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- HEADER ---
             Row(
               children: [
                 Expanded(
-                  child: // ✅ THAY ĐỔI: Từ Stack với left cố định sang Row với flexible positioning
-                  Row(
+                  child: Row(
                     children: [
                       Text(
                         'Chu kỳ 00-99',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      // ✅ Dấu chấm đỏ sát ngay bên phải text
                       if (viewModel.tatCaAlertCache == true || 
                           viewModel.trungAlertCache == true || 
                           viewModel.bacAlertCache == true)
                         Padding(
-                          padding: const EdgeInsets.only(left: 4, bottom: 15), // Điều chỉnh vị trí
+                          padding: const EdgeInsets.only(left: 4, bottom: 15),
                           child: Container(
                             width: 8,
                             height: 8,
@@ -141,42 +171,29 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                             ),
                           ),
                         ),
-                      const Spacer(), // Đẩy các icon sang phải
+                      const Spacer(),
                     ],
                   ),
                 ),
-                // ✅ 3. ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
                 if (viewModel.selectedMien != 'Nam')
                 IconButton(
                   icon: Icon(Icons.table_chart, color: Theme.of(context).primaryColor.withOpacity(0.9)),
-                  tooltip: 'Tạo bảng cược',
+                  tooltip: 'Tạo bảng cược (cho số mục tiêu)',
                   onPressed: cycleResult != null
                       ? () {
                           if (viewModel.selectedMien == 'Bắc') {
-                            _showCreateBacGanTableDialog(
-                              context, 
-                              viewModel, 
-                              cycleResult.targetNumber,
-                            );
+                            _showCreateBacGanTableDialog(context, viewModel, cycleResult.targetNumber);
                           } else if (viewModel.selectedMien == 'Trung') {
-                            _showCreateTrungGanTableDialog(
-                              context, 
-                              viewModel, 
-                              cycleResult.targetNumber,
-                            );
+                            _showCreateTrungGanTableDialog(context, viewModel, cycleResult.targetNumber);
                           } else {
-                            _createCycleBettingTable(
-                              context, 
-                              viewModel, 
-                              cycleResult.targetNumber,
-                            );
+                            _createCycleBettingTable(context, viewModel, cycleResult.targetNumber);
                           }
                         }
                       : null,
                 ),
                 IconButton(
                   icon: Icon(Icons.send, color: Theme.of(context).primaryColor.withOpacity(0.9)),
-                  tooltip: 'Gửi Telegram',
+                  tooltip: 'Gửi Telegram (cho số mục tiêu)',
                   onPressed: cycleResult != null
                       ? () => _sendCycleToTelegram(context, viewModel)
                       : null,
@@ -185,12 +202,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             ),
             const Divider(color: Colors.grey),
             
+            // --- FILTER ---
             _buildMienFilter(viewModel),
             const SizedBox(height: 16),
             
             if (cycleResult == null)
               const Text('Chưa có dữ liệu phân tích') 
             else ...[
+              // --- THÔNG TIN CHUNG ---
               _buildInfoRow(
                 'Số ngày gan:', 
                 AnalysisThresholds.formatWithThreshold(
@@ -203,9 +222,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
               ),
               if (viewModel.selectedMien != 'Nam')
+              // Số mục tiêu hiển thị ở đây sẽ thay đổi khi click chọn số khác
               _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber),
               
-              // ✅ 2. THÊM NHÓM SỐ GAN NHẤT (HIỂN THỊ CHO TẤT CẢ FILTER)
+              // --- NHÓM SỐ GAN NHẤT ---
               const SizedBox(height: 8),
               const Text(
                 'Nhóm số gan nhất:',
@@ -213,24 +233,16 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               ),
               const SizedBox(height: 8),
               
-              // ✅ HIỂN THỊ DẠNG CHIP ĐỂ CHỌN
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: cycleResult.ganNumbers.map((number) {
-                  // ✅ HIGHLIGHT NẾU LÀ TARGET NUMBER
                   final isTarget = number == cycleResult.targetNumber;
+                  final isSelected = number == _selectedNumber; 
 
-                  // ✅ NẾU FILTER = NAM → DÙNG CHIP (KHÔNG CLICK)
                   if (viewModel.selectedMien == 'Nam') {
                     return Chip(
-                      label: Text(
-                        number,
-                        style: TextStyle(
-                          fontWeight: FontWeight.normal,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
+                      label: Text(number, style: TextStyle(color: Colors.grey.shade400)),
                       backgroundColor: Colors.grey.shade100,
                       side: BorderSide(color: Colors.grey.shade300),
                     );
@@ -240,25 +252,24 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     label: Text(
                       number,
                       style: TextStyle(
-                        fontWeight: isTarget ? FontWeight.bold : FontWeight.normal,
-                        color: isTarget ? Theme.of(context).primaryColor.withOpacity(0.9) : Colors.grey.shade500,
+                        fontWeight: isTarget || isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isTarget || isSelected ? Theme.of(context).primaryColor.withOpacity(0.9) : Colors.grey.shade500,
                       ),
                     ),
-                    backgroundColor: isTarget 
-                        ? Theme.of(context).primaryColor.withOpacity(0.3) 
-                        : const Color(0xFF2C2C2C),
+                    backgroundColor: isSelected
+                        ? Theme.of(context).primaryColor.withOpacity(0.5) 
+                        : (isTarget ? Theme.of(context).primaryColor.withOpacity(0.3) : const Color(0xFF2C2C2C)),
                     side: BorderSide(
-                      color: isTarget 
+                      color: isTarget || isSelected
                           ? Theme.of(context).primaryColor.withOpacity(0.8) 
                           : Colors.grey.shade600,
                     ),
-                    onPressed: () => _showNumberDetail(context, viewModel, number),
+                    onPressed: () => _onNumberSelected(number),
                   );
                 }).toList(),
               ),
               
-              // ✅ 1. BỎ PHÂN BỔ THEO MIỀN CHO NAM, TRUNG, BẮC
-              // CHỈ HIỂN THỊ KHI FILTER = "TẤT CẢ"
+              // --- PHÂN BỔ THEO MIỀN ---
               if (viewModel.selectedMien == 'Tất cả') ...[
                 const SizedBox(height: 16),
                 const Text(
@@ -272,7 +283,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       cycleResult.mienGroups[mien]!.isEmpty) {
                     return const SizedBox.shrink();
                   }
-                  
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Row(
@@ -300,9 +310,90 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   );
                 }),
               ],
+
+              // ✅ HIỂN THỊ CHI TIẾT SỐ (Đã bỏ các nút bấm)
+              if (_selectedNumber != null) ...[
+                const SizedBox(height: 20),
+                const Divider(color: Colors.grey),
+                const SizedBox(height: 8),
+                _buildInlineNumberDetail(viewModel),
+              ],
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInlineNumberDetail(AnalysisViewModel viewModel) {
+    if (_isLoadingDetail) {
+      return const Center(child: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: CircularProgressIndicator(),
+      ));
+    }
+
+    if (_currentNumberDetail == null) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF252525), 
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade800),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Chi tiết số ${_selectedNumber}:',
+                style: const TextStyle(
+                  fontSize: 16, 
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Hiển thị thông tin từng miền
+          if (_currentNumberDetail!.mienDetails.containsKey('Nam'))
+            _buildInlineMienRow('Miền Nam', _currentNumberDetail!.mienDetails['Nam']!, Colors.orange),
+          
+          if (_currentNumberDetail!.mienDetails.containsKey('Trung'))
+            _buildInlineMienRow('Miền Trung', _currentNumberDetail!.mienDetails['Trung']!, Colors.purple),
+          
+          if (_currentNumberDetail!.mienDetails.containsKey('Bắc'))
+            _buildInlineMienRow('Miền Bắc', _currentNumberDetail!.mienDetails['Bắc']!, Colors.blue),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineMienRow(String title, dynamic detail, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              title,
+              style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '${detail.daysGan} ngày, từ ${detail.lastSeenDateStr}',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -342,7 +433,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ],
                   ),
                 ),
-                // ✅ ĐỔI VỊ TRÍ: TẠO BẢNG TRƯỚC, GỬI TELEGRAM SAU
                 IconButton(
                   icon: Icon(Icons.table_chart, color: Theme.of(context).primaryColor.withOpacity(0.9)),
                   tooltip: 'Tạo bảng cược',
@@ -374,7 +464,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              // Hiển thị dạng text thường
               ...ganInfo.pairs.asMap().entries.map((entry) {
                 final index = entry.key;
                 final pairWithDays = entry.value;
@@ -400,7 +489,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         children: ['Tất cả', 'Nam', 'Trung', 'Bắc'].map((mien) {
           final isSelected = viewModel.selectedMien == mien;
           
-          // ✅ CHECK alert từ cache
           bool hasAlert = false;
           if (mien== 'Tất cả') {
             hasAlert = viewModel.tatCaAlertCache ?? false;
@@ -424,25 +512,29 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                         fontSize: 13,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         color: isSelected 
-                            ? Theme.of(context).primaryColor.withOpacity(0.9)  // ✅ Text trắng khi selected
-                            : Colors.grey.shade500,  // ✅ Text xám tối khi chưa selected
+                            ? Theme.of(context).primaryColor.withOpacity(0.9)
+                            : Colors.grey.shade500,
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   selected: isSelected,
-                  backgroundColor: const Color(0xFF2C2C2C),  // ✅ Nền xám rất tối khi chưa selected
-                  selectedColor: Theme.of(context).primaryColor.withOpacity(0.3),  // ✅ Nền xanh dương khi selected
+                  backgroundColor: const Color(0xFF2C2C2C),
+                  selectedColor: Theme.of(context).primaryColor.withOpacity(0.3),
                   side: BorderSide(
                     color: isSelected 
-                        ? Theme.of(context).primaryColor.withOpacity(0.8)   // ✅ Viền xanh khi selected
-                        : Colors.grey.shade600,  // ✅ Viền xám tối khi chưa selected
+                        ? Theme.of(context).primaryColor.withOpacity(0.8)
+                        : Colors.grey.shade600,
                     width: 1,
                   ),
                   checkmarkColor: Colors.transparent,
                   showCheckmark: false,
                   onSelected: (selected) {
                     if (selected) {
+                      setState(() {
+                        _selectedNumber = null;
+                        _currentNumberDetail = null;
+                      });
                       viewModel.setSelectedMien(mien);
                       viewModel.loadAnalysis(useCache: true);
                     }
@@ -495,24 +587,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  Color _getMienColor(String mien) {
-    switch (mien) {
-      case 'Nam':
-        return Colors.orange.shade100;
-      case 'Trung':
-        return Colors.purple.shade100;
-      case 'Bắc':
-        return Colors.blue.shade100;
-      default:
-        return Colors.grey.shade100;
-    }
-  }
-
-  void _createCycleBettingTable(
-    BuildContext context,
-    AnalysisViewModel viewModel,
-    String number,
-  ) {
+  void _createCycleBettingTable(BuildContext context, AnalysisViewModel viewModel, String number) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -687,7 +762,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  // ✅ ADD: Method mới cho Trung
   void _showCreateTrungGanTableDialog(
     BuildContext context,
     AnalysisViewModel viewModel,
@@ -753,7 +827,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  // ✅ ADD: Method mới để show dialog
   void _showCreateBacGanTableDialog(
     BuildContext context,
     AnalysisViewModel viewModel,
@@ -818,247 +891,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  Future<void> _showNumberDetail(
-    BuildContext context,
-    AnalysisViewModel viewModel,
-    String number,
-  ) async {
-    print('🔍 _showNumberDetail called for number: $number'); // ✅ ADD LOG
-    print('   Selected mien: ${viewModel.selectedMien}'); // ✅ ADD LOG
-    
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-
-    final numberDetail = await viewModel.analyzeNumberDetail(number);
-
-    if (!context.mounted) return;
-    
-    Navigator.pop(context);
-
-    if (numberDetail == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không tìm thấy dữ liệu')),
-      );
-      return;
-    }
-
-    print('✅ Number detail loaded'); // ✅ ADD LOG
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.95,
-          constraints: const BoxConstraints(maxWidth: 500),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Content
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Thông tin $number theo từng miền:',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    if (numberDetail.mienDetails.containsKey('Nam'))
-                      _buildMienCard(
-                        'Miền Nam',
-                        numberDetail.mienDetails['Nam']!,
-                        Colors.orange,
-                      ),
-
-                    const SizedBox(height: 12),
-
-                    if (numberDetail.mienDetails.containsKey('Trung'))
-                      _buildMienCard(
-                        'Miền Trung',
-                        numberDetail.mienDetails['Trung']!,
-                        Colors.purple,
-                      ),
-
-                    const SizedBox(height: 12),
-
-                    if (numberDetail.mienDetails.containsKey('Bắc'))
-                      _buildMienCard(
-                        'Miền Bắc',
-                        numberDetail.mienDetails['Bắc']!,
-                        Colors.blue,
-                      ),
-                  ],
-                ),
-              ),
-
-              // 2 NÚT TRÊN
-              Container(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                child: Row(
-                  children: [
-                    // Tạo bảng - ✅ THÊM LOG
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          print('📊 Create table button clicked'); // ✅ ADD LOG
-                          Navigator.pop(context);
-                          _createTableForNumberWithMien(context, viewModel, number);
-                        },
-                        icon: const Icon(Icons.table_chart, size: 20),
-                        label: const Text('Tạo bảng'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // Gửi Telegram
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          print('📤 Send telegram button clicked'); // ✅ ADD LOG
-                          Navigator.pop(context);
-                          _sendNumberDetailToTelegram(context, viewModel, numberDetail);
-                        },
-                        icon: const Icon(Icons.send, size: 20),
-                        label: const Text('Gửi Telegram'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // NÚT ĐÓNG Ở DƯỚI
-              Container(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      print('❌ Close button clicked'); // ✅ ADD LOG
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.close, size: 20),
-                    label: const Text('Đóng'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ✅ THAY ĐỔI 3: Sửa _buildMienCard() - Dùng màu tối như header
-  Widget _buildMienCard(String title, dynamic detail, Color accentColor) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        // ✅ MÀU TỐI GIỐNG HEADER
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: accentColor.withOpacity(0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: accentColor, // Giữ màu accent cho title
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _buildInfoRowInCard('Gan:', '${detail.daysGan} ngày'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: _buildInfoRowInCard('Lần cuối:', detail.lastSeenDateStr),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRowInCard(String label, String value) {
-    return Row(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Future<void> _sendNumberDetailToTelegram(
     BuildContext context,
     AnalysisViewModel viewModel,
@@ -1080,39 +912,24 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     }
   }
 
-  // ✅ HÀM MỚI: Tạo bảng theo miền đang chọn (FIXED V2)
   Future<void> _createTableForNumberWithMien(
     BuildContext context,
     AnalysisViewModel viewModel,
     String number,
   ) async {
-    print('🎯 Creating table for number: $number');
-
-    final selectedMien = viewModel.selectedMien;
-    print('   Selected mien: $selectedMien');
-
-    // ✅ Xác định table type
-    final BettingTableTypeEnum tableType;
-    String tableDisplayName;
-
-    if (selectedMien == 'Bắc') {
-      tableType = BettingTableTypeEnum.bac;
+     // ... (Giữ nguyên logic của hàm này) ...
+     // Code đã được cung cấp trong phản hồi trước
+     print('🎯 Creating table for number: $number');
+     final selectedMien = viewModel.selectedMien;
+     String tableDisplayName;
+     if (selectedMien == 'Bắc') {
       tableDisplayName = 'Miền Bắc';
     } else if (selectedMien == 'Trung') {
-      tableType = BettingTableTypeEnum.trung;
       tableDisplayName = 'Miền Trung';
     } else {
-      tableType = BettingTableTypeEnum.tatca;
       tableDisplayName = 'Chu kỳ (Tất cả)';
     }
 
-    // ✅ Lưu references
-    final settingsViewModel = context.read<SettingsViewModel>();
-    final bettingViewModel = context.read<BettingViewModel>();
-    final navigator = Navigator.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-    // ✅ Xác nhận
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1136,53 +953,43 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
     if (confirm != true) return;
 
-    // ✅ Show loading
-    navigator.push(
-      PageRouteBuilder(
-        opaque: false,
-        barrierDismissible: false,
-        pageBuilder: (_, __, ___) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
       ),
     );
 
     try {
-      final config = settingsViewModel.config;
-
-      // ✅ GỌI wrapper (chọn tùy theo type)
+      final config = context.read<SettingsViewModel>().config;
       if (selectedMien == 'Bắc') {
         await viewModel.createBacGanBettingTable(number, config);
       } else if (selectedMien == 'Trung') {
         await viewModel.createTrungGanBettingTable(number, config);
       } else {
-        // ✅ Gọi createCycleBettingTableForNumber (giữ nguyên từ code cũ)
         await viewModel.createCycleBettingTable(number, config);
       }
-
-      // ✅ Close loading
-      navigator.pop();
-
-      if (viewModel.errorMessage == null) {
-        await bettingViewModel.loadBettingTables();
-
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Tạo bảng cược thành công!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-
-        await Future.delayed(const Duration(milliseconds: 300));
-
-        if (context.mounted) {
-          mainNavigationKey.currentState?.switchToTab(1);
+      if (context.mounted) {
+        Navigator.pop(context);
+        if (viewModel.errorMessage == null) {
+          await context.read<BettingViewModel>().loadBettingTables();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tạo bảng cược thành công!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (context.mounted) {
+            mainNavigationKey.currentState?.switchToTab(1);
+          }
         }
       }
     } catch (e) {
+      if (context.mounted) Navigator.pop(context);
       print('❌ Error: $e');
-      navigator.pop();
     }
   }
 }

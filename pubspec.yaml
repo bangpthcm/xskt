@@ -26,7 +26,6 @@ dependencies:
 
   # Google Sheets API
   googleapis_auth: ^1.4.1
-  xml: ^6.3.0
 
   # WebView
   webview_flutter: ^4.4.2
