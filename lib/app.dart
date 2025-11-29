@@ -2,14 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-// ... giữ nguyên các import service/viewmodels
+
 import 'data/services/google_sheets_service.dart';
 import 'data/services/analysis_service.dart';
 import 'data/services/storage_service.dart';
 import 'data/services/telegram_service.dart';
 import 'data/services/betting_table_service.dart';
-import 'data/services/rss_parser_service.dart';
-import 'data/services/backfill_service.dart';
 import 'data/services/win_tracking_service.dart';
 import 'data/models/app_config.dart';
 import 'data/services/cached_data_service.dart';
@@ -34,7 +32,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  // ... (giữ nguyên logic initState, _initServices, _warmUpCache)
   @override
   void initState() {
     super.initState();
@@ -90,16 +87,8 @@ class _MyAppState extends State<MyApp> {
       builder: (context, themeProvider, child) {
         return MultiProvider(
           providers: [
-            // ... (Giữ nguyên toàn bộ block providers như cũ)
             ProxyProvider<GoogleSheetsService, WinTrackingService>(
               update: (_, sheets, __) => WinTrackingService(sheetsService: sheets),
-            ),
-            
-            ProxyProvider2<GoogleSheetsService, RssParserService, BackfillService>(
-              update: (_, sheets, rss, __) => BackfillService(
-                sheetsService: sheets,
-                rssService: rss,
-              ),
             ),
 
             ChangeNotifierProvider(create: (_) => HomeViewModel()),
@@ -112,7 +101,6 @@ class _MyAppState extends State<MyApp> {
                   storageService: context.read<StorageService>(),
                   telegramService: context.read<TelegramService>(),
                   bettingService: context.read<BettingTableService>(),
-                  rssService: context.read<RssParserService>(),
               ),
               update: (context, cached, sheets, analysis, storage, telegram, betting, prev) => prev ?? AnalysisViewModel(
                   cachedDataService: cached,
@@ -121,7 +109,6 @@ class _MyAppState extends State<MyApp> {
                   storageService: storage,
                   telegramService: telegram,
                   bettingService: betting,
-                  rssService: context.read<RssParserService>(),
               ),
             ),
 
@@ -138,7 +125,6 @@ class _MyAppState extends State<MyApp> {
                 storageService: context.read<StorageService>(),
                 sheetsService: context.read<GoogleSheetsService>(),
                 telegramService: context.read<TelegramService>(),
-                rssService: context.read<RssParserService>(),
               ),
                update: (_, storage, sheets, telegram, prev) => prev!,
             ),
@@ -154,9 +140,7 @@ class _MyAppState extends State<MyApp> {
           ],
           child: MaterialApp(
             title: 'XSKT Bot',
-            // ✅ CHỈ DÙNG 1 THEME
             theme: themeProvider.getTheme(),
-            // ❌ Đã bỏ darkTheme và themeMode
             home: MainNavigation(key: mainNavigationKey),
             debugShowCheckedModeBanner: false,
           ),

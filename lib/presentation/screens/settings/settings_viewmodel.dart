@@ -6,42 +6,35 @@ import '../../../data/services/storage_service.dart';
 import '../../../data/services/google_sheets_service.dart';
 import '../../../data/services/telegram_service.dart';
 import '../../../data/services/betting_api_service.dart';
-import '../../../data/services/backfill_service.dart';
-import '../../../data/services/rss_parser_service.dart';
 
 class SettingsViewModel extends ChangeNotifier {
   final StorageService _storageService;
   final GoogleSheetsService _sheetsService;
   final TelegramService _telegramService;
-  final RssParserService _rssService;
 
   SettingsViewModel({
     required StorageService storageService,
     required GoogleSheetsService sheetsService,
     required TelegramService telegramService,
-    required RssParserService rssService,
   })  : _storageService = storageService,
         _sheetsService = sheetsService,
-        _telegramService = telegramService,
-        _rssService = rssService;
+        _telegramService = telegramService;
 
   AppConfig _config = AppConfig.defaultConfig();
   bool _isLoading = false;
   String? _errorMessage;
   
-  // ✅ Trạng thái kết nối
   bool _isGoogleSheetsConnected = false;
   bool _isTelegramConnected = false;
   
-  // ✅ THÊM: Trạng thái API accounts
-  final List<bool?> _apiAccountStatus = [null, null, null]; // null = chưa test, true = thành công, false = thất bại
+  final List<bool?> _apiAccountStatus = [null, null, null];
 
   AppConfig get config => _config;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isGoogleSheetsConnected => _isGoogleSheetsConnected;
   bool get isTelegramConnected => _isTelegramConnected;
-  List<bool?> get apiAccountStatus => _apiAccountStatus; // ✅ THÊM getter
+  List<bool?> get apiAccountStatus => _apiAccountStatus;
 
   Future<void> loadConfig() async {
     _isLoading = true;
@@ -66,11 +59,9 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // ✅ 1. Lưu config
       await _storageService.saveConfig(newConfig);
       _config = newConfig;
       
-      // ✅ 2. Tự động reinitialize services
       print('🔄 Reinitializing services with new config...');
       
       try {
@@ -131,15 +122,12 @@ class SettingsViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ THÊM: Test tất cả API accounts
-  Future<void> testAllApiAccounts(List<ApiAccount> accounts, String domain) async {  // ✅ THÊM domain
-    // Reset trạng thái
+  Future<void> testAllApiAccounts(List<ApiAccount> accounts, String domain) async {
     for (int i = 0; i < 3; i++) {
       _apiAccountStatus[i] = null;
     }
     notifyListeners();
 
-    // Test từng account
     for (int i = 0; i < accounts.length && i < 3; i++) {
       final account = accounts[i];
       
@@ -152,7 +140,7 @@ class SettingsViewModel extends ChangeNotifier {
         print('🔐 Testing API account ${i + 1}: ${account.username}');
         
         final apiService = BettingApiService();
-        final token = await apiService.authenticateAndGetToken(account, domain);  // ✅ Truyền domain
+        final token = await apiService.authenticateAndGetToken(account, domain);
         
         _apiAccountStatus[i] = (token != null && token.isNotEmpty);
         
@@ -177,7 +165,6 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
   }
   
-  // ✅ Reset trạng thái kết nối
   void resetConnectionStatus() {
     _isGoogleSheetsConnected = false;
     _isTelegramConnected = false;
@@ -185,29 +172,5 @@ class SettingsViewModel extends ChangeNotifier {
       _apiAccountStatus[i] = null;
     }
     notifyListeners();
-  }
-
-  Future<String> syncRSSData() async {
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      final backfillService = BackfillService(
-        sheetsService: _sheetsService,
-        rssService: _rssService,
-      );
-
-      final result = await backfillService.syncAllFromRSS();
-
-      _isLoading = false;
-      notifyListeners();
-
-      return result.message;
-    } catch (e) {
-      _errorMessage = 'Lỗi đồng bộ RSS: $e';
-      _isLoading = false;
-      notifyListeners();
-      return 'Lỗi đồng bộ RSS: $e';
-    }
   }
 }
