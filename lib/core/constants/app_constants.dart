@@ -1,10 +1,4 @@
 class AppConstants {
-  // RSS URLs
-  static const Map<String, String> rssSources = {
-    "Nam": "http://xskt.me/rssfeed/xsmn.rss",
-    "Trung": "http://xskt.me/rssfeed/xsmt.rss",
-    "Bắc": "http://xskt.me/rssfeed/xsmb.rss",
-  };
 
   static const List<String> mienOrder = ["Nam", "Trung", "Bắc"];
 

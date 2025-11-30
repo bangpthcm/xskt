@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 import 'win_history_viewmodel.dart';
 import 'win_history_screen.dart';
 import '../../../core/utils/number_utils.dart';
-// ✅ THÊM DÒNG NÀY
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/profit_chart.dart';
+import '../../../core/theme/theme_provider.dart';
 
 class WinSummaryScreen extends StatefulWidget {
   const WinSummaryScreen({super.key});
@@ -351,8 +351,8 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
                 label: '💰 Lợi nhuận',
                 value: NumberUtils.formatCurrency(stats.totalProfit),
                 valueColor: stats.totalProfit > 0
-                    ? Colors.green.shade400
-                    : Colors.red.shade400,
+                    ? ThemeProvider.profit
+                    : ThemeProvider.loss,
               ),
             ),
           ],
@@ -371,8 +371,8 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
                 label: '📅 Lợi/tháng',
                 value: NumberUtils.formatCurrency(stats.profitPerMonth),
                 valueColor: stats.profitPerMonth > 0
-                    ? Colors.green.shade400
-                    : Colors.red.shade400,
+                    ? ThemeProvider.profit
+                    : ThemeProvider.loss,
               ),
             ),
           ],

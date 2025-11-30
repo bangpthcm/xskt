@@ -207,6 +207,6 @@ class ProfitChart extends StatelessWidget {
   Color _getLineColor() {
     if (data.isEmpty) return Colors.grey;
     final totalProfit = data.fold<double>(0, (sum, e) => sum + e.profit);
-    return totalProfit >= 0 ? Colors.green : Colors.red;
+    return totalProfit >= 0 ? const Color(0xFF00897B) : Colors.red;
   }
 }
