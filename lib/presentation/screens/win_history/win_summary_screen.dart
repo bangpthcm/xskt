@@ -17,6 +17,9 @@ class WinSummaryScreen extends StatefulWidget {
 }
 
 class _WinSummaryScreenState extends State<WinSummaryScreen> {
+  // ✅ 2. Biến trạng thái để ẩn/hiện chi tiết
+  bool _isExpanded = false;
+
   @override
   void initState() {
     super.initState();
@@ -65,15 +68,20 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
-                // ✅ THÊM: Biểu đồ ở đầu
                 ProfitChart(data: viewModel.getProfitByMonth()),
                 const SizedBox(height: 16),
                 
+                // ✅ Card Tổng hợp (Tương tác để mở rộng)
                 _buildCombinedCard(viewModel),
+                
                 const SizedBox(height: 16),
-                _buildCycleCard(viewModel),
-                const SizedBox(height: 16),
-                _buildXienCard(viewModel),
+                
+                // ✅ Chỉ hiện các card dưới khi _isExpanded = true
+                if (_isExpanded) ...[
+                  _buildCycleCard(viewModel),
+                  const SizedBox(height: 16),
+                  _buildXienCard(viewModel),
+                ],
               ],
             ),
           );
@@ -82,7 +90,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
     );
   }
 
-  // ✅ 1. Card Tổng hợp
+  // ✅ 1 & 2. Card Tổng hợp có chức năng Expand
   Widget _buildCombinedCard(WinHistoryViewModel viewModel) {
     final stats = viewModel.getCombinedStats();
 
@@ -92,53 +100,48 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'TỔNG HỢP TẤT CẢ',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+      child: InkWell(
+        onTap: () {
+          // Toggle trạng thái mở rộng
+          setState(() {
+            _isExpanded = !_isExpanded;
+          });
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'TỔNG HỢP TẤT CẢ',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: ThemeProvider.accent,
+                      ),
                     ),
                   ),
-                ),
-                TextButton(
-                  onPressed: () => _navigateToDetail(0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Xem chi tiết',
-                        style: TextStyle(
-                          color: Colors.grey.shade400,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey.shade400,
-                        size: 20,
-                      ),
-                    ],
+                  // Icon chỉ thị trạng thái mở/đóng
+                  Icon(
+                    _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    color: ThemeProvider.accent,
                   ),
-                ),
-              ],
-            ),
-            const Divider(height: 24, color: Colors.grey),
-            _buildStatsGrid(stats),
-          ],
+                ],
+              ),
+              const Divider(height: 24, color: Colors.grey),
+              _buildStatsGrid(stats),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ✅ 2. Card Chu kỳ (3 phần con)
+  // ✅ 3. Card Chu kỳ (Bỏ nút Xem chi tiết, thêm onTap cho sub-section)
   Widget _buildCycleCard(WinHistoryViewModel viewModel) {
     final allCycleStats = viewModel.getAllCycleStats();
     final trungStats = viewModel.getTrungStats();
@@ -155,65 +158,39 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'CHU KỲ 00-99',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => _navigateToDetail(0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Xem chi tiết',
-                        style: TextStyle(
-                          color: Colors.grey.shade400,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey.shade400,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            const Text(
+              'CHU KỲ 00-99',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const Divider(height: 24, color: Colors.grey),
             
-            // Phần 1: Tất cả
+            // Phần 1: Tất cả -> Tab 0 (Ba miền)
             _buildCycleSubSection(
-              icon: Icons.select_all,
-              iconColor: const Color(0xFF5A9BD5),
+              iconColor: ThemeProvider.accent,
               title: 'TẤT CẢ',
               stats: allCycleStats,
+              onTap: () => _navigateToDetail(0), // Tab Ba miền
             ),
             const SizedBox(height: 12),
             
-            // Phần 2: Miền Trung
+            // Phần 2: Miền Trung -> Tab 1
             _buildCycleSubSection(
-              textIcon: 'T',
-              iconColor: const Color(0xFFB6771D),
+              iconColor: ThemeProvider.accent,
               title: 'MIỀN TRUNG',
               stats: trungStats,
+              onTap: () => _navigateToDetail(1), // Tab Trung
             ),
             const SizedBox(height: 12),
             
-            // Phần 3: Miền Bắc
+            // Phần 3: Miền Bắc -> Tab 2
             _buildCycleSubSection(
-              textIcon: 'B',
-              iconColor: const Color(0xFF4CAF50),
+              iconColor: ThemeProvider.accent,
               title: 'MIỀN BẮC',
               stats: bacStats,
+              onTap: () => _navigateToDetail(2), // Tab Bắc
             ),
           ],
         ),
@@ -221,7 +198,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
     );
   }
 
-  // ✅ 3. Card Xiên
+  // ✅ 3. Card Xiên (Bỏ nút header, tap vào nội dung -> Tab Xiên)
   Widget _buildXienCard(WinHistoryViewModel viewModel) {
     final stats = viewModel.getXienStats();
 
@@ -231,45 +208,76 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      child: InkWell(
+        onTap: () => _navigateToDetail(3), // Tab Xiên
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: const [
+                  Expanded(
+                    child: Text(
+                      'CẶP XIÊN BẮC',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: ThemeProvider.accent,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: ThemeProvider.accent),
+                ],
+              ),
+              const Divider(height: 24, color: Colors.grey),
+              _buildStatsGrid(stats),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ✅ Widget phần con trong Chu kỳ (Thêm InkWell để bấm)
+  Widget _buildCycleSubSection({
+    IconData? icon,
+    String? textIcon,
+    required Color iconColor,
+    required String title,
+    required WinStats stats,
+    required VoidCallback onTap, // Thêm callback
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: iconColor.withOpacity(0.3),
+          ),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Expanded(
-                  child: Text(
-                    'CẶP XIÊN BẮC',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                TextButton(
-                  onPressed: () => _navigateToDetail(3),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Xem chi tiết',
-                        style: TextStyle(
-                          color: Colors.grey.shade400,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey.shade400,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                ),
+                const Spacer(),
+                const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
               ],
             ),
-            const Divider(height: 24, color: Colors.grey),
+            const SizedBox(height: 12),
             _buildStatsGrid(stats),
           ],
         ),
@@ -277,64 +285,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
     );
   }
 
-  // ✅ Widget phần con trong Chu kỳ
-  Widget _buildCycleSubSection({
-    IconData? icon,
-    String? textIcon,
-    required Color iconColor,
-    required String title,
-    required WinStats stats,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: iconColor.withOpacity(0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (textIcon != null)
-                SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: Center(
-                    child: Text(
-                      textIcon,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: iconColor,
-                        height: 1.0,
-                      ),
-                    ),
-                  ),
-                )
-              else if (icon != null)
-                Icon(icon, color: iconColor, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildStatsGrid(stats),
-        ],
-      ),
-    );
-  }
-
-  // ✅ Grid 2x2 hiển thị 4 chỉ số
+  // ✅ 1. Grid hiển thị (Thay đổi ROI -> Tiền lớn nhất)
   Widget _buildStatsGrid(WinStats stats) {
     return Column(
       children: [
@@ -352,7 +303,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
                 value: NumberUtils.formatCurrency(stats.totalProfit),
                 valueColor: stats.totalProfit > 0
                     ? ThemeProvider.profit
-                    : ThemeProvider.loss,
+                    : Colors.white,
               ),
             ),
           ],
@@ -361,9 +312,13 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
         Row(
           children: [
             Expanded(
+              // Thay đổi: ROI TB -> Tiền lớn nhất
               child: _buildStatItem(
-                label: '📈 ROI TB',
-                value: '${stats.avgROI.toStringAsFixed(1)}%',
+                label: '💎 Tổng vốn đã dùng', 
+                value: NumberUtils.formatCurrency(stats.maxBet),
+                valueColor: stats.maxBet > 0
+                    ? ThemeProvider.loss
+                    : Colors.white,
               ),
             ),
             Expanded(
@@ -372,7 +327,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
                 value: NumberUtils.formatCurrency(stats.profitPerMonth),
                 valueColor: stats.profitPerMonth > 0
                     ? ThemeProvider.profit
-                    : ThemeProvider.loss,
+                    : Colors.white,
               ),
             ),
           ],
@@ -381,7 +336,6 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
     );
   }
 
-  // ✅ Widget hiển thị 1 chỉ số
   Widget _buildStatItem({
     required String label,
     required String value,
@@ -410,7 +364,6 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
     );
   }
 
-  // ✅ Navigation đến trang chi tiết
   void _navigateToDetail(int initialTab) {
     Navigator.push(
       context,

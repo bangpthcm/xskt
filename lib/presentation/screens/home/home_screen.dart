@@ -6,7 +6,7 @@ import 'home_viewmodel.dart';
 import '../betting/betting_viewmodel.dart';
 import '../../../data/models/betting_row.dart';
 import '../../../core/utils/number_utils.dart';
-import '../../../core/theme/theme_provider.dart'; // ✅ Import ThemeProvider
+import '../../../core/theme/theme_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -187,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kết quả XS'),
+        title: Text('Kết quả XS', style: TextStyle(color: Colors.white)),
         actions: [
           Consumer<BettingViewModel>(
             builder: (context, viewModel, child) {
@@ -195,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               return Stack(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.table_chart),
+                    icon: Icon(Icons.table_chart, color: totalRows > 0 ? Theme.of(context).primaryColor.withOpacity(0.5) : Theme.of(context).primaryColor.withOpacity(0.1)),
                     tooltip: 'Xem bảng tóm tắt',
                     onPressed: totalRows > 0 ? () => _showSummaryTable(context, viewModel) : null,
                   ),

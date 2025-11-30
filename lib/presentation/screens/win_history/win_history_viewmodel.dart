@@ -1,6 +1,7 @@
 // lib/presentation/screens/win_history/win_history_viewmodel.dart
 
 import 'package:flutter/material.dart';
+import 'dart:math'; // Import để dùng hàm max
 import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/xien_win_history.dart';
 import '../../../data/services/win_tracking_service.dart';
@@ -8,7 +9,6 @@ import '../../../data/services/win_tracking_service.dart';
 class WinHistoryViewModel extends ChangeNotifier {
   final WinTrackingService _trackingService;
 
-  // Đã xóa AutoCheckService khỏi constructor
   WinHistoryViewModel({
     required WinTrackingService trackingService,
   }) : _trackingService = trackingService;
@@ -20,8 +20,6 @@ class WinHistoryViewModel extends ChangeNotifier {
   List<XienWinHistory> _xienHistory = [];
   List<CycleWinHistory> _trungHistory = [];
   List<CycleWinHistory> _bacHistory = [];
-  
-  // Đã xóa biến _lastCheckResult
 
   static const int _pageSize = 50;
   bool _hasMoreCycle = true;
@@ -293,100 +291,36 @@ class WinHistoryViewModel extends ChangeNotifier {
     }
   }
 
-  // ĐÃ XÓA checkSpecificDate()
-  // ĐÃ XÓA checkYesterday()
-
   void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
 
+  // ===================== LOGIC THỐNG KÊ (ĐÃ CẬP NHẬT MAX BET) =====================
+
   /// Tính tổng thống kê chu kỳ
   WinStats getCycleStats() {
-    final wins = _cycleHistory.where((h) => h.isWin).toList();
-    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
-    final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
-        : 0.0;
-    
-    final months = _calculateMonths(_cycleHistory.cast<dynamic>());
-    final profitPerMonth = months > 0 ? totalProfit / months : 0.0;
-
-    return WinStats(
-      totalWins: wins.length,
-      totalProfit: totalProfit,
-      totalBet: totalBet,
-      avgROI: avgROI,
-      overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
-      profitPerMonth: profitPerMonth,
-    );
+    return _calculateStats(_cycleHistory.cast<dynamic>());
   }
 
   /// Tính tổng thống kê xiên
   WinStats getXienStats() {
-    final wins = _xienHistory.where((h) => h.isWin).toList();
-    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
-    final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
-        : 0.0;
-
-    final months = _calculateMonths(_xienHistory.cast<dynamic>());
-    final profitPerMonth = months > 0 ? totalProfit / months : 0.0;
-
-    return WinStats(
-      totalWins: wins.length,
-      totalProfit: totalProfit,
-      totalBet: totalBet,
-      avgROI: avgROI,
-      overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
-      profitPerMonth: profitPerMonth,
-    );
+    return _calculateStats(_xienHistory.cast<dynamic>());
   }
 
   /// Tính thống kê Trung
   WinStats getTrungStats() {
-    final wins = _trungHistory.where((h) => h.isWin).toList();
-    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
-    final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
-        : 0.0;
-
-    final months = _calculateMonths(_trungHistory.cast<dynamic>());
-    final profitPerMonth = months > 0 ? totalProfit / months : 0.0;
-
-    return WinStats(
-      totalWins: wins.length,
-      totalProfit: totalProfit,
-      totalBet: totalBet,
-      avgROI: avgROI,
-      overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
-      profitPerMonth: profitPerMonth,
-    );
+    return _calculateStats(_trungHistory.cast<dynamic>());
   }
 
   /// Tính thống kê Bắc
   WinStats getBacStats() {
-    final wins = _bacHistory.where((h) => h.isWin).toList();
-    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
-    final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
-        : 0.0;
+    return _calculateStats(_bacHistory.cast<dynamic>());
+  }
 
-    final months = _calculateMonths(_bacHistory.cast<dynamic>());
-    final profitPerMonth = months > 0 ? totalProfit / months : 0.0;
-
-    return WinStats(
-      totalWins: wins.length,
-      totalProfit: totalProfit,
-      totalBet: totalBet,
-      avgROI: avgROI,
-      overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
-      profitPerMonth: profitPerMonth,
-    );
+  /// ✅ "Tất cả" trong Chu kỳ (chính là getCycleStats, nhưng tách biệt tên gọi cho rõ)
+  WinStats getAllCycleStats() {
+    return _calculateStats(_cycleHistory.cast<dynamic>());
   }
 
   /// ✅ TỔNG HỢP THỰC SỰ: Cycle + Trung + Bắc + Xiên
@@ -397,74 +331,64 @@ class WinHistoryViewModel extends ChangeNotifier {
       ..._bacHistory,
       ..._xienHistory,
     ];
+    return _calculateStats(allHistories);
+  }
 
-    if (allHistories.isEmpty) {
+  /// Hàm chung để tính toán WinStats
+  /// Thay avgROI bằng maxBet (Tổng tiền bỏ ra lớn nhất trong các lần thắng)
+  WinStats _calculateStats(List<dynamic> histories) {
+    if (histories.isEmpty) {
       return WinStats(
         totalWins: 0,
         totalProfit: 0,
         totalBet: 0,
-        avgROI: 0,
+        maxBet: 0,
         overallROI: 0,
         profitPerMonth: 0,
       );
     }
 
-    final wins = allHistories.where((h) {
+    // Lọc ra danh sách các lần thắng
+    final wins = histories.where((h) {
       if (h is CycleWinHistory) return h.isWin;
       if (h is XienWinHistory) return h.isWin;
       return false;
     }).toList();
     
+    // Tính tổng lợi nhuận
     final totalProfit = wins.fold<double>(0, (sum, h) {
       if (h is CycleWinHistory) return sum + h.loiLo;
       if (h is XienWinHistory) return sum + h.loiLo;
       return sum;
     });
     
+    // Tính tổng tiền cược (của các ván thắng)
     final totalBet = wins.fold<double>(0, (sum, h) {
       if (h is CycleWinHistory) return sum + h.tongTienCuoc;
       if (h is XienWinHistory) return sum + h.tongTienCuoc;
       return sum;
     });
-    
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) {
-            if (h is CycleWinHistory) return sum + h.roi;
-            if (h is XienWinHistory) return sum + h.roi;
-            return sum;
-          }) / wins.length
-        : 0.0;
 
-    final months = _calculateMonths(allHistories);
+    // ✅ Logic mới: Tìm tổng tiền bỏ ra lớn nhất (Max Bet)
+    // Lấy danh sách tiền cược của các ván thắng
+    final betAmounts = wins.map((h) {
+      if (h is CycleWinHistory) return h.tongTienCuoc;
+      if (h is XienWinHistory) return h.tongTienCuoc;
+      return 0.0;
+    });
+
+    // Tìm giá trị lớn nhất (nếu danh sách không rỗng)
+    final maxBet = betAmounts.isEmpty ? 0.0 : betAmounts.reduce(max);
+
+    // Tính số tháng hoạt động để tính Lợi/tháng
+    final months = _calculateMonths(histories);
     final profitPerMonth = months > 0 ? totalProfit / months : 0.0;
 
     return WinStats(
       totalWins: wins.length,
       totalProfit: totalProfit,
       totalBet: totalBet,
-      avgROI: avgROI,
-      overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
-      profitPerMonth: profitPerMonth,
-    );
-  }
-
-  /// ✅ "Tất cả" trong Chu kỳ
-  WinStats getAllCycleStats() {
-    final wins = _cycleHistory.where((h) => h.isWin).toList();
-    final totalProfit = wins.fold<double>(0, (sum, h) => sum + h.loiLo);
-    final totalBet = wins.fold<double>(0, (sum, h) => sum + h.tongTienCuoc);
-    final avgROI = wins.isNotEmpty
-        ? wins.fold<double>(0, (sum, h) => sum + h.roi) / wins.length
-        : 0.0;
-
-    final months = _calculateMonths(_cycleHistory.cast<dynamic>());
-    final profitPerMonth = months > 0 ? totalProfit / months : 0.0;
-
-    return WinStats(
-      totalWins: wins.length,
-      totalProfit: totalProfit,
-      totalBet: totalBet,
-      avgROI: avgROI,
+      maxBet: maxBet, // Field mới
       overallROI: totalBet > 0 ? (totalProfit / totalBet) * 100 : 0,
       profitPerMonth: profitPerMonth,
     );
@@ -513,7 +437,7 @@ class WinHistoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// Lấy profit theo tháng
+  /// Lấy profit theo tháng cho biểu đồ
   List<MonthlyProfit> getProfitByMonth() {
     final allHistories = <dynamic>[
       ..._cycleHistory,
@@ -585,11 +509,12 @@ class WinHistoryViewModel extends ChangeNotifier {
   }
 }
 
+// ✅ Class WinStats đã cập nhật
 class WinStats {
   final int totalWins;
   final double totalProfit;
   final double totalBet;
-  final double avgROI;
+  final double maxBet; // Thay thế avgROI bằng maxBet
   final double overallROI;
   final double profitPerMonth;
 
@@ -597,14 +522,14 @@ class WinStats {
     required this.totalWins,
     required this.totalProfit,
     required this.totalBet,
-    required this.avgROI,
+    required this.maxBet, // Field mới
     required this.overallROI,
     required this.profitPerMonth,
   });
 
   @override
   String toString() {
-    return 'WinStats(wins: $totalWins, profit: $totalProfit, avgROI: $avgROI%, profitPerMonth: $profitPerMonth)';
+    return 'WinStats(wins: $totalWins, profit: $totalProfit, maxBet: $maxBet, profitPerMonth: $profitPerMonth)';
   }
 }
 

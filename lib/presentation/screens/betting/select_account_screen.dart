@@ -107,7 +107,7 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
   Widget build(BuildContext context) {
     if (widget.accounts.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Chọn tài khoản')),
+        appBar: AppBar(title: Text('Chọn tài khoản', style: TextStyle(color: Colors.white))),
         body: const Center(
           child: Text('Chưa có tài khoản được cấu hình trong Settings'),
         ),
@@ -116,7 +116,7 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chọn tài khoản Betting'),
+        title: Text('Chọn tài khoản Betting', style: TextStyle(color: Colors.white)),
         elevation: 0,
       ),
       body: ListView(
@@ -512,7 +512,7 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Betting - ${widget.accountUsername}'),
+        title: Text('Betting - ${widget.accountUsername}', style: TextStyle(color: Colors.white)),
         actions: [
           // ✅ NÚT XEM BẢNG TÓM TẮT
           Consumer<BettingViewModel>(
@@ -530,7 +530,7 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
               return Stack(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.table_chart),
+                    icon: Icon(Icons.table_chart, color: totalRows > 0 ? Theme.of(context).primaryColor.withOpacity(0.5) : Theme.of(context).primaryColor.withOpacity(0.1)),
                     tooltip: 'Xem bảng tóm tắt',
                     onPressed: totalRows > 0 
                         ? () => _showSummaryTable(context, viewModel)
