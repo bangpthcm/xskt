@@ -136,6 +136,13 @@ class AnalysisViewModel extends ChangeNotifier {
   bool get hasXienAlert => _ganPairInfo != null && _ganPairInfo!.daysGan > AnalysisThresholds.xien;
   bool get hasAnyAlert => hasXienAlert || (_tatCaAlertCache ?? false) || (_trungAlertCache ?? false) || (_bacAlertCache ?? false);
 
+  // ✅ Getter hiển thị thông tin dữ liệu cuối cùng cho Navbar
+  String get latestDataInfo {
+    if (_allResults.isEmpty) return "Miền ... ngày ...";
+    final last = _allResults.last; 
+    return "Miền ${last.mien} ngày ${last.ngay}";
+  }
+
   // --- ACTIONS ---
 
   void setSelectedMien(String mien) {
