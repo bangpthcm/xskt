@@ -36,10 +36,8 @@ class _BettingScreenState extends State<BettingScreen> {
         
         settingsVM.loadConfig().then((_) async {
           // 🛡️ BẢO VỆ: Init lại Sheets Service bằng config vừa load để chắc chắn nó không null
-          if (settingsVM.config != null) {
-             await sheetsService.initialize(settingsVM.config.googleSheets);
-          }
-
+           await sheetsService.initialize(settingsVM.config.googleSheets);
+        
           // Sau đó mới tải bảng cược
           if (mounted) {
              bettingVM.loadBettingTables();

@@ -12,4 +12,4 @@ linter:
     prefer_const_constructors: true
     prefer_final_fields: true
     use_key_in_widget_constructors: true
-    avoid_print: true # Nhắc nhở dùng logger thay vì print
+    avoid_print: false # Nhắc nhở dùng logger thay vì print

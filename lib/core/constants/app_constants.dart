@@ -9,9 +9,15 @@ class AppConstants {
   // Xiên betting constants
   static const double targetBudgetXien = 19000.0;
   static const double winMultiplierXien = 17.0;
-  static const int durationBase = 185;
+  static const int durationBase = 234;
   static const double startingProfit = 50.0;
   static const double finalProfit = 800.0;
+
+  // ✅ MIỀN BẮC & MIỀN TRUNG GAN
+  static const int bacGanDays = 44;     // ✅ Miền Bắc: 45 ngày
+  static const int trungGanDays = 31;   // ✅ Miền Trung: 31 ngày
+  static const int bacGanWinMultiplier = 99;
+  static const int trungGanWinMultiplier = 98;
 
   // Win multipliers
   static const int winMultiplier = 98;

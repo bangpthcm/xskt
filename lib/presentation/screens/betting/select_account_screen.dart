@@ -107,7 +107,7 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
   Widget build(BuildContext context) {
     if (widget.accounts.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: Text('Chọn tài khoản', style: TextStyle(color: Colors.white))),
+        appBar: AppBar(title: const Text('Chọn tài khoản', style: TextStyle(color: Colors.white))),
         body: const Center(
           child: Text('Chưa có tài khoản được cấu hình trong Settings'),
         ),
@@ -116,7 +116,7 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Chọn tài khoản Betting', style: TextStyle(color: Colors.white)),
+        title: const Text('Chọn tài khoản Betting', style: TextStyle(color: Colors.white)),
         elevation: 0,
       ),
       body: ListView(
@@ -512,7 +512,7 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Betting - ${widget.accountUsername}', style: TextStyle(color: Colors.white)),
+        title: Text('Betting - ${widget.accountUsername}', style: const TextStyle(color: Colors.white)),
         actions: [
           // ✅ NÚT XEM BẢNG TÓM TẮT
           Consumer<BettingViewModel>(

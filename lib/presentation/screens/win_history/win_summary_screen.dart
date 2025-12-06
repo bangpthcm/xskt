@@ -216,8 +216,8 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: const [
+              const Row(
+                children: [
                   Expanded(
                     child: Text(
                       'CẶP XIÊN BẮC',
@@ -242,7 +242,6 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
 
   // ✅ Widget phần con trong Chu kỳ (Thêm InkWell để bấm)
   Widget _buildCycleSubSection({
-    IconData? icon,
     String? textIcon,
     required Color iconColor,
     required String title,

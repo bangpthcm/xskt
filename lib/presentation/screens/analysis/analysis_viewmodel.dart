@@ -15,6 +15,7 @@ import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../data/services/budget_calculation_service.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/services/cached_data_service.dart';
+import '../../../core/constants/app_constants.dart';
 
 // --- ENUMS & CONSTANTS ---
 class AnalysisThresholds {
@@ -299,7 +300,7 @@ class AnalysisViewModel extends ChangeNotifier {
         targetCount: targetCount
       );
     } else {
-      final daysToAdd = type == BettingTableTypeEnum.trung ? 28 : 35;
+      final daysToAdd = type == BettingTableTypeEnum.trung ? AppConstants.trungGanDays : AppConstants.bacGanDays;
       return (
         startDate: startDate, 
         endDate: result.lastSeenDate.add(Duration(days: daysToAdd)), 
@@ -452,7 +453,7 @@ class AnalysisViewModel extends ChangeNotifier {
     try {
       final lastInfo = _getLastResultInfo();
       final start = lastInfo.date.add(const Duration(days: 1));
-      final end = lastInfo.date.add(const Duration(days: 175));
+      final end = lastInfo.date.add(const Duration(days: AppConstants.durationBase));
       final config = await _storageService.loadConfig();
       
       final budgetRes = await BudgetCalculationService(sheetsService: _sheetsService)
@@ -463,24 +464,23 @@ class AnalysisViewModel extends ChangeNotifier {
       List<BettingRow> table;
       try {
         final rawTable = await _bettingService.generateXienTable(ganInfo: _ganPairInfo!, startDate: start, xienBudget: budgetRes.budgetMax);
-        // ✅ FIX: Gán cứng 'Miền Bắc' bằng cách tạo object mới (vì không có copyWith)
+        
+        // ✅ FIX: Dùng factory method forXien() thay vì constructor trực tiếp
         table = rawTable.map<BettingRow>((row) {
-          return BettingRow(
+          return BettingRow.forXien(
             stt: row.stt,
             ngay: row.ngay,
-            mien: 'Miền Bắc', // Set trực tiếp
+            mien: 'Bắc',  // ✅ Xiên luôn là Bắc
             so: row.so,
-            soLo: row.soLo,
-            cuocSo: row.cuocSo,
             cuocMien: row.cuocMien,
             tongTien: row.tongTien,
-            loi1So: row.loi1So,
-            loi2So: row.loi2So,
+            loi: row.loi1So,
           );
         }).toList();
 
-      } catch (_) {
-         rethrow; 
+      } catch (e) {
+        print('❌ Error generating xien table: $e');
+        rethrow; 
       }
       
       await _saveXienTable(table);
@@ -543,11 +543,11 @@ class AnalysisViewModel extends ChangeNotifier {
     
     if (_selectedMien == 'Tất cả') {
       buffer.writeln('<b>Phân bổ theo miền:</b>');
-      ['Nam', 'Trung', 'Bắc'].forEach((m) {
+      for (var m in ['Nam', 'Trung', 'Bắc']) {
         if (_cycleResult!.mienGroups.containsKey(m)) {
           buffer.writeln('- Miền $m: ${_cycleResult!.mienGroups[m]!.join(", ")}');
         }
-      });
+      }
     }
     return buffer.toString();
   }
@@ -571,12 +571,12 @@ class AnalysisViewModel extends ChangeNotifier {
   String _buildNumberDetailMessage(NumberDetail detail) {
     final buffer = StringBuffer();
     buffer.writeln('<b>📊 CHI TIẾT SỐ ${detail.number} 📊</b>\n');
-    ['Nam', 'Trung', 'Bắc'].forEach((m) {
+    for (var m in ['Nam', 'Trung', 'Bắc']) {
       if (detail.mienDetails.containsKey(m)) {
         final d = detail.mienDetails[m]!;
         buffer.writeln('<b>Miền $m:</b> ${d.daysGan} ngày - Lần cuối: ${d.lastSeenDateStr}');
       }
-    });
+    }
     return buffer.toString();
   }
 }

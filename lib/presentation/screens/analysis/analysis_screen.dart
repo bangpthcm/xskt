@@ -340,7 +340,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Chi tiết số ${_selectedNumber}:',
+                'Chi tiết số $_selectedNumber:',
                 style: const TextStyle(
                   fontSize: 16, 
                   fontWeight: FontWeight.bold,

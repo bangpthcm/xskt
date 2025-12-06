@@ -21,7 +21,7 @@ import 'core/theme/theme_provider.dart';
 final GlobalKey<MainNavigationState> mainNavigationKey = GlobalKey<MainNavigationState>();
 
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -52,7 +52,7 @@ class _MyAppState extends State<MyApp> {
       
       // Khởi tạo các service quan trọng
       await Future.wait([
-        sheetsService.initialize(config!.googleSheets),
+        sheetsService.initialize(config.googleSheets),
         Future(() => telegramService.initialize(config!.telegram)),
       ]);
       

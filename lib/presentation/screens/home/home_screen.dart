@@ -187,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Kết quả XS', style: TextStyle(color: Colors.white)),
+        title: const Text('Kết quả XS', style: TextStyle(color: Colors.white)),
         actions: [
           Consumer<BettingViewModel>(
             builder: (context, viewModel, child) {

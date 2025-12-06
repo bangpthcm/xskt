@@ -10,14 +10,7 @@ import '../models/lottery_result.dart';
 import '../../core/constants/app_constants.dart';
 
 class BettingTableService {
-  // Constants riêng cho logic tính toán (giữ lại nếu không có trong AppConstants)
-  static const int _bacGanDurationBase = 35;
-  static const int _bacGanWinMultiplier = 99;
-  static const int _trungGanDurationBase = 30;
-  static const int _trungGanWinMultiplier = 98;
-
   /// Generate Xien Table
-  /// (Logic của Xiên khá đặc thù nên giữ nguyên, chỉ tinh chỉnh nhỏ)
   Future<List<BettingRow>> generateXienTable({
     required GanPairInfo ganInfo,
     required DateTime startDate,
@@ -26,51 +19,91 @@ class BettingTableService {
     final soNgayGan = ganInfo.daysGan;
     final durationDays = AppConstants.durationBase - soNgayGan;
 
-    if (durationDays <= 1) throw Exception('Số ngày gan quá lớn: $soNgayGan');
+    if (durationDays <= 1) {
+      throw Exception('Số ngày gan quá lớn: $soNgayGan (cần < ${AppConstants.durationBase})');
+    }
 
     final capSoMucTieu = ganInfo.randomPair;
     final rawTable = <BettingRow>[];
     
     double tongTien = 0.0;
     final profitStep = (AppConstants.finalProfit - AppConstants.startingProfit) / (durationDays - 1);
+    
+    // ✅ FIX: Khởi tạo tienCuocMien an toàn
     double tienCuocMien = AppConstants.startingProfit / (AppConstants.winMultiplierXien - 1);
+    if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
+      tienCuocMien = 100.0;
+    }
 
     // Bước 1: Tính toán thô
     final tempRows = <Map<String, dynamic>>[];
     for (int i = 0; i < durationDays; i++) {
       final currentProfitTarget = AppConstants.startingProfit + (profitStep * i);
+      
       if (i > 0) {
         tienCuocMien = (tongTien + currentProfitTarget) / (AppConstants.winMultiplierXien - 1);
+        // ✅ FIX: Kiểm tra NaN/Infinity
+        if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
+          tienCuocMien = 100.0;
+        }
       }
+      
       if (tempRows.isNotEmpty) {
-        tienCuocMien = max(tempRows.last['cuoc_mien'] as double, tienCuocMien);
+        final prevCuoc = tempRows.last['cuoc_mien'] as double? ?? 100.0;
+        tienCuocMien = max(prevCuoc, tienCuocMien);
       }
+      
       tienCuocMien = tienCuocMien.ceilToDouble();
-      tongTien += tienCuocMien;
+      
+      // ✅ FIX: Kiểm tra trước khi cộng
+      if (tienCuocMien.isFinite) {
+        tongTien += tienCuocMien;
+      } else {
+        throw Exception('Invalid tienCuocMien: $tienCuocMien');
+      }
       
       tempRows.add({
         'ngay': _formatDateWith2Digits(startDate.add(Duration(days: i))),
-        'cuoc': tienCuocMien,
+        'cuoc_mien': tienCuocMien,
         'tong': tongTien,
       });
     }
 
     // Bước 2: Chuẩn hóa theo ngân sách (Scaling)
-    final rawTotalCost = tempRows.last['tong'] as double;
-    if (rawTotalCost <= 0) throw Exception('Tổng tiền bằng 0');
+    final rawTotalCost = tempRows.last['tong'] as double? ?? 1.0;
+    if (rawTotalCost <= 0) {
+      throw Exception('Tổng tiền tính toán không hợp lệ: $rawTotalCost');
+    }
+    
     final scalingFactor = xienBudget / rawTotalCost;
+    
+    // ✅ FIX: Kiểm tra scaling factor
+    if (scalingFactor.isNaN || scalingFactor.isInfinite || scalingFactor <= 0) {
+      throw Exception('Invalid scaling factor: $scalingFactor (budget: $xienBudget, cost: $rawTotalCost)');
+    }
 
     for (int i = 0; i < tempRows.length; i++) {
       final row = tempRows[i];
-      double cuocMien = (row['cuoc'] as double) * scalingFactor;
+      
+      double cuocMien = (row['cuoc_mien'] as double? ?? 100.0) * scalingFactor;
       cuocMien = cuocMien.ceilToDouble();
+      
+      // ✅ FIX: Kiểm tra cuocMien
+      if (!cuocMien.isFinite) {
+        throw Exception('Invalid cuocMien at row $i: $cuocMien');
+      }
       
       double tongTienRow = i == 0 ? cuocMien : rawTable[i-1].tongTien + cuocMien;
       double loi = (cuocMien * AppConstants.winMultiplierXien) - tongTienRow;
       
+      // ✅ FIX: Kiểm tra tất cả giá trị
+      if (!tongTienRow.isFinite || !loi.isFinite) {
+        throw Exception('Invalid values at row $i: tongTien=$tongTienRow, loi=$loi');
+      }
+      
       rawTable.add(BettingRow.forXien(
         stt: i + 1,
-        ngay: row['ngay'],
+        ngay: row['ngay'] as String,
         mien: 'Bắc',
         so: capSoMucTieu.display,
         cuocMien: cuocMien,
@@ -78,6 +111,8 @@ class BettingTableService {
         loi: loi,
       ));
     }
+    
+    print('✅ Generated ${rawTable.length} xien rows (budget: ${NumberUtils.formatCurrency(xienBudget)})');
     return rawTable;
   }
 
@@ -120,7 +155,7 @@ class BettingTableService {
     );
   }
 
-  /// Generate Bắc Gan Table (Sử dụng hàm tối ưu chung)
+  // generateBacGanTable
   Future<List<BettingRow>> generateBacGanTable({
     required CycleAnalysisResult cycleResult,
     required DateTime startDate,
@@ -138,16 +173,16 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: _bacGanDurationBase,
-        winMultiplier: _bacGanWinMultiplier,
+        durationLimit: AppConstants.bacGanDays,  // ✅ Dùng constant
+        winMultiplier: AppConstants.bacGanWinMultiplier,
       ),
       configName: "Bắc Gan",
-      profitSearchRange: 22, // Range tìm kiếm sâu hơn cho Gan
+      profitSearchRange: 22,
       betSearchRange: 22,
     );
   }
 
-  /// Generate Trung Gan Table (Sử dụng hàm tối ưu chung)
+  // generateTrungGanTable
   Future<List<BettingRow>> generateTrungGanTable({
     required CycleAnalysisResult cycleResult,
     required DateTime startDate,
@@ -165,12 +200,12 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: _trungGanDurationBase,
-        winMultiplier: _trungGanWinMultiplier,
+        durationLimit: AppConstants.trungGanDays,  // ✅ Dùng constant
+        winMultiplier: AppConstants.trungGanWinMultiplier,
       ),
       configName: "Trung Gan",
-      profitSearchRange: 20,
-      betSearchRange: 20,
+      profitSearchRange: 22,
+      betSearchRange: 22,
     );
   }
 
@@ -357,7 +392,7 @@ class BettingTableService {
     int stt = 1;
     DateTime currentDate = startDate;
     bool isFirstDay = true;
-    final mienOrder = AppConstants.mienOrder; // ['Nam', 'Trung', 'Bắc']
+    const mienOrder = AppConstants.mienOrder; // ['Nam', 'Trung', 'Bắc']
 
     outerLoop:
     while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(const Duration(days: 1)))) {
