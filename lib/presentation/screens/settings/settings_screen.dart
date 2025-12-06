@@ -6,6 +6,7 @@ import 'settings_viewmodel.dart';
 import '../../../data/models/app_config.dart';
 import '../../../data/models/api_account.dart';
 import '../../../core/utils/number_utils.dart';
+import '../../../core/theme/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -386,7 +387,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildApiAccountStatus(SettingsViewModel viewModel, int index, String label) {
     final status = viewModel.apiAccountStatus[index];
-    final color = status == true ? Colors.green : (status == false ? Colors.red : Colors.grey);
+    final color = status == true ? ThemeProvider.profit : (status == false ? ThemeProvider.loss : Colors.grey);
     final icon = status == true ? Icons.check_circle : (status == false ? Icons.cancel : Icons.api);
     
     return Card(
@@ -403,7 +404,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildConnectionStatus(String label, bool isConnected, IconData icon) {
-    final color = isConnected ? Colors.green : Colors.grey;
+    final color = isConnected ? ThemeProvider.profit : Colors.grey;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -455,7 +456,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await viewModel.testTelegramConnection();
     await viewModel.testAllApiAccounts(apiAccounts, config.betting.domain);
     
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu và kiểm tra'), backgroundColor: Colors.green));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu và kiểm tra'), backgroundColor: ThemeProvider.profit));
   }
 
   String _formatToThousands(double value) => (value / 1000).toStringAsFixed(0);

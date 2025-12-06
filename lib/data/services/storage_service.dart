@@ -5,7 +5,6 @@ import '../models/app_config.dart';  // ✅ ADD
 
 class StorageService {
   static const String _configKey = 'app_config';
-  static const String _cacheKey = 'analysis_cache';
   
   // ✅ THÊM: Memory cache
   AppConfig? _configCache;

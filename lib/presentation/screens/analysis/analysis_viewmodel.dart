@@ -19,11 +19,11 @@ import '../../../core/constants/app_constants.dart';
 
 // --- ENUMS & CONSTANTS ---
 class AnalysisThresholds {
-  static const int tatca = 3;
+  static const int tatca = 4;
   static const int nam = 0;
-  static const int trung = 14;
-  static const int bac = 15;
-  static const int xien = 145;
+  static const int trung = 13;
+  static const int bac = 19;
+  static const int xien = 155;
 
   static String formatWithThreshold(int currentDays, String mien) {
     final threshold = {
@@ -288,14 +288,14 @@ class AnalysisViewModel extends ChangeNotifier {
       result.mienGroups.forEach((k, v) { if (v.contains(result.targetNumber)) targetMien = k; });
 
       final initialCount = _countMienOccurrences(result.lastSeenDate, startDate, targetMien);
-      var targetCount = 9;
+      var targetCount = AppConstants.cycleGanDays;
       
       final rows = _simulateTableRows(startDate, startIdx, targetMien, targetCount, initialCount);
       if (_checkIfExtraTurnNeeded(rows)) targetCount++;
 
       return (
         startDate: startDate, 
-        endDate: result.lastSeenDate.add(const Duration(days: 10)), 
+        endDate: result.lastSeenDate.add(const Duration(days: AppConstants.cycleGanDays)), 
         startMienIndex: startIdx, 
         targetCount: targetCount
       );

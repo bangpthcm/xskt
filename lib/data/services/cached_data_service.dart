@@ -23,7 +23,6 @@ class CachedDataService {
   
   // In-memory cache
   List<LotteryResult>? _cachedResults;
-  List<LotteryResult>? _minimalCachedResults; // ✅ NEW
   DateTime? _cacheTimestamp;
   
   CachedDataService({required GoogleSheetsService sheetsService})
@@ -44,7 +43,6 @@ class CachedDataService {
       final minimal = await _loadMinimalCache();
       if (minimal != null && minimal.isNotEmpty) {
         print('   ✅ Using minimal cache (${minimal.length} rows) - FAST!');
-        _minimalCachedResults = minimal;
         
         // ✅ Background load full data (không block)
         _loadFullDataInBackground();
@@ -300,7 +298,6 @@ class CachedDataService {
   /// ✅ Clear cache
   Future<void> clearCache() async {
     _cachedResults = null;
-    _minimalCachedResults = null;
     _cacheTimestamp = null;
     
     final prefs = await SharedPreferences.getInstance();

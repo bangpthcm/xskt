@@ -14,10 +14,12 @@ class AppConstants {
   static const double finalProfit = 800.0;
 
   // ✅ MIỀN BẮC & MIỀN TRUNG GAN
-  static const int bacGanDays = 44;     // ✅ Miền Bắc: 45 ngày
-  static const int trungGanDays = 31;   // ✅ Miền Trung: 31 ngày
+  static const int bacGanDays = 43;     // ✅ Miền Bắc: 45 ngày
+  static const int trungGanDays = 26;   // ✅ Miền Trung: 31 ngày
   static const int bacGanWinMultiplier = 99;
   static const int trungGanWinMultiplier = 98;
+  static const int cycleGanDays = 10;   // ✅ Miền Trung: 31 ngày
+  static const int cycleGanWinMultiplier = 98;
 
   // Win multipliers
   static const int winMultiplier = 98;

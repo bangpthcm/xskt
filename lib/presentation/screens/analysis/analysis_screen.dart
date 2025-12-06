@@ -9,6 +9,8 @@ import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../app.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../../data/models/number_detail.dart';
+import '../../../core/theme/theme_provider.dart';
+import '../../../core/constants/app_constants.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -81,12 +83,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const Icon(Icons.error_outline, size: 64, color: ThemeProvider.loss),
                   const SizedBox(height: 16),
                   Text(
                     viewModel.errorMessage!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
+                    style: const TextStyle(color: ThemeProvider.loss),
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
@@ -155,7 +157,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: Colors.red,
+                              color: ThemeProvider.loss,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 1),
                             ),
@@ -413,7 +415,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: Colors.red,
+                              color: ThemeProvider.loss,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 1),
                             ),
@@ -443,7 +445,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/${AnalysisThresholds.xien} ngày'),
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/${AnalysisThresholds.xien} - ${AppConstants.durationBase}ngày'),
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
@@ -542,7 +544,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        color: ThemeProvider.loss,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 1),
                       ),
@@ -613,7 +615,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Tạo bảng cược thành công!'),
-                      backgroundColor: Colors.green,
+                      backgroundColor: ThemeProvider.profit,
                       duration: Duration(seconds: 2),
                     ),
                   );
@@ -660,7 +662,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Tạo bảng cược thành công!'),
-                      backgroundColor: Colors.green,
+                      backgroundColor: ThemeProvider.profit,
                       duration: Duration(seconds: 2),
                     ),
                   );
@@ -703,8 +705,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       viewModel.errorMessage ?? 'Gửi thành công!',
                     ),
                     backgroundColor: viewModel.errorMessage != null
-                        ? Colors.red
-                        : Colors.green,
+                        ? ThemeProvider.loss
+                        : ThemeProvider.profit,
                   ),
                 );
               }
@@ -739,8 +741,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       viewModel.errorMessage ?? 'Gửi thành công!',
                     ),
                     backgroundColor: viewModel.errorMessage != null
-                        ? Colors.red
-                        : Colors.green,
+                        ? ThemeProvider.loss
+                        : ThemeProvider.profit,
                   ),
                 );
               }
@@ -797,7 +799,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Tạo bảng cược Trung gan thành công!'),
-                      backgroundColor: Colors.green,
+                      backgroundColor: ThemeProvider.profit,
                       duration: Duration(seconds: 2),
                     ),
                   );
@@ -861,7 +863,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Tạo bảng cược Bắc gan thành công!'),
-                      backgroundColor: Colors.green,
+                      backgroundColor: ThemeProvider.profit,
                       duration: Duration(seconds: 2),
                     ),
                   );
@@ -881,105 +883,4 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  Future<void> _sendNumberDetailToTelegram(
-    BuildContext context,
-    AnalysisViewModel viewModel,
-    dynamic numberDetail,
-  ) async {
-    await viewModel.sendNumberDetailToTelegram(numberDetail);
-    
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            viewModel.errorMessage ?? 'Gửi thành công!',
-          ),
-          backgroundColor: viewModel.errorMessage != null
-              ? Colors.red
-              : Colors.green,
-        ),
-      );
-    }
-  }
-
-  Future<void> _createTableForNumberWithMien(
-    BuildContext context,
-    AnalysisViewModel viewModel,
-    String number,
-  ) async {
-     // ... (Giữ nguyên logic của hàm này) ...
-     // Code đã được cung cấp trong phản hồi trước
-     print('🎯 Creating table for number: $number');
-     final selectedMien = viewModel.selectedMien;
-     String tableDisplayName;
-     if (selectedMien == 'Bắc') {
-      tableDisplayName = 'Miền Bắc';
-    } else if (selectedMien == 'Trung') {
-      tableDisplayName = 'Miền Trung';
-    } else {
-      tableDisplayName = 'Chu kỳ (Tất cả)';
-    }
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: Text(
-          'Tạo bảng cược $tableDisplayName cho số $number?\n\n'
-          'Bảng cược hiện tại sẽ bị xóa và thay thế.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Tạo'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-
-    try {
-      final config = context.read<SettingsViewModel>().config;
-      if (selectedMien == 'Bắc') {
-        await viewModel.createBacGanBettingTable(number, config);
-      } else if (selectedMien == 'Trung') {
-        await viewModel.createTrungGanBettingTable(number, config);
-      } else {
-        await viewModel.createCycleBettingTable(number, config);
-      }
-      if (context.mounted) {
-        Navigator.pop(context);
-        if (viewModel.errorMessage == null) {
-          await context.read<BettingViewModel>().loadBettingTables();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Tạo bảng cược thành công!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-          await Future.delayed(const Duration(milliseconds: 300));
-          if (context.mounted) {
-            mainNavigationKey.currentState?.switchToTab(1);
-          }
-        }
-      }
-    } catch (e) {
-      if (context.mounted) Navigator.pop(context);
-      print('❌ Error: $e');
-    }
-  }
 }

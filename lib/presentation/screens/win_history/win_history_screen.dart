@@ -12,9 +12,9 @@ class WinHistoryScreen extends StatefulWidget {
   final int initialTab;
 
   const WinHistoryScreen({
-    Key? key,
+    super.key,
     this.initialTab = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<WinHistoryScreen> createState() => _WinHistoryScreenState();

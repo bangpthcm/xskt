@@ -1,5 +1,6 @@
 // lib/presentation/screens/win_history/win_summary_screen.dart
 
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'win_history_viewmodel.dart';
@@ -242,7 +243,6 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
 
   // ✅ Widget phần con trong Chu kỳ (Thêm InkWell để bấm)
   Widget _buildCycleSubSection({
-    String? textIcon,
     required Color iconColor,
     required String title,
     required WinStats stats,
