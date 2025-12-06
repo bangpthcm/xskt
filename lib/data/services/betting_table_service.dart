@@ -17,10 +17,10 @@ class BettingTableService {
     required double xienBudget,
   }) async {
     final soNgayGan = ganInfo.daysGan;
-    final durationDays = AppConstants.durationBase - soNgayGan;
+    final durationDays = AppConstants.durationBaseXien - soNgayGan;
 
     if (durationDays <= 1) {
-      throw Exception('Số ngày gan quá lớn: $soNgayGan (cần < ${AppConstants.durationBase})');
+      throw Exception('Số ngày gan quá lớn: $soNgayGan (cần < ${AppConstants.durationBaseXien})');
     }
 
     final capSoMucTieu = ganInfo.randomPair;
@@ -173,7 +173,7 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: AppConstants.bacGanDays,  // ✅ Dùng constant
+        durationLimit: AppConstants.durationBaseBac,  // ✅ Dùng constant
         winMultiplier: AppConstants.bacGanWinMultiplier,
       ),
       configName: "Bắc Gan",
@@ -200,7 +200,7 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: AppConstants.trungGanDays,  // ✅ Dùng constant
+        durationLimit: AppConstants.durationBaseTrung,  // ✅ Dùng constant
         winMultiplier: AppConstants.trungGanWinMultiplier,
       ),
       configName: "Trung Gan",

@@ -7,7 +7,7 @@ analyzer:
 linter:
   rules:
     # Báo lỗi biến/hàm không dùng
-    unused_import: true
+    unnecessary_import: true
     unused_local_variable: true
     unused_catch_stack: true
     avoid_unused_constructor_parameters: true

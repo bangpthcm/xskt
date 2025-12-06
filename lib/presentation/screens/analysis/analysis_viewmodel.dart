@@ -295,19 +295,19 @@ class AnalysisViewModel extends ChangeNotifier {
       result.mienGroups.forEach((k, v) { if (v.contains(result.targetNumber)) targetMien = k; });
 
       final initialCount = _countMienOccurrences(result.lastSeenDate, startDate, targetMien);
-      var targetCount = AppConstants.cycleGanDays;
+      var targetCount = AppConstants.durationBaseCycle;
       
       final rows = _simulateTableRows(startDate, startIdx, targetMien, targetCount, initialCount);
       if (_checkIfExtraTurnNeeded(rows)) targetCount++;
 
       return (
         startDate: startDate, 
-        endDate: result.lastSeenDate.add(const Duration(days: AppConstants.cycleGanDays)), 
+        endDate: result.lastSeenDate.add(const Duration(days: AppConstants.durationBaseCycle)), 
         startMienIndex: startIdx, 
         targetCount: targetCount
       );
     } else {
-      final daysToAdd = type == BettingTableTypeEnum.trung ? AppConstants.trungGanDays : AppConstants.bacGanDays;
+      final daysToAdd = type == BettingTableTypeEnum.trung ? AppConstants.durationBaseTrung : AppConstants.durationBaseBac;
       return (
         startDate: startDate, 
         endDate: result.lastSeenDate.add(Duration(days: daysToAdd)), 
@@ -460,7 +460,7 @@ class AnalysisViewModel extends ChangeNotifier {
     try {
       final lastInfo = _getLastResultInfo();
       final start = lastInfo.date.add(const Duration(days: 1));
-      final end = lastInfo.date.add(const Duration(days: AppConstants.durationBase));
+      final end = lastInfo.date.add(const Duration(days: AppConstants.durationBaseXien));
       final config = await _storageService.loadConfig();
       
       final budgetRes = await BudgetCalculationService(sheetsService: _sheetsService)

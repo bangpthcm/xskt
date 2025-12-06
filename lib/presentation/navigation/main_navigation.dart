@@ -29,6 +29,12 @@ class MainNavigationState extends State<MainNavigation>
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AnalysisViewModel>().loadAnalysis();
+      }
+    });
   }
 
   @override
@@ -106,17 +112,16 @@ class MainNavigationState extends State<MainNavigation>
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label, AnalysisViewModel vm) {
+Widget _buildNavItem(int index, IconData icon, String label, AnalysisViewModel vm) {
     final isSelected = _tabController.index == index;
     // Màu active là Accent (Vàng), inactive là TextSecondary (Xám)
     final color = isSelected ? ThemeProvider.accent : ThemeProvider.textSecondary;
 
     return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => switchToTab(index),
-          // ✅ InkWell bao trùm toàn bộ chiều cao cột, ripple sẽ lan lên cả vùng text
+      child: BouncingButton(
+        onTap: () => switchToTab(index),
+        child: Container(
+          color: Colors.transparent, // Vùng nhận sự kiện chạm full chiều cao
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -167,5 +172,69 @@ class MainNavigationState extends State<MainNavigation>
         curve: Curves.easeInOutCubic,
       );
     }
+  }
+}
+
+// ✅ Widget mới: Tạo hiệu ứng đàn hồi (thu nhỏ khi nhấn, bật lại khi thả)
+class BouncingButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+
+  const BouncingButton({super.key, required this.child, required this.onTap});
+
+  @override
+  State<BouncingButton> createState() => _BouncingButtonState();
+}
+
+class _BouncingButtonState extends State<BouncingButton> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100), // Thời gian co lại rất nhanh
+      reverseDuration: const Duration(milliseconds: 100),
+    );
+    
+    // Co lại còn 90% kích thước
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails details) {
+    _controller.forward(); // Bắt đầu co lại
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    _controller.reverse(); // Bật trở lại
+    widget.onTap(); // Thực hiện hành động
+  }
+
+  void _onTapCancel() {
+    _controller.reverse(); // Bật trở lại nếu trượt tay ra ngoài
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      behavior: HitTestBehavior.opaque, // Đảm bảo bắt sự kiện trên toàn vùng
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: widget.child,
+      ),
+    );
   }
 }

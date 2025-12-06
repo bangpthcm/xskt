@@ -53,7 +53,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _apiAccountControllers.add({
         'username': TextEditingController(),
         'password': TextEditingController(),
-        'domain': TextEditingController(),
       });
     }
   }
@@ -102,16 +101,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
-                _buildBettingConfigSection(),
-                const SizedBox(height: 10),
-                _buildApiAccountsSection(),
-                const SizedBox(height: 10),
                 _buildGoogleSheetsSection(),
                 const SizedBox(height: 10),
                 _buildTelegramSection(),
                 const SizedBox(height: 10),
+                _buildApiAccountsSection(),
+                const SizedBox(height: 10),
                 _buildBudgetSection(),
-                // ✅ Đã xóa _buildAdvancedSection
                 const SizedBox(height: 10),
                 if (viewModel.errorMessage != null)
                   _buildErrorCard(viewModel.errorMessage!),
@@ -174,29 +170,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildBettingConfigSection() {
+  // ✅ UPDATED: Đổi tên thành "Cấu hình sin88" và thêm Domain input
+  Widget _buildApiAccountsSection() {
     return Card(
       child: ExpansionTile(
         leading: Icon(Icons.language, color: Theme.of(context).primaryColor),
-        title: const Text('Cấu hình Betting', style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('Domain chung', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        title: const Text('Cấu hình sin88', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Domain và tài khoản', style: TextStyle(fontSize: 12, color: Colors.grey)),
         initiallyExpanded: false,
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
-            child: TextFormField(
-              controller: _bettingDomainController,
-              decoration: const InputDecoration(
-                labelText: 'Domain/Host',
-                hintText: 'sin88.pro',
-                prefixIcon: Icon(Icons.language),
-              ),
-              validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập domain' : null,
+            child: Column(
+              children: [
+                // ✅ THÊM: Domain input ở đầu
+                TextFormField(
+                  controller: _bettingDomainController,
+                  decoration: const InputDecoration(
+                    labelText: 'Domain/Host',
+                    hintText: 'sin88.pro',
+                    prefixIcon: Icon(Icons.language),
+                    helperText: 'Domain chung cho tất cả tài khoản',
+                  ),
+                  validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập domain' : null,
+                ),
+                const SizedBox(height: 24),
+                const Divider(height: 1),
+                const SizedBox(height: 24),
+                
+                // ✅ Tài khoản 1
+                ..._buildApiAccountFields(0, 'Tài khoản 1'),
+                const Divider(height: 32),
+                
+                // ✅ Tài khoản 2
+                ..._buildApiAccountFields(1, 'Tài khoản 2'),
+                const Divider(height: 32),
+                
+                // ✅ Tài khoản 3
+                ..._buildApiAccountFields(2, 'Tài khoản 3'),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildApiAccountFields(int index, String label) {
+    return [
+      Align(alignment: Alignment.centerLeft, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+      const SizedBox(height: 12),
+      TextFormField(
+        controller: _apiAccountControllers[index]['username'],
+        decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.person)),
+      ),
+      const SizedBox(height: 8),
+      TextFormField(
+        controller: _apiAccountControllers[index]['password'],
+        obscureText: true,
+        decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock)),
+      ),
+    ];
   }
 
   Widget _buildBudgetSection() {
@@ -293,47 +327,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Text('${NumberUtils.formatCurrency(value)} đ', style: TextStyle(fontWeight: FontWeight.bold, color: color)),
       ],
     );
-  }
-
-  Widget _buildApiAccountsSection() {
-    return Card(
-      child: ExpansionTile(
-        leading: Icon(Icons.vpn_key, color: Theme.of(context).primaryColor),
-        title: const Text('Tài khoản API', style: TextStyle(fontWeight: FontWeight.w600)),
-        initiallyExpanded: false,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                ..._buildApiAccountFields(0, 'Tài khoản 1'),
-                const Divider(height: 32),
-                ..._buildApiAccountFields(1, 'Tài khoản 2'),
-                const Divider(height: 32),
-                ..._buildApiAccountFields(2, 'Tài khoản 3'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildApiAccountFields(int index, String label) {
-    return [
-      Align(alignment: Alignment.centerLeft, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-      const SizedBox(height: 12),
-      TextFormField(
-        controller: _apiAccountControllers[index]['username'],
-        decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.person)),
-      ),
-      const SizedBox(height: 8),
-      TextFormField(
-        controller: _apiAccountControllers[index]['password'],
-        obscureText: true,
-        decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock)),
-      ),
-    ];
   }
 
   Widget _buildErrorCard(String error) {

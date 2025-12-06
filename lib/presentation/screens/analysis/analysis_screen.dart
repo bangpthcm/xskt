@@ -32,7 +32,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.read<AnalysisViewModel>().loadAnalysis();
+        final viewModel = context.read<AnalysisViewModel>();
+        if (viewModel.cycleResult == null) {
+          viewModel.loadAnalysis();
+        }
       }
     });
   }
@@ -445,7 +448,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/${AnalysisThresholds.xien} - ${AppConstants.durationBase}ngày'),
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/${AnalysisThresholds.xien} - ${AppConstants.durationBaseXien}ngày'),
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
