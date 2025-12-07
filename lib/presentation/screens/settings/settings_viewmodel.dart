@@ -36,6 +36,37 @@ class SettingsViewModel extends ChangeNotifier {
   bool get isTelegramConnected => _isTelegramConnected;
   List<bool?> get apiAccountStatus => _apiAccountStatus;
 
+  // THÊM CONSTANT cho validation
+  static const int _minCycleDuration = 5;     // > 4
+  static const int _minTrungDuration = 14;    // > 13
+  static const int _minBacDuration = 20;      // > 19
+  static const int _minXienDuration = 156;    // > 155
+
+  // THÊM METHOD VALIDATION:
+  String? _validateDurationConfig(DurationConfig config) {
+    // Validate Chu kỳ
+    if (config.cycleDuration < _minCycleDuration) {
+      return 'Chu kỳ phải > 4 ngày (hiện: ${config.cycleDuration})';
+    }
+
+    // Validate Miền Trung
+    if (config.trungDuration < _minTrungDuration) {
+      return 'Miền Trung phải > 13 ngày (hiện: ${config.trungDuration})';
+    }
+
+    // Validate Miền Bắc
+    if (config.bacDuration < _minBacDuration) {
+      return 'Miền Bắc phải > 19 ngày (hiện: ${config.bacDuration})';
+    }
+
+    // Validate Xiên
+    if (config.xienDuration < _minXienDuration) {
+      return 'Xiên phải > 155 ngày (hiện: ${config.xienDuration})';
+    }
+
+    return null; // Valid
+  }
+
   Future<void> loadConfig() async {
     _isLoading = true;
     notifyListeners();
@@ -59,6 +90,15 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // ✅ VALIDATE Duration config
+      final durationError = _validateDurationConfig(newConfig.duration);
+      if (durationError != null) {
+        _errorMessage = durationError;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
       await _storageService.saveConfig(newConfig);
       _config = newConfig;
       

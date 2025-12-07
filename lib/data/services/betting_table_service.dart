@@ -15,12 +15,13 @@ class BettingTableService {
     required GanPairInfo ganInfo,
     required DateTime startDate,
     required double xienBudget,
+    required int durationBase,  // ✅ THÊM parameter (thay vì dùng constant)
   }) async {
     final soNgayGan = ganInfo.daysGan;
-    final durationDays = AppConstants.durationBaseXien - soNgayGan;
+    final durationDays = durationBase - soNgayGan;  // ✅ DÙNG parameter
 
     if (durationDays <= 1) {
-      throw Exception('Số ngày gan quá lớn: $soNgayGan (cần < ${AppConstants.durationBaseXien})');
+      throw Exception('Số ngày gan quá lớn: $soNgayGan (cần < $durationBase)');
     }
 
     final capSoMucTieu = ganInfo.randomPair;
@@ -29,7 +30,6 @@ class BettingTableService {
     double tongTien = 0.0;
     final profitStep = (AppConstants.finalProfit - AppConstants.startingProfit) / (durationDays - 1);
     
-    // ✅ FIX: Khởi tạo tienCuocMien an toàn
     double tienCuocMien = AppConstants.startingProfit / (AppConstants.winMultiplierXien - 1);
     if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
       tienCuocMien = 100.0;
@@ -42,7 +42,6 @@ class BettingTableService {
       
       if (i > 0) {
         tienCuocMien = (tongTien + currentProfitTarget) / (AppConstants.winMultiplierXien - 1);
-        // ✅ FIX: Kiểm tra NaN/Infinity
         if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
           tienCuocMien = 100.0;
         }
@@ -55,7 +54,6 @@ class BettingTableService {
       
       tienCuocMien = tienCuocMien.ceilToDouble();
       
-      // ✅ FIX: Kiểm tra trước khi cộng
       if (tienCuocMien.isFinite) {
         tongTien += tienCuocMien;
       } else {
@@ -69,7 +67,7 @@ class BettingTableService {
       });
     }
 
-    // Bước 2: Chuẩn hóa theo ngân sách (Scaling)
+    // Bước 2: Chuẩn hóa theo ngân sách
     final rawTotalCost = tempRows.last['tong'] as double? ?? 1.0;
     if (rawTotalCost <= 0) {
       throw Exception('Tổng tiền tính toán không hợp lệ: $rawTotalCost');
@@ -77,7 +75,6 @@ class BettingTableService {
     
     final scalingFactor = xienBudget / rawTotalCost;
     
-    // ✅ FIX: Kiểm tra scaling factor
     if (scalingFactor.isNaN || scalingFactor.isInfinite || scalingFactor <= 0) {
       throw Exception('Invalid scaling factor: $scalingFactor (budget: $xienBudget, cost: $rawTotalCost)');
     }
@@ -88,7 +85,6 @@ class BettingTableService {
       double cuocMien = (row['cuoc_mien'] as double? ?? 100.0) * scalingFactor;
       cuocMien = cuocMien.ceilToDouble();
       
-      // ✅ FIX: Kiểm tra cuocMien
       if (!cuocMien.isFinite) {
         throw Exception('Invalid cuocMien at row $i: $cuocMien');
       }
@@ -96,7 +92,6 @@ class BettingTableService {
       double tongTienRow = i == 0 ? cuocMien : rawTable[i-1].tongTien + cuocMien;
       double loi = (cuocMien * AppConstants.winMultiplierXien) - tongTienRow;
       
-      // ✅ FIX: Kiểm tra tất cả giá trị
       if (!tongTienRow.isFinite || !loi.isFinite) {
         throw Exception('Invalid values at row $i: tongTien=$tongTienRow, loi=$loi');
       }
@@ -125,9 +120,9 @@ class BettingTableService {
     required double budgetMin,
     required double budgetMax,
     required List<LotteryResult> allResults,
-    required int maxMienCount, 
+    required int maxMienCount,
+    required int durationLimit,  // ✅ THÊM parameter
   }) async {
-    // Xác định miền mục tiêu
     String targetMien = 'Nam';
     for (final entry in cycleResult.mienGroups.entries) {
       if (entry.value.contains(cycleResult.targetNumber)) {
@@ -155,13 +150,14 @@ class BettingTableService {
     );
   }
 
-  // generateBacGanTable
+  /// Generate Bac Gan Table - CẬP NHẬT
   Future<List<BettingRow>> generateBacGanTable({
     required CycleAnalysisResult cycleResult,
     required DateTime startDate,
     required DateTime endDate,
     required double budgetMin,
     required double budgetMax,
+    required int durationLimit,  // ✅ THÊM parameter
   }) async {
     return _optimizeTableSearch(
       budgetMin: budgetMin,
@@ -173,7 +169,7 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: AppConstants.durationBaseBac,  // ✅ Dùng constant
+        durationLimit: durationLimit,  // ✅ DÙNG parameter
         winMultiplier: AppConstants.bacGanWinMultiplier,
       ),
       configName: "Bắc Gan",
@@ -182,13 +178,14 @@ class BettingTableService {
     );
   }
 
-  // generateTrungGanTable
+  /// Generate Trung Gan Table - CẬP NHẬT
   Future<List<BettingRow>> generateTrungGanTable({
     required CycleAnalysisResult cycleResult,
     required DateTime startDate,
     required DateTime endDate,
     required double budgetMin,
     required double budgetMax,
+    required int durationLimit,  // ✅ THÊM parameter
   }) async {
     return _optimizeTableSearch(
       budgetMin: budgetMin,
@@ -200,7 +197,7 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: AppConstants.durationBaseTrung,  // ✅ Dùng constant
+        durationLimit: durationLimit,  // ✅ DÙNG parameter
         winMultiplier: AppConstants.trungGanWinMultiplier,
       ),
       configName: "Trung Gan",

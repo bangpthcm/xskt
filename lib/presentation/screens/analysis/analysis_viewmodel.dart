@@ -70,15 +70,36 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
     required double max,
     required List<LotteryResult> results,
     required int maxCount,
+    required int durationLimit,  // ✅ THÊM parameter
   }) async {
     return switch (this) {
       BettingTableTypeEnum.tatca => await service.generateCycleTable(
-          cycleResult: result, startDate: start, endDate: end, startMienIndex: startIdx,
-          budgetMin: min, budgetMax: max, allResults: results, maxMienCount: maxCount),
+          cycleResult: result, 
+          startDate: start, 
+          endDate: end, 
+          startMienIndex: startIdx,
+          budgetMin: min, 
+          budgetMax: max, 
+          allResults: results, 
+          maxMienCount: maxCount,
+          durationLimit: durationLimit,  // ✅ PASS
+      ),
       BettingTableTypeEnum.trung => await service.generateTrungGanTable(
-          cycleResult: result, startDate: start, endDate: end, budgetMin: min, budgetMax: max),
+          cycleResult: result, 
+          startDate: start, 
+          endDate: end, 
+          budgetMin: min, 
+          budgetMax: max,
+          durationLimit: durationLimit,  // ✅ PASS
+      ),
       BettingTableTypeEnum.bac => await service.generateBacGanTable(
-          cycleResult: result, startDate: start, endDate: end, budgetMin: min, budgetMax: max),
+          cycleResult: result, 
+          startDate: start, 
+          endDate: end, 
+          budgetMin: min, 
+          budgetMax: max,
+          durationLimit: durationLimit,  // ✅ PASS
+      ),
     };
   }
 }
@@ -234,7 +255,7 @@ class AnalysisViewModel extends ChangeNotifier {
     _isLoading = true; _errorMessage = null; notifyListeners();
     try {
       final result = await _prepareCycleResult(type, number);
-      final dates = _calculateDateParameters(type, result);
+      final dates = _calculateDateParameters(type, result, config);  // ✅ PASS CONFIG
 
       final budgetService = BudgetCalculationService(sheetsService: _sheetsService);
       final budgetResult = await budgetService.calculateAvailableBudgetByEndDate(
@@ -285,7 +306,11 @@ class AnalysisViewModel extends ChangeNotifier {
   }
 
   ({DateTime startDate, DateTime endDate, int startMienIndex, int targetCount}) 
-  _calculateDateParameters(BettingTableTypeEnum type, CycleAnalysisResult result) {
+  _calculateDateParameters(
+    BettingTableTypeEnum type, 
+    CycleAnalysisResult result,
+    AppConfig config,  // ✅ THÊM parameter
+  ) {
     final lastInfo = _getLastResultInfo();
     final startDate = lastInfo.isLastBac ? lastInfo.date.add(const Duration(days: 1)) : lastInfo.date;
     final startIdx = lastInfo.isLastBac ? 0 : lastInfo.mienIndex + 1;
@@ -295,19 +320,19 @@ class AnalysisViewModel extends ChangeNotifier {
       result.mienGroups.forEach((k, v) { if (v.contains(result.targetNumber)) targetMien = k; });
 
       final initialCount = _countMienOccurrences(result.lastSeenDate, startDate, targetMien);
-      var targetCount = AppConstants.durationBaseCycle;
+      var targetCount = config.duration.cycleDuration;  // ✅ LẤY TỪ CONFIG
       
       final rows = _simulateTableRows(startDate, startIdx, targetMien, targetCount, initialCount);
       if (_checkIfExtraTurnNeeded(rows)) targetCount++;
 
       return (
         startDate: startDate, 
-        endDate: result.lastSeenDate.add(const Duration(days: AppConstants.durationBaseCycle)), 
+        endDate: result.lastSeenDate.add(Duration(days: config.duration.cycleDuration)),  // ✅ LẤY TỪ CONFIG
         startMienIndex: startIdx, 
         targetCount: targetCount
       );
     } else {
-      final daysToAdd = type == BettingTableTypeEnum.trung ? AppConstants.durationBaseTrung : AppConstants.durationBaseBac;
+      final daysToAdd = _getDurationForType(type, config);  // ✅ LẤY TỪ CONFIG
       return (
         startDate: startDate, 
         endDate: result.lastSeenDate.add(Duration(days: daysToAdd)), 
@@ -317,6 +342,18 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
+  int _getDurationForType(BettingTableTypeEnum type, AppConfig config) {
+    return switch (type) {
+      BettingTableTypeEnum.tatca => config.duration.cycleDuration,
+      BettingTableTypeEnum.trung => config.duration.trungDuration,
+      BettingTableTypeEnum.bac => config.duration.bacDuration,
+    };
+  }
+
+  int _getXienDuration(AppConfig config) {
+    return config.duration.xienDuration;
+  }
+
   Future<List<BettingRow>> _generateTableWithOptimization({
     required BettingTableTypeEnum type,
     required CycleAnalysisResult result,
@@ -324,49 +361,95 @@ class AnalysisViewModel extends ChangeNotifier {
     required double budgetMax,
     required AvailableBudgetResult budgetResult,
   }) async {
+    // ✅ LẤY CONFIG ĐỂ DÙNG DURATION
+    final config = await _storageService.loadConfig();
+    if (config == null) throw Exception('Config not found');
+
     try {
+      final durationLimit = _getDurationForType(type, config);
+
       return await type.generateTable(
-        service: _bettingService, result: result, start: dates.startDate, end: dates.endDate,
-        startIdx: dates.startMienIndex, min: budgetMax * 0.9, max: budgetMax,
-        results: _allResults, maxCount: dates.targetCount,
+        service: _bettingService, 
+        result: result, 
+        start: dates.startDate, 
+        end: dates.endDate,
+        startIdx: dates.startMienIndex, 
+        min: budgetMax * 0.9, 
+        max: budgetMax,
+        results: _allResults, 
+        maxCount: dates.targetCount,
+        durationLimit: durationLimit,  // ✅ PASS DURATION
       );
     } catch (_) {
       try {
+        final durationLimit = _getDurationForType(type, config);
+
         final hugeTable = await type.generateTable(
-          service: _bettingService, result: result, start: dates.startDate, end: dates.endDate,
-          startIdx: dates.startMienIndex, min: budgetMax, max: budgetMax * 100,
-          results: _allResults, maxCount: dates.targetCount,
+          service: _bettingService, 
+          result: result, 
+          start: dates.startDate, 
+          end: dates.endDate,
+          startIdx: dates.startMienIndex, 
+          min: budgetMax, 
+          max: budgetMax * 100,
+          results: _allResults, 
+          maxCount: dates.targetCount,
+          durationLimit: durationLimit,  // ✅ PASS DURATION
         );
         
-        final minRequired = await _findMinimumBudget(type, result, dates, hugeTable.last.tongTien);
+        final minRequired = await _findMinimumBudget(type, result, dates, hugeTable.last.tongTien, config);
         
         if (minRequired <= budgetMax) {
           return await type.generateTable(
-            service: _bettingService, result: result, start: dates.startDate, end: dates.endDate,
-            startIdx: dates.startMienIndex, min: minRequired * 0.95, max: minRequired,
-            results: _allResults, maxCount: dates.targetCount,
+            service: _bettingService, 
+            result: result, 
+            start: dates.startDate, 
+            end: dates.endDate,
+            startIdx: dates.startMienIndex, 
+            min: minRequired * 0.95, 
+            max: minRequired,
+            results: _allResults, 
+            maxCount: dates.targetCount,
+            durationLimit: durationLimit,  // ✅ PASS DURATION
           );
         }
         throw Exception('Cần tối thiểu ${NumberUtils.formatCurrency(minRequired)}');
       } catch (e) {
         if (e is BudgetInsufficientException) rethrow;
-        throw BudgetInsufficientException(tableName: type.displayName, budgetResult: budgetResult, minimumRequired: 0);
+        throw BudgetInsufficientException(
+          tableName: type.displayName, 
+          budgetResult: budgetResult, 
+          minimumRequired: 0,
+        );
       }
     }
   }
 
+  // ✅ CẬP NHẬT _findMinimumBudget signature
   Future<double> _findMinimumBudget(
-    BettingTableTypeEnum type, CycleAnalysisResult result, dynamic dates, double maxEstimate
+    BettingTableTypeEnum type, 
+    CycleAnalysisResult result, 
+    dynamic dates, 
+    double maxEstimate,
+    AppConfig config,  // ✅ THÊM parameter
   ) async {
     double low = 1.0, high = maxEstimate, minFound = maxEstimate;
+    final durationLimit = _getDurationForType(type, config);
     
     for (int i = 0; i < 20; i++) {
       final mid = (low + high) / 2;
       try {
         final t = await type.generateTable(
-          service: _bettingService, result: result, start: dates.startDate, end: dates.endDate,
-          startIdx: dates.startMienIndex, min: mid * 0.95, max: mid,
-          results: _allResults, maxCount: dates.targetCount,
+          service: _bettingService, 
+          result: result, 
+          start: dates.startDate, 
+          end: dates.endDate,
+          startIdx: dates.startMienIndex, 
+          min: mid * 0.95, 
+          max: mid,
+          results: _allResults, 
+          maxCount: dates.targetCount,
+          durationLimit: durationLimit,  // ✅ PASS DURATION
         );
         if (t.isNotEmpty) { minFound = t.last.tongTien; high = mid - 1; } 
         else { low = mid + 1; }
@@ -458,38 +541,45 @@ class AnalysisViewModel extends ChangeNotifier {
     if (_ganPairInfo == null) return;
     _isLoading = true; _errorMessage = null; notifyListeners();
     try {
+      final config = await _storageService.loadConfig();
+      if (config == null) throw Exception('Config not found');
+
       final lastInfo = _getLastResultInfo();
       final start = lastInfo.date.add(const Duration(days: 1));
-      final end = lastInfo.date.add(const Duration(days: AppConstants.durationBaseXien));
-      final config = await _storageService.loadConfig();
-      
+      final end = lastInfo.date.add(Duration(days: config.duration.xienDuration));
+        
       final budgetRes = await BudgetCalculationService(sheetsService: _sheetsService)
           .calculateAvailableBudgetByEndDate(
-              totalCapital: config!.budget.totalCapital, targetTable: 'xien',
-              configBudget: config.budget.xienBudget, endDate: end);
+              totalCapital: config.budget.totalCapital, 
+              targetTable: 'xien',
+              configBudget: config.budget.xienBudget, 
+              endDate: end);
 
       List<BettingRow> table;
       try {
-        final rawTable = await _bettingService.generateXienTable(ganInfo: _ganPairInfo!, startDate: start, xienBudget: budgetRes.budgetMax);
-        
-        // ✅ FIX: Dùng factory method forXien() thay vì constructor trực tiếp
+        final rawTable = await _bettingService.generateXienTable(
+          ganInfo: _ganPairInfo!, 
+          startDate: start, 
+          xienBudget: budgetRes.budgetMax,
+          durationBase: config.duration.xienDuration,  // ✅ PASS
+        );
+          
         table = rawTable.map<BettingRow>((row) {
           return BettingRow.forXien(
             stt: row.stt,
             ngay: row.ngay,
-            mien: 'Bắc',  // ✅ Xiên luôn là Bắc
+            mien: 'Bắc',
             so: row.so,
             cuocMien: row.cuocMien,
             tongTien: row.tongTien,
             loi: row.loi1So,
           );
         }).toList();
-
       } catch (e) {
         print('❌ Error generating xien table: $e');
         rethrow; 
       }
-      
+        
       await _saveXienTable(table);
       _isLoading = false; notifyListeners();
     } catch (e) {

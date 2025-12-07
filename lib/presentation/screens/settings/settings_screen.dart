@@ -25,6 +25,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _bacBudgetController;
   late TextEditingController _xienBudgetController;
   late TextEditingController _bettingDomainController;
+  late TextEditingController _cycleDurationController;
+  late TextEditingController _trungDurationController;
+  late TextEditingController _bacDurationController;
+  late TextEditingController _xienDurationController;
 
   final List<Map<String, TextEditingController>> _apiAccountControllers = [];
 
@@ -47,7 +51,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungBudgetController = TextEditingController();
     _bacBudgetController = TextEditingController();
     _xienBudgetController = TextEditingController();
-    _bettingDomainController = TextEditingController(); 
+    _bettingDomainController = TextEditingController();
+    _cycleDurationController = TextEditingController();
+    _trungDurationController = TextEditingController();
+    _bacDurationController = TextEditingController();
+    _xienDurationController = TextEditingController();
 
     for (int i = 0; i < 3; i++) {
       _apiAccountControllers.add({
@@ -68,7 +76,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungBudgetController.text = _formatToThousands(config.budget.trungBudget);
     _bacBudgetController.text = _formatToThousands(config.budget.bacBudget);
     _xienBudgetController.text = _formatToThousands(config.budget.xienBudget);
-
+    _cycleDurationController.text = config.duration.cycleDuration.toString();
+    _trungDurationController.text = config.duration.trungDuration.toString();
+    _bacDurationController.text = config.duration.bacDuration.toString();
+    _xienDurationController.text = config.duration.xienDuration.toString();
+    
     for (int i = 0; i < _apiAccountControllers.length && i < config.apiAccounts.length; i++) {
       _apiAccountControllers[i]['username']!.text = config.apiAccounts[i].username;
       _apiAccountControllers[i]['password']!.text = config.apiAccounts[i].password;
@@ -84,6 +96,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _bacBudgetController.dispose();
     _xienBudgetController.dispose();
     _bettingDomainController.dispose();
+    _cycleDurationController.dispose();
+    _trungDurationController.dispose();
+    _bacDurationController.dispose();
+    _xienDurationController.dispose();
+
     for (var controllers in _apiAccountControllers) {
       controllers['username']?.dispose();
       controllers['password']?.dispose();
@@ -109,6 +126,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 10),
                 _buildBudgetSection(),
                 const SizedBox(height: 10),
+                _buildDurationSection(),
+                const SizedBox(height: 10),
                 if (viewModel.errorMessage != null)
                   _buildErrorCard(viewModel.errorMessage!),
                 const SizedBox(height: 10),
@@ -118,6 +137,151 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildDurationSection() {
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(Icons.schedule, color: Theme.of(context).primaryColor),
+        title: const Text('Thời lượng chu kỳ', style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Cấu hình số ngày cho mỗi loại cược', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        initiallyExpanded: false,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Chu kỳ
+                _buildDurationField(
+                  controller: _cycleDurationController,
+                  label: 'Chu kỳ 00-99 (ngày)',
+                  icon: Icons.calendar_month,
+                  hint: '10',
+                  minValue: 5,
+                  maxValue: 365,
+                  helperText: 'Phải > 4 (threshold: 4). Mặc định: 10',
+                ),
+                const SizedBox(height: 16),
+
+                // Miền Trung
+                _buildDurationField(
+                  controller: _trungDurationController,
+                  label: 'Miền Trung (ngày)',
+                  icon: Icons.calendar_month,
+                  hint: '26',
+                  minValue: 14,
+                  maxValue: 365,
+                  helperText: 'Phải > 13 (threshold: 13). Mặc định: 26',
+                ),
+                const SizedBox(height: 16),
+
+                // Miền Bắc
+                _buildDurationField(
+                  controller: _bacDurationController,
+                  label: 'Miền Bắc (ngày)',
+                  icon: Icons.calendar_month,
+                  hint: '43',
+                  minValue: 20,
+                  maxValue: 365,
+                  helperText: 'Phải > 19 (threshold: 19). Mặc định: 43',
+                ),
+                const SizedBox(height: 16),
+
+                // Xiên
+                _buildDurationField(
+                  controller: _xienDurationController,
+                  label: 'Xiên Bắc (ngày)',
+                  icon: Icons.calendar_month,
+                  hint: '234',
+                  minValue: 156,
+                  maxValue: 365,
+                  helperText: 'Phải > 155 (threshold: 155). Mặc định: 234',
+                ),
+
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 12),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).canvasColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '📌 Giải thích:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                          fontSize: 13,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        '• Chu kỳ: Số ngày để đợi một vòng quay hoàn chỉnh (3 miền)\n'
+                        '• Miền Trung/Bắc: Số ngày cụ thể cho mỗi miền\n'
+                        '• Xiên: Số ngày chờ cặp số xuất hiện\n\n'
+                        '• Mỗi loại phải lớn hơn threshold để đảm bảo có đủ dữ liệu phân tích',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDurationField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required String hint,
+    required int minValue,
+    required int maxValue,
+    required String helperText,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        hintText: hint,
+        helperText: helperText,
+        helperMaxLines: 2,
+        suffixText: 'ngày',
+      ),
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Vui lòng nhập giá trị';
+        }
+        final intValue = int.tryParse(value);
+        if (intValue == null) {
+          return 'Phải là số nguyên';
+        }
+        if (intValue < minValue) {
+          return 'Phải >= $minValue';
+        }
+        if (intValue > maxValue) {
+          return 'Phải <= $maxValue';
+        }
+        return null;
+      },
     );
   }
 
@@ -416,29 +580,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveConfigAndTest() async {
     if (!_formKey.currentState!.validate()) return;
     
+    // Validate Budget
     final totalCapital = _parseFromThousands(_totalCapitalController.text);
     final trungBudget = _parseFromThousands(_trungBudgetController.text);
     final bacBudget = _parseFromThousands(_bacBudgetController.text);
     final xienBudget = _parseFromThousands(_xienBudgetController.text);
     
     if (trungBudget + bacBudget + xienBudget > totalCapital) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vốn phân bổ không hợp lệ'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Vốn phân bổ không hợp lệ'),
+        backgroundColor: Colors.red,
+      ));
       return;
     }
 
+    // ✅ VALIDATE Duration
+    int cycleDuration = int.tryParse(_cycleDurationController.text) ?? 10;
+    int trungDuration = int.tryParse(_trungDurationController.text) ?? 26;
+    int bacDuration = int.tryParse(_bacDurationController.text) ?? 43;
+    int xienDuration = int.tryParse(_xienDurationController.text) ?? 234;
+
+    // Kiểm tra các validation
+    if (cycleDuration <= 4) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Chu kỳ phải > 4 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    if (trungDuration <= 13) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Miền Trung phải > 13 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    if (bacDuration <= 19) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Miền Bắc phải > 19 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    if (xienDuration <= 155) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Xiên phải > 155 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    // Build API Accounts
     final apiAccounts = <ApiAccount>[];
     for (int i = 0; i < _apiAccountControllers.length; i++) {
       final u = _apiAccountControllers[i]['username']!.text.trim();
       final p = _apiAccountControllers[i]['password']!.text.trim();
-      if (u.isNotEmpty && p.isNotEmpty) apiAccounts.add(ApiAccount(username: u, password: p));
+      if (u.isNotEmpty && p.isNotEmpty) {
+        apiAccounts.add(ApiAccount(username: u, password: p));
+      }
     }
 
+    // ✅ BUILD DURATION CONFIG
+    final durationConfig = DurationConfig(
+      cycleDuration: cycleDuration,
+      trungDuration: trungDuration,
+      bacDuration: bacDuration,
+      xienDuration: xienDuration,
+    );
+
+    // Build full config
     final config = AppConfig(
-      googleSheets: GoogleSheetsConfig.withHardcodedCredentials(sheetName: _sheetNameController.text.trim()),
-      telegram: TelegramConfig(botToken: TelegramConfig.defaultBotToken, chatIds: _chatIdsController.text.split(',').map((e)=>e.trim()).where((e)=>e.isNotEmpty).toList()),
-      budget: BudgetConfig(totalCapital: totalCapital, trungBudget: trungBudget, bacBudget: bacBudget, xienBudget: xienBudget),
+      googleSheets: GoogleSheetsConfig.withHardcodedCredentials(
+        sheetName: _sheetNameController.text.trim(),
+      ),
+      telegram: TelegramConfig(
+        botToken: TelegramConfig.defaultBotToken,
+        chatIds: _chatIdsController.text
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList(),
+      ),
+      budget: BudgetConfig(
+        totalCapital: totalCapital,
+        trungBudget: trungBudget,
+        bacBudget: bacBudget,
+        xienBudget: xienBudget,
+      ),
+      duration: durationConfig,  // ✅ THÊM
       apiAccounts: apiAccounts,
-      betting: BettingConfig(domain: _bettingDomainController.text.trim().isEmpty ? 'sin88.pro' : _bettingDomainController.text.trim()),
+      betting: BettingConfig(
+        domain: _bettingDomainController.text.trim().isEmpty
+            ? 'sin88.pro'
+            : _bettingDomainController.text.trim(),
+      ),
     );
 
     final viewModel = context.read<SettingsViewModel>();
@@ -449,7 +687,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await viewModel.testTelegramConnection();
     await viewModel.testAllApiAccounts(apiAccounts, config.betting.domain);
     
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu và kiểm tra'), backgroundColor: ThemeProvider.profit));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Đã lưu và kiểm tra'),
+        backgroundColor: ThemeProvider.profit,
+      ));
+    }
   }
 
   String _formatToThousands(double value) => (value / 1000).toStringAsFixed(0);

@@ -2,6 +2,68 @@
 
 import 'api_account.dart';
 
+class DurationConfig {
+  final int cycleDuration;      // Chu kỳ (default: 10, min: 5)
+  final int trungDuration;      // Miền Trung (default: 26, min: 14)
+  final int bacDuration;        // Miền Bắc (default: 43, min: 20)
+  final int xienDuration;       // Xiên (default: 234, min: 156)
+
+  DurationConfig({
+    this.cycleDuration = 10,
+    this.trungDuration = 26,
+    this.bacDuration = 43,
+    this.xienDuration = 234,
+  });
+
+  bool get isValid {
+    return cycleDuration > 4 && 
+           trungDuration > 13 && 
+           bacDuration > 19 && 
+           xienDuration > 155;
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'cycleDuration': cycleDuration,
+      'trungDuration': trungDuration,
+      'bacDuration': bacDuration,
+      'xienDuration': xienDuration,
+    };
+  }
+
+  factory DurationConfig.fromJson(Map<String, dynamic> json) {
+    return DurationConfig(
+      cycleDuration: json['cycleDuration'] ?? 10,
+      trungDuration: json['trungDuration'] ?? 26,
+      bacDuration: json['bacDuration'] ?? 43,
+      xienDuration: json['xienDuration'] ?? 234,
+    );
+  }
+
+  factory DurationConfig.defaults() {
+    return DurationConfig(
+      cycleDuration: 10,
+      trungDuration: 26,
+      bacDuration: 43,
+      xienDuration: 234,
+    );
+  }
+
+  DurationConfig copyWith({
+    int? cycleDuration,
+    int? trungDuration,
+    int? bacDuration,
+    int? xienDuration,
+  }) {
+    return DurationConfig(
+      cycleDuration: cycleDuration ?? this.cycleDuration,
+      trungDuration: trungDuration ?? this.trungDuration,
+      bacDuration: bacDuration ?? this.bacDuration,
+      xienDuration: xienDuration ?? this.xienDuration,
+    );
+  }
+}
+
 class BettingConfig {
   final String domain;
 
@@ -40,25 +102,29 @@ class AppConfig {
   final GoogleSheetsConfig googleSheets;
   final TelegramConfig telegram;
   final BudgetConfig budget;
+  final DurationConfig duration;  // ✅ THÊM
   final List<ApiAccount> apiAccounts;
-  final BettingConfig betting; // ✅ THÊM: Domain config
+  final BettingConfig betting;
 
   AppConfig({
     required this.googleSheets,
     required this.telegram,
     required this.budget,
+    DurationConfig? duration,  // ✅ THÊM (optional)
     List<ApiAccount>? apiAccounts,
-    BettingConfig? betting, // ✅ THÊM
-  }) : apiAccounts = apiAccounts ?? [],
-       betting = betting ?? BettingConfig.empty(); // ✅ THÊM
+    BettingConfig? betting,
+  }) : duration = duration ?? DurationConfig.defaults(),  // ✅ THÊM
+       apiAccounts = apiAccounts ?? [],
+       betting = betting ?? BettingConfig.empty();
 
   Map<String, dynamic> toJson() {
     return {
       'googleSheets': googleSheets.toJson(),
       'telegram': telegram.toJson(),
       'budget': budget.toJson(),
+      'duration': duration.toJson(),  // ✅ THÊM
       'apiAccounts': apiAccounts.map((a) => a.toJson()).toList(),
-      'betting': betting.toJson(), // ✅ THÊM
+      'betting': betting.toJson(),
     };
   }
 
@@ -67,10 +133,11 @@ class AppConfig {
       googleSheets: GoogleSheetsConfig.fromJson(json['googleSheets'] ?? {}),
       telegram: TelegramConfig.fromJson(json['telegram'] ?? {}),
       budget: BudgetConfig.fromJson(json['budget'] ?? {}),
+      duration: DurationConfig.fromJson(json['duration'] ?? {}),  // ✅ THÊM
       apiAccounts: (json['apiAccounts'] as List<dynamic>?)
           ?.map((item) => ApiAccount.fromJson(item))
           .toList() ?? [],
-      betting: BettingConfig.fromJson(json['betting'] ?? {}), // ✅ THÊM
+      betting: BettingConfig.fromJson(json['betting'] ?? {}),
     );
   }
 
@@ -81,16 +148,17 @@ class AppConfig {
       ),
       telegram: TelegramConfig.empty(),
       budget: BudgetConfig.defaultBudget(),
+      duration: DurationConfig.defaults(),  // ✅ THÊM
       apiAccounts: [],
-      betting: BettingConfig.empty(), // ✅ THÊM
+      betting: BettingConfig.empty(),
     );
   }
 
-  // ✅ THÊM: copyWith method để update config
   AppConfig copyWith({
     GoogleSheetsConfig? googleSheets,
     TelegramConfig? telegram,
     BudgetConfig? budget,
+    DurationConfig? duration,  // ✅ THÊM
     List<ApiAccount>? apiAccounts,
     BettingConfig? betting,
   }) {
@@ -98,6 +166,7 @@ class AppConfig {
       googleSheets: googleSheets ?? this.googleSheets,
       telegram: telegram ?? this.telegram,
       budget: budget ?? this.budget,
+      duration: duration ?? this.duration,  // ✅ THÊM
       apiAccounts: apiAccounts ?? this.apiAccounts,
       betting: betting ?? this.betting,
     );
