@@ -13,8 +13,8 @@ class GoogleSheetsService {
 
   // Cache
   final Map<String, List<List<String>>> _batchReadCache = {};
+  // ignore: unused_field
   DateTime? _batchReadCacheTime;
-  static const Duration _batchCacheDuration = Duration(minutes: 5);
 
   Future<void> initialize(GoogleSheetsConfig config) async {
     _config = config;
@@ -90,60 +90,20 @@ class GoogleSheetsService {
   // ============================================
   // ✅ BATCH READ (REST API)
   // ============================================
-  Future<Map<String, List<List<String>>>> batchGetValues(
-    List<String> worksheetNames, {
-    bool useCache = true,
-  }) async {
-    if (useCache && _isBatchCacheValid()) {
-      final result = <String, List<List<String>>>{};
-      bool allCached = true;
-      for (final name in worksheetNames) {
-        if (_batchReadCache.containsKey(name)) {
-          result[name] = _batchReadCache[name]!;
-        } else {
-          allCached = false;
-          break;
-        }
-      }
-      if (allCached) return result;
-    }
-
+  Future<Map<String, List<List<dynamic>>>> batchGetValues(List<String> sheetNames) async {
     try {
-      final url = 'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values:batchGet';
+      // Gọi song song các request
+      final futures = sheetNames.map((name) => getAllValues(name)).toList();
+      final results = await Future.wait(futures);
       
-      // Tạo query parameters: ranges=Sheet1!A:AD&ranges=Sheet2!A:AD
-      final ranges = worksheetNames.map((name) => '$name!A:AD').toList();
-      
-      final response = await _dio.get(
-        url,
-        queryParameters: {'ranges': ranges},
-        options: (await _getAuthOptions()).copyWith(
-          listFormat: ListFormat.multi, // Quan trọng: hỗ trợ nhiều param 'ranges'
-        ),
-      );
-
-      final result = <String, List<List<String>>>{};
-      final valueRanges = response.data['valueRanges'] as List;
-
-      for (int i = 0; i < worksheetNames.length; i++) {
-        if (i < valueRanges.length) {
-          final item = valueRanges[i];
-          final values = (item['values'] as List?)?.map((row) {
-            return (row as List).map((cell) => cell.toString()).toList();
-          }).toList() ?? [];
-
-          result[worksheetNames[i]] = values;
-          _batchReadCache[worksheetNames[i]] = values;
-        } else {
-          result[worksheetNames[i]] = [];
-        }
+      final Map<String, List<List<dynamic>>> dataMap = {};
+      for (int i = 0; i < sheetNames.length; i++) {
+        // Ép kiểu kết quả về dynamic để tránh lỗi Type mismatch
+        dataMap[sheetNames[i]] = results[i] as List<List<dynamic>>;
       }
-      
-      _batchReadCacheTime = DateTime.now();
-      return result;
-
+      return dataMap;
     } catch (e) {
-      print('❌ Batch read error: $e');
+      print('❌ Batch get failed: $e');
       rethrow;
     }
   }
@@ -242,16 +202,11 @@ class GoogleSheetsService {
       rethrow;
     }
   }
-
-  bool _isBatchCacheValid() {
-    if (_batchReadCacheTime == null || _batchReadCache.isEmpty) return false;
-    return DateTime.now().difference(_batchReadCacheTime!) < _batchCacheDuration;
-  }
   
   void clearBatchCache() {
     _batchReadCache.clear();
     _batchReadCacheTime = null;
-  }
+  } 
 }
 
 class BatchUpdateData {

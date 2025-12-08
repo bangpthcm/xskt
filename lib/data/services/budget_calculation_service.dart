@@ -291,6 +291,101 @@ class BudgetCalculationService {
     );
   }
 
+  Future<AvailableBudgetResult> calculateAvailableBudgetFromData({
+    required double totalCapital,
+    required String targetTable,
+    double? configBudget,
+    required DateTime endDate,
+    required Map<String, List<List<dynamic>>> allSheetsData, // 👈 Nhận dữ liệu thô
+  }) async {
+    // 1. Tính số tiền bị giữ (Reserved) dựa trên data RAM
+    final reserved = _calculateReservedInternal(
+      targetTable: targetTable,
+      endDate: endDate,
+      data: allSheetsData,
+    );
+
+    // 2. Logic tính toán số dư (Giống hệt hàm cũ)
+    double totalReservedExcludingSelf = reserved.totalReserved;
+    double budgetMax;
+
+    // Nếu là bảng "Tất cả" -> Dùng Full vốn còn lại
+    if (targetTable.toLowerCase() == 'tatca' || targetTable == 'xsktbot1') {
+      budgetMax = totalCapital - totalReservedExcludingSelf;
+    } else {
+      // Các bảng con -> Bị giới hạn bởi Config
+      if (configBudget == null) throw Exception('Config budget required');
+      final available = totalCapital - totalReservedExcludingSelf;
+      budgetMax = available < configBudget ? available : configBudget;
+    }
+
+    // ignore: unused_local_variable
+    const minimumRequired = 50000.0; // Mức sàn tối thiểu
+    final available = totalCapital - totalReservedExcludingSelf;
+
+    // Trả về kết quả (Không throw exception ở đây để ViewModel tự xử lý)
+    return AvailableBudgetResult(
+      totalCapital: totalCapital,
+      reservedBreakdown: reserved,
+      available: available,
+      budgetMax: budgetMax,
+      configBudget: configBudget,
+    );
+  }
+
+  // ✅ HÀM HELPER: Đọc dữ liệu từ RAM để tính tiền
+  Reserved5DaysResult _calculateReservedInternal({
+    required String targetTable,
+    required DateTime endDate,
+    required Map<String, List<List<dynamic>>> data,
+  }) {
+    final endDateStr = date_utils.DateUtils.formatDate(endDate);
+    
+    // Hàm con: Tìm giá trị tiền trong mảng 2 chiều
+    double getMoney(String key, int colIdx) {
+      // Map tên key sang tên sheet thực tế trong data
+      String sheetName = key;
+      if (key == 'tatca') sheetName = 'xsktBot1';
+      if (key == 'xien') sheetName = 'xienBot';
+      if (key == 'trung') sheetName = 'trungBot';
+      if (key == 'bac') sheetName = 'bacBot';
+
+      // Trừ bản thân bảng đang tính ra
+      if (targetTable == key || targetTable == sheetName) return 0;
+
+      final rows = data[sheetName];
+      if (rows == null || rows.length < 4) return 0; // Data chưa load hoặc trống
+
+      // Duyệt qua các dòng (Từ dòng 4 trở đi)
+      for (int i = 3; i < rows.length; i++) {
+        final row = rows[i];
+        // So sánh ngày (Cột index 1)
+        if (row.length > 1 && row[1].toString().trim() == endDateStr) {
+          // Lấy tiền (Cột index colIdx)
+          if (row.length > colIdx) {
+             return _parseSheetNumber(row[colIdx]);
+          }
+        }
+      }
+      return 0;
+    }
+
+    // Index 7 là cột "Tổng tiền" trong sheet (Cột H)
+    // Index 5 là cột "Tổng tiền" trong sheet Xiên (Cột F) - Check lại file excel nếu cần
+    final tatCa = getMoney('tatca', 7); 
+    final trung = getMoney('trung', 7);
+    final bac = getMoney('bac', 7);
+    final xien = getMoney('xien', 5); 
+
+    return Reserved5DaysResult(
+      tatCaReserved: tatCa,
+      trungReserved: trung,
+      bacReserved: bac,
+      xienReserved: xien,
+      totalReserved: tatCa + trung + bac + xien,
+    );
+  }
+
   /// Helper: Parse number từ Google Sheets (format VN)
   double _parseSheetNumber(dynamic value) {
     if (value == null) return 0.0;

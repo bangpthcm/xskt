@@ -112,39 +112,24 @@ class MainNavigationState extends State<MainNavigation>
     );
   }
 
-Widget _buildNavItem(int index, IconData icon, String label, AnalysisViewModel vm) {
+  Widget _buildNavItem(int index, IconData icon, String label, AnalysisViewModel vm) {
     final isSelected = _tabController.index == index;
-    // Màu active là Accent (Vàng), inactive là TextSecondary (Xám)
     final color = isSelected ? ThemeProvider.accent : ThemeProvider.textSecondary;
 
     return Expanded(
       child: BouncingButton(
         onTap: () => switchToTab(index),
         child: Container(
-          color: Colors.transparent, // Vùng nhận sự kiện chạm full chiều cao
+          color: Colors.transparent, 
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              // Spacer đẩy icon xuống dưới, chừa chỗ cho text ở trên
               const SizedBox(height: 20), 
               Stack(
                 clipBehavior: Clip.none,
                 children: [
                   Icon(icon, color: color, size: 24),
-                  // Dấu chấm đỏ báo hiệu (chỉ cho tab Phân tích)
-                  if (index == 0 && vm.hasAnyAlert)
-                    Positioned(
-                      right: -2,
-                      top: -2,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: ThemeProvider.loss, 
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
+                  // ĐÃ XÓA CHẤM ĐỎ ALERT TẠI ĐÂY
                 ],
               ),
               const SizedBox(height: 4),
@@ -156,7 +141,7 @@ Widget _buildNavItem(int index, IconData icon, String label, AnalysisViewModel v
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
-              const SizedBox(height: 8), // Padding dưới cùng
+              const SizedBox(height: 8), 
             ],
           ),
         ),

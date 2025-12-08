@@ -10,7 +10,6 @@ import '../../../app.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../../data/models/number_detail.dart';
 import '../../../core/theme/theme_provider.dart';
-import '../../../core/constants/app_constants.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -141,7 +140,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- HEADER ---
+            // --- HEADER (Đã xóa chấm đỏ alert) ---
             Row(
               children: [
                 Expanded(
@@ -151,21 +150,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                         'Chu kỳ 00-99',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      if (viewModel.tatCaAlertCache == true || 
-                          viewModel.trungAlertCache == true || 
-                          viewModel.bacAlertCache == true)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 4, bottom: 15),
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: ThemeProvider.loss,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1),
-                            ),
-                          ),
-                        ),
                       const Spacer(),
                     ],
                   ),
@@ -173,7 +157,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 if (viewModel.selectedMien != 'Nam')
                 IconButton(
                   icon: Icon(Icons.table_chart, color: Theme.of(context).primaryColor.withOpacity(0.9)),
-                  tooltip: 'Tạo bảng cược (cho số mục tiêu)',
+                  tooltip: 'Tạo bảng cược',
                   onPressed: cycleResult != null
                       ? () {
                           if (viewModel.selectedMien == 'Bắc') {
@@ -188,7 +172,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 ),
                 IconButton(
                   icon: Icon(Icons.send, color: Theme.of(context).primaryColor.withOpacity(0.9)),
-                  tooltip: 'Gửi Telegram (cho số mục tiêu)',
+                  tooltip: 'Gửi Telegram',
                   onPressed: cycleResult != null
                       ? () => _sendCycleToTelegram(context, viewModel)
                       : null,
@@ -204,21 +188,21 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (cycleResult == null)
               const Text('Chưa có dữ liệu phân tích') 
             else ...[
-              // --- THÔNG TIN CHUNG ---
-              _buildInfoRow(
-                'Số ngày gan:', 
-                AnalysisThresholds.formatWithThreshold(
-                  cycleResult.maxGanDays, 
-                  viewModel.selectedMien,
-                ),
-              ),
+              // --- THÔNG TIN CHUNG (Updated) ---
+              
+              // 1. Hiển thị "Dự kiến bắt đầu" (Quan trọng nhất)
+              if (viewModel.optimalEntryLabel != null)
+                _buildInfoRow('Dự kiến:', viewModel.optimalEntryLabel!, isHighlight: true),
+
+              // 2. Hiển thị số ngày gan (Thuần túy)
+              _buildInfoRow('Số ngày gan:', '${cycleResult.maxGanDays} ngày'),
+
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
               ),
               if (viewModel.selectedMien != 'Nam')
-              // Số mục tiêu hiển thị ở đây sẽ thay đổi khi click chọn số khác
-              _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber),
+                _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber),
               
               // --- NHÓM SỐ GAN NHẤT ---
               const SizedBox(height: 8),
@@ -411,33 +395,18 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                         'Cặp xiên Bắc',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      if (viewModel.hasXienAlert)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 4, bottom: 15),
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: ThemeProvider.loss,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1),
-                            ),
-                          ),
-                        ),
                       const Spacer(),
                     ],
                   ),
                 ),
                 IconButton(
                   icon: Icon(Icons.table_chart, color: Theme.of(context).primaryColor.withOpacity(0.9)),
-                  tooltip: 'Tạo bảng cược',
                   onPressed: ganInfo != null
                       ? () => _createXienBettingTable(context, viewModel)
                       : null,
                 ),
                 IconButton(
                   icon: Icon(Icons.send, color: Theme.of(context).primaryColor.withOpacity(0.9)),
-                  tooltip: 'Gửi Telegram',
                   onPressed: ganInfo != null
                       ? () => _sendGanPairToTelegram(context, viewModel)
                       : null,
@@ -448,7 +417,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/${AnalysisThresholds.xien} - ${AppConstants.durationBaseXien}ngày'),
+              // ✅ HIỂN THỊ DỰ KIẾN TỐI ƯU
+              if (viewModel.optimalXienEntryLabel != null)
+                _buildInfoRow('Dự kiến:', viewModel.optimalXienEntryLabel!, isHighlight: true),
+
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
@@ -483,77 +456,48 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       child: Row(
         children: ['Tất cả', 'Nam', 'Trung', 'Bắc'].map((mien) {
           final isSelected = viewModel.selectedMien == mien;
-          
-          bool hasAlert = false;
-          if (mien== 'Tất cả') {
-            hasAlert = viewModel.tatCaAlertCache ?? false;
-          } else if (mien == 'Trung') {
-            hasAlert = viewModel.trungAlertCache ?? false;
-          } else if (mien == 'Bắc') {
-            hasAlert = viewModel.bacAlertCache ?? false;
-          }
-          
           return Padding(
             padding: const EdgeInsets.only(right: 7),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                FilterChip(
-                  label: SizedBox(
-                    width: 45,
-                    child: Text(
-                      mien,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected 
-                            ? Theme.of(context).primaryColor.withOpacity(0.9)
-                            : Colors.grey.shade500,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  selected: isSelected,
-                  backgroundColor: const Color(0xFF2C2C2C),
-                  selectedColor: Theme.of(context).primaryColor.withOpacity(0.3),
-                  side: BorderSide(
+            child: FilterChip(
+              label: SizedBox(
+                width: 45,
+                child: Text(
+                  mien,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     color: isSelected 
-                        ? Theme.of(context).primaryColor.withOpacity(0.8)
-                        : Colors.grey.shade600,
-                    width: 1,
+                        ? Theme.of(context).primaryColor.withOpacity(0.9)
+                        : Colors.grey.shade500,
                   ),
-                  checkmarkColor: Colors.transparent,
-                  showCheckmark: false,
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() {
-                        _selectedNumber = null;
-                        _currentNumberDetail = null;
-                      });
-                      viewModel.setSelectedMien(mien);
-                      viewModel.loadAnalysis(useCache: true);
-                    }
-                  },
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 0),
-                  labelPadding: EdgeInsets.zero,
+                  textAlign: TextAlign.center,
                 ),
-                if (hasAlert)
-                  Positioned(
-                    right: 1,
-                    top: 1,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: ThemeProvider.loss,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1),
-                      ),
-                    ),
-                  ),
-              ],
+              ),
+              selected: isSelected,
+              backgroundColor: const Color(0xFF2C2C2C),
+              selectedColor: Theme.of(context).primaryColor.withOpacity(0.3),
+              side: BorderSide(
+                color: isSelected 
+                    ? Theme.of(context).primaryColor.withOpacity(0.8)
+                    : Colors.grey.shade600,
+                width: 1,
+              ),
+              checkmarkColor: Colors.transparent,
+              showCheckmark: false,
+              onSelected: (selected) {
+                if (selected) {
+                  setState(() {
+                    _selectedNumber = null;
+                    _currentNumberDetail = null;
+                  });
+                  viewModel.setSelectedMien(mien);
+                  viewModel.loadAnalysis(useCache: true);
+                }
+              },
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 0),
+              labelPadding: EdgeInsets.zero,
             ),
           );
         }).toList(),
@@ -561,7 +505,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, {bool isHighlight = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -574,7 +518,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 16),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal,
+                color: isHighlight ? Colors.white : null,
+              ),
             ),
           ),
         ],

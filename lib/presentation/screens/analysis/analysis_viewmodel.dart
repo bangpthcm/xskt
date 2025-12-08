@@ -1,4 +1,4 @@
-// lib/presentation/screens/analysis/analysis_viewmodel.dart
+//
 import 'package:flutter/material.dart';
 import '../../../data/models/gan_pair_info.dart';
 import '../../../data/models/cycle_analysis_result.dart';
@@ -15,23 +15,6 @@ import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../data/services/budget_calculation_service.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/services/cached_data_service.dart';
-import '../../../core/constants/app_constants.dart';
-
-// --- ENUMS & CONSTANTS ---
-class AnalysisThresholds {
-  static const int tatca = 4;
-  static const int nam = 0;
-  static const int trung = 13;
-  static const int bac = 19;
-  static const int xien = 155;
-
-  static String formatWithThreshold(int currentDays, String mien) {
-    final threshold = {
-      'Tất cả': tatca, 'Nam': nam, 'Trung': trung, 'Bắc': bac
-    }[mien] ?? 0;
-    return threshold == 0 ? '$currentDays ngày' : '$currentDays ngày/$threshold ngày';
-  }
-}
 
 enum BettingTableTypeEnum { tatca, trung, bac }
 
@@ -70,7 +53,7 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
     required double max,
     required List<LotteryResult> results,
     required int maxCount,
-    required int durationLimit,  // ✅ THÊM parameter
+    required int durationLimit,
   }) async {
     return switch (this) {
       BettingTableTypeEnum.tatca => await service.generateCycleTable(
@@ -82,7 +65,7 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
           budgetMax: max, 
           allResults: results, 
           maxMienCount: maxCount,
-          durationLimit: durationLimit,  // ✅ PASS
+          durationLimit: durationLimit,
       ),
       BettingTableTypeEnum.trung => await service.generateTrungGanTable(
           cycleResult: result, 
@@ -90,7 +73,7 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
           endDate: end, 
           budgetMin: min, 
           budgetMax: max,
-          durationLimit: durationLimit,  // ✅ PASS
+          durationLimit: durationLimit,
       ),
       BettingTableTypeEnum.bac => await service.generateBacGanTable(
           cycleResult: result, 
@@ -98,13 +81,12 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
           endDate: end, 
           budgetMin: min, 
           budgetMax: max,
-          durationLimit: durationLimit,  // ✅ PASS
+          durationLimit: durationLimit,
       ),
     };
   }
 }
 
-// --- VIEWMODEL ---
 class AnalysisViewModel extends ChangeNotifier {
   final CachedDataService _cachedDataService;
   final GoogleSheetsService _sheetsService;
@@ -135,11 +117,13 @@ class AnalysisViewModel extends ChangeNotifier {
   String _selectedMien = 'Tất cả';
   List<LotteryResult> _allResults = [];
   
-  // Cache Alerts
-  String? _lastDataHash;
-  bool? _tatCaAlertCache;
-  bool? _trungAlertCache;
-  bool? _bacAlertCache;
+  // ✅ State Tối ưu (New Logic)
+  String? _optimalEntryLabel;
+  DateTime? _optimalStartDate;
+  String? _optimalStartMien;
+
+  String? _optimalXienEntryLabel;
+  DateTime? _optimalXienStartDate;
 
   // Getters
   bool get isLoading => _isLoading;
@@ -147,17 +131,9 @@ class AnalysisViewModel extends ChangeNotifier {
   GanPairInfo? get ganPairInfo => _ganPairInfo;
   CycleAnalysisResult? get cycleResult => _cycleResult;
   String get selectedMien => _selectedMien;
-  bool? get tatCaAlertCache => _tatCaAlertCache;
-  bool? get trungAlertCache => _trungAlertCache;
-  bool? get bacAlertCache => _bacAlertCache;
+  String? get optimalEntryLabel => _optimalEntryLabel;
+  String? get optimalXienEntryLabel => _optimalXienEntryLabel;
 
-  bool get hasCycleAlert => _cycleResult != null && _selectedMien == 'Tất cả' && _cycleResult!.maxGanDays > AnalysisThresholds.tatca;
-  bool get hasTrungAlert => _cycleResult != null && _selectedMien == 'Trung' && _cycleResult!.maxGanDays > AnalysisThresholds.trung;
-  bool get hasBacAlert => _cycleResult != null && _selectedMien == 'Bắc' && _cycleResult!.maxGanDays > AnalysisThresholds.bac;
-  bool get hasXienAlert => _ganPairInfo != null && _ganPairInfo!.daysGan > AnalysisThresholds.xien;
-  bool get hasAnyAlert => hasXienAlert || (_tatCaAlertCache ?? false) || (_trungAlertCache ?? false) || (_bacAlertCache ?? false);
-
-  // ✅ Getter hiển thị thông tin dữ liệu cuối cùng cho Navbar
   String get latestDataInfo {
     if (_allResults.isEmpty) return "Miền ... ngày ...";
     final last = _allResults.last; 
@@ -193,7 +169,7 @@ class AnalysisViewModel extends ChangeNotifier {
     _isLoading = true; _errorMessage = null; notifyListeners();
     try {
       _allResults = await _cachedDataService.loadKQXS(forceRefresh: !useCache, incrementalOnly: useCache);
-      _analyzeInBackground();
+      await _analyzeInBackground();
       _isLoading = false; notifyListeners();
     } catch (e) {
       _errorMessage = 'Lỗi phân tích: $e';
@@ -209,36 +185,199 @@ class AnalysisViewModel extends ChangeNotifier {
     } else {
       _cycleResult = await _analysisService.analyzeCycle(_allResults.where((r) => r.mien == _selectedMien).toList());
     }
+    
     notifyListeners();
-    await _cacheAllAlerts();
+
+    // Chạy logic tối ưu (New Logic)
+    try {
+      final allSheetsData = await _sheetsService.batchGetValues([
+        'xsktBot1', 'trungBot', 'bacBot', 'xienBot'
+      ]);
+
+      await Future.wait([
+        if (_cycleResult != null) _findOptimalEntryRebuilt(allSheetsData),
+        if (_ganPairInfo != null) _findOptimalXienEntry(allSheetsData),
+      ]);
+      
+    } catch (e) {
+      print('Error optimizing: $e');
+    }
     notifyListeners();
   }
 
-  Future<void> _cacheAllAlerts() async {
+  // ✅ HÀM TỐI ƯU CHU KỲ (Tất cả/Trung/Bắc)
+  Future<void> _findOptimalEntryRebuilt(Map<String, List<List<dynamic>>> allSheetsData) async {
+    _optimalEntryLabel = "Đang tính toán...";
+    notifyListeners();
+
     try {
-      final currentHash = '${_allResults.length}_${_allResults.last.ngay}';
-      if (_lastDataHash == currentHash && _tatCaAlertCache != null) return;
+      final config = await _storageService.loadConfig();
+      if (config == null || _cycleResult == null) return;
 
-      final results = await Future.wait([
-        _analysisService.analyzeCycle(_allResults),
-        _analysisService.analyzeCycle(_allResults.where((r) => r.mien == 'Trung').toList()),
-        _analysisService.analyzeCycle(_allResults.where((r) => r.mien == 'Bắc').toList()),
-      ]);
+      final type = _getBettingTypeFromMien(_selectedMien);
+      final duration = _getDurationForType(type, config);
+      final fixedEndDate = _cycleResult!.lastSeenDate.add(Duration(days: duration));
 
-      _tatCaAlertCache = results[0] != null && results[0]!.maxGanDays > AnalysisThresholds.tatca;
-      _trungAlertCache = results[1] != null && results[1]!.maxGanDays > AnalysisThresholds.trung;
-      _bacAlertCache = results[2] != null && results[2]!.maxGanDays > AnalysisThresholds.bac;
-      _lastDataHash = currentHash;
-    } catch (_) {
-      _tatCaAlertCache = _trungAlertCache = _bacAlertCache = false;
+      final budgetService = BudgetCalculationService(sheetsService: _sheetsService);
+      final budgetResult = await budgetService.calculateAvailableBudgetFromData(
+        totalCapital: config.budget.totalCapital,
+        targetTable: type.budgetTableName,
+        configBudget: type.getBudgetConfig(config),
+        endDate: fixedEndDate,
+        allSheetsData: allSheetsData,
+      );
+
+      if (budgetResult.available < 50000) {
+        _optimalEntryLabel = "Thiếu vốn (${NumberUtils.formatCurrency(budgetResult.available)})";
+        notifyListeners();
+        return;
+      }
+
+      final lastInfo = _getLastResultInfo();
+      DateTime startDateCursor;
+      int startMienIdx;
+
+      if (lastInfo.isLastBac) {
+        startDateCursor = lastInfo.date.add(const Duration(days: 1));
+        startMienIdx = 0; 
+      } else {
+        startDateCursor = lastInfo.date; 
+        startMienIdx = lastInfo.mienIndex + 1;
+      }
+
+      bool found = false;
+      final mienOrder = ['Nam', 'Trung', 'Bắc'];
+
+      for (int i = 0; i < 15; i++) {
+        if (startDateCursor.isAfter(fixedEndDate)) break;
+
+        try {
+          await type.generateTable(
+            service: _bettingService,
+            result: _cycleResult!,
+            start: startDateCursor,
+            end: fixedEndDate,
+            startIdx: startMienIdx,
+            min: budgetResult.budgetMax * 0.9,
+            max: budgetResult.budgetMax,
+            results: _allResults,
+            maxCount: duration,
+            durationLimit: duration,
+          );
+
+          found = true;
+          _optimalStartDate = startDateCursor;
+          
+          if (_selectedMien == 'Tất cả') {
+            final mienName = mienOrder[startMienIdx];
+            _optimalStartMien = mienName;
+            _optimalEntryLabel = "$mienName ${date_utils.DateUtils.formatDate(startDateCursor)}";
+          } else {
+            _optimalStartMien = _selectedMien; 
+            _optimalEntryLabel = date_utils.DateUtils.formatDate(startDateCursor);
+          }
+          break;
+
+        } catch (_) {}
+
+        if (_selectedMien == 'Tất cả') {
+          startMienIdx++;
+          if (startMienIdx > 2) {
+            startMienIdx = 0;
+            startDateCursor = startDateCursor.add(const Duration(days: 1));
+          }
+        } else {
+          startDateCursor = startDateCursor.add(const Duration(days: 1));
+        }
+      }
+
+      if (!found) {
+        _optimalEntryLabel = "Thiếu vốn (Cần nạp thêm)";
+      }
+
+    } catch (e) {
+      _optimalEntryLabel = "Lỗi tính toán";
+    }
+    notifyListeners();
+  }
+
+  // ✅ HÀM TỐI ƯU XIÊN
+  Future<void> _findOptimalXienEntry(Map<String, List<List<dynamic>>> allSheetsData) async {
+    _optimalXienEntryLabel = "Đang tính toán...";
+    // Không notify ở đây để tránh rebuild thừa, chỉ notify cuối flow
+
+    try {
+      final config = await _storageService.loadConfig();
+      if (config == null || _ganPairInfo == null) {
+        _optimalXienEntryLabel = "Chưa có config";
+        return;
+      }
+
+      final configDuration = config.duration.xienDuration;
+      final fixedEndDate = _ganPairInfo!.lastSeen.add(Duration(days: configDuration));
+
+      final budgetService = BudgetCalculationService(sheetsService: _sheetsService);
+      final budgetResult = await budgetService.calculateAvailableBudgetFromData(
+        totalCapital: config.budget.totalCapital,
+        targetTable: 'xien',
+        configBudget: config.budget.xienBudget,
+        endDate: fixedEndDate,
+        allSheetsData: allSheetsData,
+      );
+
+      if (budgetResult.available < 50000) {
+        _optimalXienEntryLabel = "Thiếu vốn (${NumberUtils.formatCurrency(budgetResult.available)})";
+        return;
+      }
+
+      final lastInfo = _getLastResultInfo();
+      DateTime startDateCursor = lastInfo.date.add(const Duration(days: 1));
+      
+      bool found = false;
+
+      for (int i = 0; i < 15; i++) {
+        if (startDateCursor.isAfter(fixedEndDate)) break;
+
+        try {
+          final actualBettingDays = fixedEndDate.difference(startDateCursor).inDays;
+          if (actualBettingDays <= 1) break; 
+          final effectiveDurationBase = actualBettingDays + _ganPairInfo!.daysGan;
+
+          final table = await _bettingService.generateXienTable(
+             ganInfo: _ganPairInfo!,
+             startDate: startDateCursor,
+             xienBudget: budgetResult.budgetMax,
+             durationBase: effectiveDurationBase,
+             fitBudgetOnly: true, // Không tự động tăng tiền
+          );
+
+          if (table.isNotEmpty && table.last.tongTien > budgetResult.budgetMax) {
+             throw Exception("Over budget"); 
+          }
+
+          found = true;
+          _optimalXienStartDate = startDateCursor;
+          _optimalXienEntryLabel = date_utils.DateUtils.formatDate(startDateCursor);
+          break;
+
+        // ignore: empty_catches
+        } catch (e) {}
+        
+        startDateCursor = startDateCursor.add(const Duration(days: 1));
+      }
+
+      if (!found) {
+        _optimalXienEntryLabel = "Thiếu vốn (Cần nạp thêm)";
+      }
+
+    } catch (e) {
+      _optimalXienEntryLabel = "Lỗi tính toán";
+    } finally {
+      notifyListeners();
     }
   }
 
-  Future<NumberDetail?> analyzeNumberDetail(String number) async {
-    return await _analysisService.analyzeNumberDetail(_allResults, number);
-  }
-
-  // --- TABLE CREATION LOGIC (REFACTORED) ---
+  // --- CREATE TABLES ---
 
   Future<void> createCycleBettingTable(String number, AppConfig config) => 
       _createBettingTableGeneric(BettingTableTypeEnum.tatca, number, config);
@@ -255,7 +394,7 @@ class AnalysisViewModel extends ChangeNotifier {
     _isLoading = true; _errorMessage = null; notifyListeners();
     try {
       final result = await _prepareCycleResult(type, number);
-      final dates = _calculateDateParameters(type, result, config);  // ✅ PASS CONFIG
+      final dates = _calculateDateParameters(type, result, config);
 
       final budgetService = BudgetCalculationService(sheetsService: _sheetsService);
       final budgetResult = await budgetService.calculateAvailableBudgetByEndDate(
@@ -265,24 +404,87 @@ class AnalysisViewModel extends ChangeNotifier {
         endDate: dates.endDate,
       );
 
-      final table = await _generateTableWithOptimization(
-        type: type,
+      final table = await type.generateTable(
+        service: _bettingService,
         result: result,
-        dates: dates,
-        budgetMax: budgetResult.budgetMax,
-        budgetResult: budgetResult,
+        start: dates.startDate,
+        end: dates.endDate,
+        startIdx: dates.startMienIndex,
+        min: budgetResult.budgetMax * 0.9,
+        max: budgetResult.budgetMax,
+        results: _allResults,
+        maxCount: dates.targetCount,
+        durationLimit: _getDurationForType(type, config),
       );
 
       await _saveTableToSheet(type, table, result);
-
       _isLoading = false; notifyListeners();
     } catch (e) {
       _errorMessage = e.toString();
       _isLoading = false; notifyListeners();
     }
   }
+  
+  // Create Xien Table (Updated)
+  Future<void> createXienBettingTable() async {
+    if (_ganPairInfo == null) return;
+    _isLoading = true; _errorMessage = null; notifyListeners();
+    try {
+      final config = await _storageService.loadConfig();
+      if (config == null) throw Exception('Config not found');
 
-  // --- HELPER METHODS FOR TABLE CREATION ---
+      final configDuration = config.duration.xienDuration;
+      final fixedEndDate = _ganPairInfo!.lastSeen.add(Duration(days: configDuration));
+      
+      final lastInfo = _getLastResultInfo();
+      DateTime start = lastInfo.date.add(const Duration(days: 1));
+      
+      if (_optimalXienStartDate != null) {
+        start = _optimalXienStartDate!;
+      }
+
+      final actualBettingDays = fixedEndDate.difference(start).inDays;
+      final effectiveDurationBase = actualBettingDays + _ganPairInfo!.daysGan;
+
+      final budgetRes = await BudgetCalculationService(sheetsService: _sheetsService)
+          .calculateAvailableBudgetByEndDate(
+              totalCapital: config.budget.totalCapital, 
+              targetTable: 'xien',
+              configBudget: config.budget.xienBudget, 
+              endDate: fixedEndDate);
+
+      List<BettingRow> table;
+      try {
+        final rawTable = await _bettingService.generateXienTable(
+          ganInfo: _ganPairInfo!, 
+          startDate: start, 
+          xienBudget: budgetRes.budgetMax,
+          durationBase: effectiveDurationBase,
+        );
+          
+        table = rawTable.map<BettingRow>((row) {
+          return BettingRow.forXien(
+            stt: row.stt,
+            ngay: row.ngay,
+            mien: 'Bắc',
+            so: row.so,
+            cuocMien: row.cuocMien,
+            tongTien: row.tongTien,
+            loi: row.loi1So,
+          );
+        }).toList();
+      } catch (e) {
+        rethrow; 
+      }
+        
+      await _saveXienTable(table);
+      _isLoading = false; notifyListeners();
+    } catch (e) {
+      _errorMessage = e.toString(); _isLoading = false; notifyListeners();
+    }
+  }
+
+  // --- HELPERS ---
 
   Future<CycleAnalysisResult> _prepareCycleResult(BettingTableTypeEnum type, String number) async {
     if (type == BettingTableTypeEnum.tatca) {
@@ -309,33 +511,40 @@ class AnalysisViewModel extends ChangeNotifier {
   _calculateDateParameters(
     BettingTableTypeEnum type, 
     CycleAnalysisResult result,
-    AppConfig config,  // ✅ THÊM parameter
+    AppConfig config,
   ) {
+    final duration = _getDurationForType(type, config);
+    final fixedEndDate = result.lastSeenDate.add(Duration(days: duration));
+
     final lastInfo = _getLastResultInfo();
-    final startDate = lastInfo.isLastBac ? lastInfo.date.add(const Duration(days: 1)) : lastInfo.date;
-    final startIdx = lastInfo.isLastBac ? 0 : lastInfo.mienIndex + 1;
+    var startDate = lastInfo.isLastBac ? lastInfo.date.add(const Duration(days: 1)) : lastInfo.date;
+    var startIdx = lastInfo.isLastBac ? 0 : lastInfo.mienIndex + 1;
+
+    if (_optimalStartDate != null) {
+      // Chỉ áp dụng nếu type hiện tại khớp với type lúc tính tối ưu
+      // (Trong UI, mỗi khi đổi tab Mien là sẽ trigger tính lại nên sẽ khớp)
+      startDate = _optimalStartDate!;
+      if (_optimalStartMien != null) {
+        startIdx = ['Nam', 'Trung', 'Bắc'].indexOf(_optimalStartMien!);
+      }
+    }
 
     if (type == BettingTableTypeEnum.tatca) {
+      // ignore: unused_local_variable
       String targetMien = 'Nam';
       result.mienGroups.forEach((k, v) { if (v.contains(result.targetNumber)) targetMien = k; });
-
-      final initialCount = _countMienOccurrences(result.lastSeenDate, startDate, targetMien);
-      var targetCount = config.duration.cycleDuration;  // ✅ LẤY TỪ CONFIG
+      var targetCount = config.duration.cycleDuration;
       
-      final rows = _simulateTableRows(startDate, startIdx, targetMien, targetCount, initialCount);
-      if (_checkIfExtraTurnNeeded(rows)) targetCount++;
-
       return (
         startDate: startDate, 
-        endDate: result.lastSeenDate.add(Duration(days: config.duration.cycleDuration)),  // ✅ LẤY TỪ CONFIG
+        endDate: fixedEndDate, 
         startMienIndex: startIdx, 
         targetCount: targetCount
       );
     } else {
-      final daysToAdd = _getDurationForType(type, config);  // ✅ LẤY TỪ CONFIG
       return (
         startDate: startDate, 
-        endDate: result.lastSeenDate.add(Duration(days: daysToAdd)), 
+        endDate: fixedEndDate, 
         startMienIndex: startIdx, 
         targetCount: 0
       );
@@ -350,128 +559,45 @@ class AnalysisViewModel extends ChangeNotifier {
     };
   }
 
-  int _getXienDuration(AppConfig config) {
-    return config.duration.xienDuration;
-  }
-
-  Future<List<BettingRow>> _generateTableWithOptimization({
-    required BettingTableTypeEnum type,
-    required CycleAnalysisResult result,
-    required ({DateTime startDate, DateTime endDate, int startMienIndex, int targetCount}) dates,
-    required double budgetMax,
-    required AvailableBudgetResult budgetResult,
-  }) async {
-    // ✅ LẤY CONFIG ĐỂ DÙNG DURATION
-    final config = await _storageService.loadConfig();
-    if (config == null) throw Exception('Config not found');
-
-    try {
-      final durationLimit = _getDurationForType(type, config);
-
-      return await type.generateTable(
-        service: _bettingService, 
-        result: result, 
-        start: dates.startDate, 
-        end: dates.endDate,
-        startIdx: dates.startMienIndex, 
-        min: budgetMax * 0.9, 
-        max: budgetMax,
-        results: _allResults, 
-        maxCount: dates.targetCount,
-        durationLimit: durationLimit,  // ✅ PASS DURATION
-      );
-    } catch (_) {
-      try {
-        final durationLimit = _getDurationForType(type, config);
-
-        final hugeTable = await type.generateTable(
-          service: _bettingService, 
-          result: result, 
-          start: dates.startDate, 
-          end: dates.endDate,
-          startIdx: dates.startMienIndex, 
-          min: budgetMax, 
-          max: budgetMax * 100,
-          results: _allResults, 
-          maxCount: dates.targetCount,
-          durationLimit: durationLimit,  // ✅ PASS DURATION
-        );
-        
-        final minRequired = await _findMinimumBudget(type, result, dates, hugeTable.last.tongTien, config);
-        
-        if (minRequired <= budgetMax) {
-          return await type.generateTable(
-            service: _bettingService, 
-            result: result, 
-            start: dates.startDate, 
-            end: dates.endDate,
-            startIdx: dates.startMienIndex, 
-            min: minRequired * 0.95, 
-            max: minRequired,
-            results: _allResults, 
-            maxCount: dates.targetCount,
-            durationLimit: durationLimit,  // ✅ PASS DURATION
-          );
-        }
-        throw Exception('Cần tối thiểu ${NumberUtils.formatCurrency(minRequired)}');
-      } catch (e) {
-        if (e is BudgetInsufficientException) rethrow;
-        throw BudgetInsufficientException(
-          tableName: type.displayName, 
-          budgetResult: budgetResult, 
-          minimumRequired: 0,
-        );
-      }
-    }
-  }
-
-  // ✅ CẬP NHẬT _findMinimumBudget signature
-  Future<double> _findMinimumBudget(
-    BettingTableTypeEnum type, 
-    CycleAnalysisResult result, 
-    dynamic dates, 
-    double maxEstimate,
-    AppConfig config,  // ✅ THÊM parameter
-  ) async {
-    double low = 1.0, high = maxEstimate, minFound = maxEstimate;
-    final durationLimit = _getDurationForType(type, config);
-    
-    for (int i = 0; i < 20; i++) {
-      final mid = (low + high) / 2;
-      try {
-        final t = await type.generateTable(
-          service: _bettingService, 
-          result: result, 
-          start: dates.startDate, 
-          end: dates.endDate,
-          startIdx: dates.startMienIndex, 
-          min: mid * 0.95, 
-          max: mid,
-          results: _allResults, 
-          maxCount: dates.targetCount,
-          durationLimit: durationLimit,  // ✅ PASS DURATION
-        );
-        if (t.isNotEmpty) { minFound = t.last.tongTien; high = mid - 1; } 
-        else { low = mid + 1; }
-      } catch (_) { low = mid + 1; }
-      if (high < low) break;
-    }
-    return minFound;
-  }
-
   Future<void> _saveTableToSheet(BettingTableTypeEnum type, List<BettingRow> table, CycleAnalysisResult result) async {
     await _sheetsService.clearSheet(type.sheetName);
-    await _sheetsService.updateRange(type.sheetName, 'A1:D1', [[
+    
+    // Batch Update duy nhất
+    final updates = <String, BatchUpdateData>{};
+    final metadataRow = [
       result.maxGanDays.toString(),
       date_utils.DateUtils.formatDate(result.lastSeenDate),
       result.ganNumbersDisplay,
       result.targetNumber,
-    ]]);
-    await _sheetsService.updateRange(type.sheetName, 'A3:J3', [['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)']]);
-    await _sheetsService.updateRange(type.sheetName, 'A4', table.map((e) => e.toSheetRow()).toList().cast<List<String>>());
+    ];
+    final headerRow = ['STT', 'Ngày', 'Miền', 'Số', 'Số lô', 'Cược/số', 'Cược/miền', 'Tổng tiền', 'Lời (1 số)', 'Lời (2 số)'];
+    final dataRows = table.map((e) => e.toSheetRow()).toList();
+
+    updates[type.sheetName] = BatchUpdateData(
+      range: 'A1', 
+      values: [metadataRow, [], headerRow, ...dataRows],
+    );
+
+    await _sheetsService.batchUpdateRanges(updates);
   }
 
-  // --- UTILS FOR CALCULATION ---
+  Future<void> _saveXienTable(List<BettingRow> table) async {
+    await _sheetsService.clearSheet('xienBot');
+    
+    final updates = <String, BatchUpdateData>{};
+    final metadataRow = [_ganPairInfo!.daysGan.toString(), date_utils.DateUtils.formatDate(_ganPairInfo!.lastSeen), _ganPairInfo!.pairsDisplay, table.first.so];
+    final headerRow = ['STT', 'Ngày', 'Miền', 'Số', 'Cược/miền', 'Tổng tiền', 'Lời'];
+    final dataRows = table.map((e) => e.toSheetRow()).toList();
+
+    updates['xienBot'] = BatchUpdateData(
+      range: 'A1',
+      values: [metadataRow, [], headerRow, ...dataRows],
+    );
+    
+    await _sheetsService.batchUpdateRanges(updates);
+  }
+
+  // --- UTILS ---
 
   ({DateTime date, String mien, int mienIndex, bool isLastBac}) _getLastResultInfo() {
     DateTime? latest; String? mien;
@@ -492,112 +618,15 @@ class AnalysisViewModel extends ChangeNotifier {
     return (p[newMien] ?? 0) > (p[oldMien] ?? 0);
   }
 
-  int _countMienOccurrences(DateTime start, DateTime end, String mien) {
-    final dates = <String>{};
-    for (final r in _allResults) {
-      final d = date_utils.DateUtils.parseDate(r.ngay);
-      if (d != null && d.isAfter(start) && (d.isBefore(end) || d.isAtSameMomentAs(end)) && r.mien == mien) {
-        dates.add(r.ngay);
-      }
-    }
-    return dates.length;
-  }
-
-  List<Map<String, dynamic>> _simulateTableRows(DateTime start, int startIdx, String targetMien, int count, int initCount) {
-    final rows = <Map<String, dynamic>>[];
-    var curr = start; var total = initCount; var firstDay = true;
-    final order = ['Nam', 'Trung', 'Bắc'];
-
-    while (total < count) {
-      for (int i = firstDay ? startIdx : 0; i < 3; i++) {
-        rows.add({'date': curr, 'mien': order[i]});
-        if (order[i] == targetMien) {
-          total++; if (total >= count) break;
-        }
-      }
-      firstDay = false; curr = curr.add(const Duration(days: 1));
-    }
-    return rows;
-  }
-
-  bool _checkIfExtraTurnNeeded(List<Map<String, dynamic>> rows) {
-    if (rows.length < 2) return false;
-    final dates = rows.map((e) => e['date'] as DateTime).toSet().toList()..sort();
-    if (dates.length < 2) return false;
-
-    bool hasNam(DateTime d) => rows.any((r) => (r['date'] as DateTime).isAtSameMomentAs(d) && r['mien'] == 'Nam');
-
-    final last = dates.last;
-    final secondLast = dates[dates.length - 2];
-
-    if (hasNam(last) && last.weekday == 2) return true;
-    if (hasNam(secondLast) && secondLast.weekday == 2) return true;
-
-    return false;
-  }
-
-  // --- XIEN TABLE ---
-  Future<void> createXienBettingTable() async {
-    if (_ganPairInfo == null) return;
-    _isLoading = true; _errorMessage = null; notifyListeners();
-    try {
-      final config = await _storageService.loadConfig();
-      if (config == null) throw Exception('Config not found');
-
-      final lastInfo = _getLastResultInfo();
-      final start = lastInfo.date.add(const Duration(days: 1));
-      final end = lastInfo.date.add(Duration(days: config.duration.xienDuration));
-        
-      final budgetRes = await BudgetCalculationService(sheetsService: _sheetsService)
-          .calculateAvailableBudgetByEndDate(
-              totalCapital: config.budget.totalCapital, 
-              targetTable: 'xien',
-              configBudget: config.budget.xienBudget, 
-              endDate: end);
-
-      List<BettingRow> table;
-      try {
-        final rawTable = await _bettingService.generateXienTable(
-          ganInfo: _ganPairInfo!, 
-          startDate: start, 
-          xienBudget: budgetRes.budgetMax,
-          durationBase: config.duration.xienDuration,  // ✅ PASS
-        );
-          
-        table = rawTable.map<BettingRow>((row) {
-          return BettingRow.forXien(
-            stt: row.stt,
-            ngay: row.ngay,
-            mien: 'Bắc',
-            so: row.so,
-            cuocMien: row.cuocMien,
-            tongTien: row.tongTien,
-            loi: row.loi1So,
-          );
-        }).toList();
-      } catch (e) {
-        print('❌ Error generating xien table: $e');
-        rethrow; 
-      }
-        
-      await _saveXienTable(table);
-      _isLoading = false; notifyListeners();
-    } catch (e) {
-      _errorMessage = e.toString(); _isLoading = false; notifyListeners();
+  BettingTableTypeEnum _getBettingTypeFromMien(String mien) {
+    switch (mien) {
+      case 'Trung': return BettingTableTypeEnum.trung;
+      case 'Bắc': return BettingTableTypeEnum.bac;
+      default: return BettingTableTypeEnum.tatca;
     }
   }
 
-  Future<void> _saveXienTable(List<BettingRow> table) async {
-    await _sheetsService.clearSheet('xienBot');
-    await _sheetsService.updateRange('xienBot', 'A1:D1', [[_ganPairInfo!.daysGan.toString(), date_utils.DateUtils.formatDate(_ganPairInfo!.lastSeen), _ganPairInfo!.pairsDisplay, table.first.so]]);
-    // Header có cột Miền
-    await _sheetsService.updateRange('xienBot', 'A3:G3', [['STT', 'Ngày', 'Miền', 'Số', 'Cược/miền', 'Tổng tiền', 'Lời']]);
-    // Dữ liệu (toSheetRow() tự động map cột mien vào vị trí index 2)
-    await _sheetsService.updateRange('xienBot', 'A4', table.map((e) => e.toSheetRow()).toList().cast<List<String>>());
-  }
-
-  // --- TELEGRAM ---
-
+  // --- TELEGRAM (Code cũ) ---
   Future<void> sendCycleAnalysisToTelegram() async {
     if (_cycleResult == null) return;
     await _sendTelegram(_buildCycleMessage());
@@ -606,10 +635,6 @@ class AnalysisViewModel extends ChangeNotifier {
   Future<void> sendGanPairAnalysisToTelegram() async {
     if (_ganPairInfo == null) return;
     await _sendTelegram(_buildGanPairMessage());
-  }
-
-  Future<void> sendNumberDetailToTelegram(NumberDetail detail) async {
-    await _sendTelegram(_buildNumberDetailMessage(detail));
   }
 
   Future<void> _sendTelegram(String msg) async {
@@ -636,44 +661,34 @@ class AnalysisViewModel extends ChangeNotifier {
     buffer.writeln('<b>Số ngày gan:</b> ${_cycleResult!.maxGanDays} ngày');
     buffer.writeln('<b>Lần cuối về:</b> ${date_utils.DateUtils.formatDate(_cycleResult!.lastSeenDate)}');
     buffer.writeln('<b>Số mục tiêu:</b> ${_cycleResult!.targetNumber}\n');
-    buffer.writeln('<b>Nhóm số gan nhất:</b>\n${_cycleResult!.ganNumbersDisplay}\n');
     
-    if (_selectedMien == 'Tất cả') {
-      buffer.writeln('<b>Phân bổ theo miền:</b>');
-      for (var m in ['Nam', 'Trung', 'Bắc']) {
-        if (_cycleResult!.mienGroups.containsKey(m)) {
-          buffer.writeln('- Miền $m: ${_cycleResult!.mienGroups[m]!.join(", ")}');
-        }
-      }
+    // Nếu có ngày tối ưu, gửi kèm tin nhắn
+    if (_optimalEntryLabel != null) {
+      buffer.writeln('<b>Kế hoạch:</b> $_optimalEntryLabel\n');
     }
+
+    buffer.writeln('<b>Nhóm số gan nhất:</b>\n${_cycleResult!.ganNumbersDisplay}\n');
     return buffer.toString();
   }
 
   String _buildGanPairMessage() {
     final buffer = StringBuffer();
     buffer.writeln('<b>📈 PHÂN TÍCH CẶP XIÊN 📈</b>\n');
-    
-    buffer.writeln('Đây là 2 cặp số đã lâu nhất chưa xuất hiện cùng nhau:\n');
     for (int i = 0; i < _ganPairInfo!.pairs.length && i < 2; i++) {
       final p = _ganPairInfo!.pairs[i];
-      // ✅ Hiển thị kiểu cột: "1. Miền Bắc | Cặp 01-02 (15 ngày)"
       buffer.writeln('${i + 1}. Miền Bắc | Cặp <b>${p.display}</b> (${p.daysGan} ngày)');
     }
     buffer.writeln('\n<b>Cặp gan nhất:</b> ${_ganPairInfo!.pairs[0].display}');
     buffer.writeln('<b>Số ngày gan:</b> ${_ganPairInfo!.daysGan} ngày');
     buffer.writeln('<b>Lần cuối về:</b> ${date_utils.DateUtils.formatDate(_ganPairInfo!.lastSeen)}');
+    
+    if (_optimalXienEntryLabel != null) {
+       buffer.writeln('\n<b>Kế hoạch:</b> $_optimalXienEntryLabel');
+    }
     return buffer.toString();
   }
 
-  String _buildNumberDetailMessage(NumberDetail detail) {
-    final buffer = StringBuffer();
-    buffer.writeln('<b>📊 CHI TIẾT SỐ ${detail.number} 📊</b>\n');
-    for (var m in ['Nam', 'Trung', 'Bắc']) {
-      if (detail.mienDetails.containsKey(m)) {
-        final d = detail.mienDetails[m]!;
-        buffer.writeln('<b>Miền $m:</b> ${d.daysGan} ngày - Lần cuối: ${d.lastSeenDateStr}');
-      }
-    }
-    return buffer.toString();
+  Future<NumberDetail?> analyzeNumberDetail(String number) async {
+    return await _analysisService.analyzeNumberDetail(_allResults, number);
   }
 }

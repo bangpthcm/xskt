@@ -15,7 +15,8 @@ class BettingTableService {
     required GanPairInfo ganInfo,
     required DateTime startDate,
     required double xienBudget,
-    required int durationBase,  // ✅ THÊM parameter (thay vì dùng constant)
+    required int durationBase,
+    bool fitBudgetOnly = false,
   }) async {
     final soNgayGan = ganInfo.daysGan;
     final durationDays = durationBase - soNgayGan;  // ✅ DÙNG parameter
@@ -69,11 +70,15 @@ class BettingTableService {
 
     // Bước 2: Chuẩn hóa theo ngân sách
     final rawTotalCost = tempRows.last['tong'] as double? ?? 1.0;
+    double scalingFactor = xienBudget / rawTotalCost;
+    if (fitBudgetOnly && scalingFactor > 1.0) {
+      scalingFactor = 1.0; 
+    }
     if (rawTotalCost <= 0) {
       throw Exception('Tổng tiền tính toán không hợp lệ: $rawTotalCost');
     }
     
-    final scalingFactor = xienBudget / rawTotalCost;
+    //final scalingFactor = xienBudget / rawTotalCost;
     
     if (scalingFactor.isNaN || scalingFactor.isInfinite || scalingFactor <= 0) {
       throw Exception('Invalid scaling factor: $scalingFactor (budget: $xienBudget, cost: $rawTotalCost)');
