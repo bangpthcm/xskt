@@ -120,13 +120,95 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
+                _buildOptimalSummaryCard(viewModel),
+                const SizedBox(height: 16),
                 _buildCycleSection(viewModel),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 _buildGanPairSection(viewModel),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildOptimalSummaryCard(AnalysisViewModel viewModel) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ✅ HEADER: Tiêu đề + Ngày hôm nay
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween, // Đẩy 2 đầu
+              children: [
+                // Bên trái: Icon + Label
+                Row(
+                  children: [
+                    Text(
+                      'Ngày có thể bắt đầu',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
+                ),
+                // Bên phải: Ngày hôm nay
+                Text(
+                  date_utils.DateUtils.formatDate(DateTime.now()),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ],
+            ),
+            const Divider(color: Colors.grey),
+            
+            // Nội dung
+            _buildSummaryRow('Tất cả', viewModel.optimalTatCa, date: viewModel.dateTatCa),
+            _buildSummaryRow('Trung', viewModel.optimalTrung, date: viewModel.dateTrung),
+            _buildSummaryRow('Bắc', viewModel.optimalBac, date: viewModel.dateBac),
+            _buildSummaryRow('Xiên', viewModel.optimalXien, date: viewModel.dateXien),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value, {DateTime? date}) {
+    // Logic check highlight: Ngày >= Hôm nay
+    bool isHighlight = false;
+    if (date != null) {
+      final now = DateTime.now();
+      // Reset về 00:00:00 để so sánh chính xác theo ngày
+      final today = DateTime(now.year, now.month, now.day);
+      final targetDate = DateTime(date.year, date.month, date.day);
+      
+      // Nếu ngày dự kiến >= ngày hiện tại thì highlight
+      if (targetDate.compareTo(today) >= 0) {
+        isHighlight = true;
+      }
+    }
+
+    // Nếu giá trị là "Đang tính..." hoặc Lỗi/Thiếu vốn thì không highlight
+    if (value.contains("Đang tính") || value.contains("Thiếu vốn") || value.contains("Lỗi")) {
+      isHighlight = false;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('$label:', style: const TextStyle(color: Colors.grey, fontSize: 16)),
+          Text(
+            value, 
+            style: TextStyle(
+              // ✅ Đổi màu xanh (hoặc màu nổi bật) nếu thỏa điều kiện
+              color: isHighlight ? Colors.grey : Colors.white, 
+              fontWeight: isHighlight ? FontWeight.normal : FontWeight.bold,
+              fontSize: 16
+            )
+          ),
+        ],
       ),
     );
   }
@@ -188,12 +270,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (cycleResult == null)
               const Text('Chưa có dữ liệu phân tích') 
             else ...[
-              // --- THÔNG TIN CHUNG (Updated) ---
-              
-              // 1. Hiển thị "Dự kiến bắt đầu" (Quan trọng nhất)
-              if (viewModel.optimalEntryLabel != null)
-                _buildInfoRow('Dự kiến:', viewModel.optimalEntryLabel!, isHighlight: true),
-
+              // --- THÔNG TIN CHUNG ---
               // 2. Hiển thị số ngày gan (Thuần túy)
               _buildInfoRow('Số ngày gan:', '${cycleResult.maxGanDays} ngày'),
 
@@ -417,10 +494,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (ganInfo == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              // ✅ HIỂN THỊ DỰ KIẾN TỐI ƯU
-              if (viewModel.optimalXienEntryLabel != null)
-                _buildInfoRow('Dự kiến:', viewModel.optimalXienEntryLabel!, isHighlight: true),
-
               _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
               _buildInfoRow(
                 'Lần cuối về:',
@@ -491,7 +564,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     _currentNumberDetail = null;
                   });
                   viewModel.setSelectedMien(mien);
-                  viewModel.loadAnalysis(useCache: true);
                 }
               },
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

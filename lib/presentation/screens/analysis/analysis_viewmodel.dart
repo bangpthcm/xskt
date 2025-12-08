@@ -1,4 +1,3 @@
-//
 import 'package:flutter/material.dart';
 import '../../../data/models/gan_pair_info.dart';
 import '../../../data/models/cycle_analysis_result.dart';
@@ -16,6 +15,7 @@ import '../../../data/services/budget_calculation_service.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/services/cached_data_service.dart';
 
+// --- ENUM & EXTENSION ---
 enum BettingTableTypeEnum { tatca, trung, bac }
 
 extension BettingTableTypeExtension on BettingTableTypeEnum {
@@ -87,6 +87,7 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
   }
 }
 
+// --- VIEW MODEL ---
 class AnalysisViewModel extends ChangeNotifier {
   final CachedDataService _cachedDataService;
   final GoogleSheetsService _sheetsService;
@@ -109,21 +110,29 @@ class AnalysisViewModel extends ChangeNotifier {
         _telegramService = telegramService,
         _bettingService = bettingService;
 
-  // State
+  // State Chung
   bool _isLoading = false;
   String? _errorMessage;
+  
+  // Dữ liệu phân tích
   GanPairInfo? _ganPairInfo;
-  CycleAnalysisResult? _cycleResult;
+  CycleAnalysisResult? _cycleResult; // Dữ liệu hiển thị danh sách số (thay đổi theo filter)
   String _selectedMien = 'Tất cả';
   List<LotteryResult> _allResults = [];
   
-  // ✅ State Tối ưu (New Logic)
-  String? _optimalEntryLabel;
-  DateTime? _optimalStartDate;
-  String? _optimalStartMien;
+  // ✅ State Tối ưu Tổng hợp (Tính 1 lần, dùng mãi mãi)
+  // Biến String để hiển thị lên UI
+  String _optimalTatCa = "Đang tính...";
+  String _optimalTrung = "Đang tính...";
+  String _optimalBac = "Đang tính...";
+  String _optimalXien = "Đang tính...";
 
-  String? _optimalXienEntryLabel;
-  DateTime? _optimalXienStartDate;
+  // Biến DateTime để dùng khi tạo bảng (đảm bảo chính xác)
+  DateTime? _dateTatCa;
+  DateTime? _dateTrung;
+  DateTime? _dateBac;
+  DateTime? _dateXien;
+  String? _startMienTatCa; // Chỉ dùng cho loại Tất cả
 
   // Getters
   bool get isLoading => _isLoading;
@@ -131,8 +140,14 @@ class AnalysisViewModel extends ChangeNotifier {
   GanPairInfo? get ganPairInfo => _ganPairInfo;
   CycleAnalysisResult? get cycleResult => _cycleResult;
   String get selectedMien => _selectedMien;
-  String? get optimalEntryLabel => _optimalEntryLabel;
-  String? get optimalXienEntryLabel => _optimalXienEntryLabel;
+  String get optimalTatCa => _optimalTatCa;
+  String get optimalTrung => _optimalTrung;
+  String get optimalBac => _optimalBac;
+  String get optimalXien => _optimalXien;
+  DateTime? get dateTatCa => _dateTatCa;
+  DateTime? get dateTrung => _dateTrung;
+  DateTime? get dateBac => _dateBac;
+  DateTime? get dateXien => _dateXien;
 
   String get latestDataInfo {
     if (_allResults.isEmpty) return "Miền ... ngày ...";
@@ -143,8 +158,10 @@ class AnalysisViewModel extends ChangeNotifier {
   // --- ACTIONS ---
 
   void setSelectedMien(String mien) {
+    if (_selectedMien == mien) return;
     _selectedMien = mien;
-    notifyListeners();
+    // ✅ CHỈ reload danh sách số, KHÔNG tính lại ngày tối ưu
+    _reloadCycleOnly(); 
   }
 
   void setTargetNumber(String number) {
@@ -165,11 +182,12 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Hàm load chính (Gọi khi vào màn hình hoặc refresh)
   Future<void> loadAnalysis({bool useCache = true}) async {
     _isLoading = true; _errorMessage = null; notifyListeners();
     try {
       _allResults = await _cachedDataService.loadKQXS(forceRefresh: !useCache, incrementalOnly: useCache);
-      await _analyzeInBackground();
+      await _analyzeFullFlow();
       _isLoading = false; notifyListeners();
     } catch (e) {
       _errorMessage = 'Lỗi phân tích: $e';
@@ -177,142 +195,190 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> _analyzeInBackground() async {
-    _ganPairInfo = await _analysisService.findGanPairsMienBac(_allResults);
-    
-    if (_selectedMien == 'Tất cả') {
-      _cycleResult = await _analysisService.analyzeCycle(_allResults);
-    } else {
-      _cycleResult = await _analysisService.analyzeCycle(_allResults.where((r) => r.mien == _selectedMien).toList());
+  // ✅ Hàm reload nhẹ (Gọi khi đổi Filter)
+  Future<void> _reloadCycleOnly() async {
+    try {
+      if (_selectedMien == 'Tất cả') {
+        _cycleResult = await _analysisService.analyzeCycle(_allResults);
+      } else {
+        final filtered = _allResults.where((r) => r.mien == _selectedMien).toList();
+        _cycleResult = await _analysisService.analyzeCycle(filtered);
+      }
+      notifyListeners();
+    } catch (e) {
+      print('Reload cycle error: $e');
+    }
+  }
+
+  // Luồng phân tích đầy đủ
+  Future<void> _analyzeFullFlow() async {
+    // 1. Phân tích Gan Pair (nếu chưa có)
+    if (_ganPairInfo == null) {
+      _ganPairInfo = await _analysisService.findGanPairsMienBac(_allResults);
     }
     
-    notifyListeners();
+    // 2. Phân tích Chu kỳ cho view hiện tại
+    await _reloadCycleOnly();
+    
+    // 3. Chạy tính toán Tối ưu Tổng hợp (Chạy ngầm song song cho cả 4 loại)
+    // Tính 1 lần, lưu vào biến, không tính lại khi đổi tab
+    _calculateAllOptimalEntries();
+  }
 
-    // Chạy logic tối ưu (New Logic)
+  // ✅ HÀM TÍNH TOÁN TỐI ƯU TỔNG HỢP (CORE FIX)
+  Future<void> _calculateAllOptimalEntries() async {
+    _optimalTatCa = "Đang tính...";
+    _optimalTrung = "Đang tính...";
+    _optimalBac = "Đang tính...";
+    _optimalXien = "Đang tính...";
+    // notifyListeners(); // Có thể bỏ để tránh UI update quá nhiều lần
+
     try {
       final allSheetsData = await _sheetsService.batchGetValues([
         'xsktBot1', 'trungBot', 'bacBot', 'xienBot'
       ]);
-
-      await Future.wait([
-        if (_cycleResult != null) _findOptimalEntryRebuilt(allSheetsData),
-        if (_ganPairInfo != null) _findOptimalXienEntry(allSheetsData),
-      ]);
       
-    } catch (e) {
-      print('Error optimizing: $e');
-    }
-    notifyListeners();
-  }
-
-  // ✅ HÀM TỐI ƯU CHU KỲ (Tất cả/Trung/Bắc)
-  Future<void> _findOptimalEntryRebuilt(Map<String, List<List<dynamic>>> allSheetsData) async {
-    _optimalEntryLabel = "Đang tính toán...";
-    notifyListeners();
-
-    try {
       final config = await _storageService.loadConfig();
-      if (config == null || _cycleResult == null) return;
-
-      final type = _getBettingTypeFromMien(_selectedMien);
-      final duration = _getDurationForType(type, config);
-      final fixedEndDate = _cycleResult!.lastSeenDate.add(Duration(days: duration));
+      if (config == null) return;
 
       final budgetService = BudgetCalculationService(sheetsService: _sheetsService);
-      final budgetResult = await budgetService.calculateAvailableBudgetFromData(
-        totalCapital: config.budget.totalCapital,
-        targetTable: type.budgetTableName,
-        configBudget: type.getBudgetConfig(config),
-        endDate: fixedEndDate,
-        allSheetsData: allSheetsData,
-      );
-
-      if (budgetResult.available < 50000) {
-        _optimalEntryLabel = "Thiếu vốn (${NumberUtils.formatCurrency(budgetResult.available)})";
-        notifyListeners();
-        return;
-      }
-
       final lastInfo = _getLastResultInfo();
-      DateTime startDateCursor;
-      int startMienIdx;
 
-      if (lastInfo.isLastBac) {
-        startDateCursor = lastInfo.date.add(const Duration(days: 1));
-        startMienIdx = 0; 
-      } else {
-        startDateCursor = lastInfo.date; 
-        startMienIdx = lastInfo.mienIndex + 1;
-      }
-
-      bool found = false;
-      final mienOrder = ['Nam', 'Trung', 'Bắc'];
-
-      for (int i = 0; i < 15; i++) {
-        if (startDateCursor.isAfter(fixedEndDate)) break;
-
+      // Helper function: Tính toán cho 1 loại cụ thể
+      Future<void> calculateForType(BettingTableTypeEnum type) async {
         try {
-          await type.generateTable(
-            service: _bettingService,
-            result: _cycleResult!,
-            start: startDateCursor,
-            end: fixedEndDate,
-            startIdx: startMienIdx,
-            min: budgetResult.budgetMax * 0.9,
-            max: budgetResult.budgetMax,
-            results: _allResults,
-            maxCount: duration,
-            durationLimit: duration,
+          CycleAnalysisResult? tempResult;
+          List<LotteryResult> tempResultsList;
+
+          if (type == BettingTableTypeEnum.tatca) {
+            tempResultsList = _allResults;
+            // Tận dụng kết quả nếu có sẵn
+            if (_selectedMien == 'Tất cả' && _cycleResult != null) {
+              tempResult = _cycleResult;
+            } else {
+              tempResult = await _analysisService.analyzeCycle(_allResults);
+            }
+          } else {
+            final mienFilter = type == BettingTableTypeEnum.trung ? 'Trung' : 'Bắc';
+            tempResultsList = _allResults.where((r) => r.mien == mienFilter).toList();
+            tempResult = await _analysisService.analyzeCycle(tempResultsList);
+          }
+
+          if (tempResult == null) {
+             _updateOptimalState(type, "Không đủ dữ liệu");
+             return;
+          }
+
+          final duration = switch (type) {
+            BettingTableTypeEnum.tatca => config.duration.cycleDuration,
+            BettingTableTypeEnum.trung => config.duration.trungDuration,
+            BettingTableTypeEnum.bac => config.duration.bacDuration,
+          };
+          final fixedEndDate = tempResult.lastSeenDate.add(Duration(days: duration));
+
+          final budgetResult = await budgetService.calculateAvailableBudgetFromData(
+            totalCapital: config.budget.totalCapital,
+            targetTable: type.budgetTableName,
+            configBudget: type.getBudgetConfig(config),
+            endDate: fixedEndDate,
+            allSheetsData: allSheetsData,
           );
 
-          found = true;
-          _optimalStartDate = startDateCursor;
-          
-          if (_selectedMien == 'Tất cả') {
-            final mienName = mienOrder[startMienIdx];
-            _optimalStartMien = mienName;
-            _optimalEntryLabel = "$mienName ${date_utils.DateUtils.formatDate(startDateCursor)}";
+          if (budgetResult.available < 50000) {
+            _updateOptimalState(type, "Thiếu vốn (${NumberUtils.formatCurrency(budgetResult.available)})");
+            return;
+          }
+
+          DateTime startDateCursor;
+          int startMienIdx;
+
+          if (lastInfo.isLastBac) {
+            startDateCursor = lastInfo.date.add(const Duration(days: 1));
+            startMienIdx = 0; 
           } else {
-            _optimalStartMien = _selectedMien; 
-            _optimalEntryLabel = date_utils.DateUtils.formatDate(startDateCursor);
+            startDateCursor = lastInfo.date; 
+            startMienIdx = lastInfo.mienIndex + 1;
           }
-          break;
 
-        } catch (_) {}
+          bool found = false;
+          final mienOrder = ['Nam', 'Trung', 'Bắc'];
 
-        if (_selectedMien == 'Tất cả') {
-          startMienIdx++;
-          if (startMienIdx > 2) {
-            startMienIdx = 0;
-            startDateCursor = startDateCursor.add(const Duration(days: 1));
+          for (int i = 0; i < 15; i++) {
+            if (startDateCursor.isAfter(fixedEndDate)) break;
+            try {
+              await type.generateTable(
+                service: _bettingService,
+                result: tempResult,
+                start: startDateCursor,
+                end: fixedEndDate,
+                startIdx: startMienIdx,
+                min: budgetResult.budgetMax * 0.9,
+                max: budgetResult.budgetMax,
+                results: tempResultsList,
+                maxCount: duration,
+                durationLimit: duration,
+              );
+
+              found = true;
+              if (type == BettingTableTypeEnum.tatca) {
+                final mienName = mienOrder[startMienIdx];
+                _dateTatCa = startDateCursor;
+                _startMienTatCa = mienName;
+                _updateOptimalState(type, "$mienName ${date_utils.DateUtils.formatDate(startDateCursor)}");
+              } else if (type == BettingTableTypeEnum.trung) {
+                _dateTrung = startDateCursor;
+                _updateOptimalState(type, date_utils.DateUtils.formatDate(startDateCursor));
+              } else {
+                _dateBac = startDateCursor;
+                _updateOptimalState(type, date_utils.DateUtils.formatDate(startDateCursor));
+              }
+              break;
+            } catch (_) {}
+
+            if (type == BettingTableTypeEnum.tatca) {
+              startMienIdx++;
+              if (startMienIdx > 2) {
+                startMienIdx = 0;
+                startDateCursor = startDateCursor.add(const Duration(days: 1));
+              }
+            } else {
+              startDateCursor = startDateCursor.add(const Duration(days: 1));
+            }
           }
-        } else {
-          startDateCursor = startDateCursor.add(const Duration(days: 1));
+          if (!found) _updateOptimalState(type, "Quá hạn/Thiếu vốn");
+        } catch (e) {
+          _updateOptimalState(type, "Lỗi");
         }
       }
 
-      if (!found) {
-        _optimalEntryLabel = "Thiếu vốn (Cần nạp thêm)";
-      }
+      // Chạy song song 4 tác vụ
+      await Future.wait([
+        calculateForType(BettingTableTypeEnum.tatca),
+        calculateForType(BettingTableTypeEnum.trung),
+        calculateForType(BettingTableTypeEnum.bac),
+        if (_ganPairInfo != null) _findOptimalXienEntry(allSheetsData, config),
+      ]);
 
     } catch (e) {
-      _optimalEntryLabel = "Lỗi tính toán";
+      _optimalTatCa = "Lỗi"; _optimalTrung = "Lỗi"; _optimalBac = "Lỗi"; _optimalXien = "Lỗi";
     }
     notifyListeners();
   }
 
-  // ✅ HÀM TỐI ƯU XIÊN
-  Future<void> _findOptimalXienEntry(Map<String, List<List<dynamic>>> allSheetsData) async {
-    _optimalXienEntryLabel = "Đang tính toán...";
-    // Không notify ở đây để tránh rebuild thừa, chỉ notify cuối flow
+  void _updateOptimalState(BettingTableTypeEnum type, String value) {
+    switch (type) {
+      case BettingTableTypeEnum.tatca: _optimalTatCa = value; break;
+      case BettingTableTypeEnum.trung: _optimalTrung = value; break;
+      case BettingTableTypeEnum.bac: _optimalBac = value; break;
+    }
+  }
 
+  // Tính toán Xiên
+  Future<void> _findOptimalXienEntry(
+    Map<String, List<List<dynamic>>> allSheetsData, 
+    AppConfig config
+  ) async {
     try {
-      final config = await _storageService.loadConfig();
-      if (config == null || _ganPairInfo == null) {
-        _optimalXienEntryLabel = "Chưa có config";
-        return;
-      }
-
       final configDuration = config.duration.xienDuration;
       final fixedEndDate = _ganPairInfo!.lastSeen.add(Duration(days: configDuration));
 
@@ -326,54 +392,42 @@ class AnalysisViewModel extends ChangeNotifier {
       );
 
       if (budgetResult.available < 50000) {
-        _optimalXienEntryLabel = "Thiếu vốn (${NumberUtils.formatCurrency(budgetResult.available)})";
+        _optimalXien = "Thiếu vốn (${NumberUtils.formatCurrency(budgetResult.available)})";
         return;
       }
 
       final lastInfo = _getLastResultInfo();
       DateTime startDateCursor = lastInfo.date.add(const Duration(days: 1));
-      
       bool found = false;
-
+      
       for (int i = 0; i < 15; i++) {
         if (startDateCursor.isAfter(fixedEndDate)) break;
-
         try {
           final actualBettingDays = fixedEndDate.difference(startDateCursor).inDays;
           if (actualBettingDays <= 1) break; 
+          
           final effectiveDurationBase = actualBettingDays + _ganPairInfo!.daysGan;
-
           final table = await _bettingService.generateXienTable(
              ganInfo: _ganPairInfo!,
              startDate: startDateCursor,
              xienBudget: budgetResult.budgetMax,
              durationBase: effectiveDurationBase,
-             fitBudgetOnly: true, // Không tự động tăng tiền
+             fitBudgetOnly: true, 
           );
 
-          if (table.isNotEmpty && table.last.tongTien > budgetResult.budgetMax) {
-             throw Exception("Over budget"); 
-          }
+          if (table.isNotEmpty && table.last.tongTien > budgetResult.budgetMax) throw Exception();
 
           found = true;
-          _optimalXienStartDate = startDateCursor;
-          _optimalXienEntryLabel = date_utils.DateUtils.formatDate(startDateCursor);
+          _dateXien = startDateCursor;
+          _optimalXien = date_utils.DateUtils.formatDate(startDateCursor);
           break;
-
-        // ignore: empty_catches
-        } catch (e) {}
-        
+        } catch (_) {}
         startDateCursor = startDateCursor.add(const Duration(days: 1));
       }
-
-      if (!found) {
-        _optimalXienEntryLabel = "Thiếu vốn (Cần nạp thêm)";
-      }
+      if (!found) _optimalXien = "Quá hạn/Thiếu vốn";
 
     } catch (e) {
-      _optimalXienEntryLabel = "Lỗi tính toán";
-    } finally {
-      notifyListeners();
+      _optimalXien = "Lỗi";
     }
   }
 
@@ -425,7 +479,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
   
-  // Create Xien Table (Updated)
   Future<void> createXienBettingTable() async {
     if (_ganPairInfo == null) return;
     _isLoading = true; _errorMessage = null; notifyListeners();
@@ -439,8 +492,9 @@ class AnalysisViewModel extends ChangeNotifier {
       final lastInfo = _getLastResultInfo();
       DateTime start = lastInfo.date.add(const Duration(days: 1));
       
-      if (_optimalXienStartDate != null) {
-        start = _optimalXienStartDate!;
+      // ✅ Ưu tiên dùng ngày đã tính toán tối ưu nếu có
+      if (_dateXien != null) {
+        start = _dateXien!;
       }
 
       final actualBettingDays = fixedEndDate.difference(start).inDays;
@@ -487,11 +541,13 @@ class AnalysisViewModel extends ChangeNotifier {
   // --- HELPERS ---
 
   Future<CycleAnalysisResult> _prepareCycleResult(BettingTableTypeEnum type, String number) async {
+    // Nếu tạo bảng từ tab Tất cả, dùng result hiện tại
     if (type == BettingTableTypeEnum.tatca) {
       if (_cycleResult == null) throw Exception('Chưa có dữ liệu chu kỳ');
       return _cycleResult!;
     }
     
+    // Nếu tạo bảng từ nút shortcut (Trung/Bắc) nhưng đang ở tab khác, cần check lại số đó
     final detail = await _analysisService.analyzeNumberDetail(_allResults, number);
     final mien = type == BettingTableTypeEnum.trung ? 'Trung' : 'Bắc';
     final mienDetail = detail?.mienDetails[mien];
@@ -520,21 +576,20 @@ class AnalysisViewModel extends ChangeNotifier {
     var startDate = lastInfo.isLastBac ? lastInfo.date.add(const Duration(days: 1)) : lastInfo.date;
     var startIdx = lastInfo.isLastBac ? 0 : lastInfo.mienIndex + 1;
 
-    if (_optimalStartDate != null) {
-      // Chỉ áp dụng nếu type hiện tại khớp với type lúc tính tối ưu
-      // (Trong UI, mỗi khi đổi tab Mien là sẽ trigger tính lại nên sẽ khớp)
-      startDate = _optimalStartDate!;
-      if (_optimalStartMien != null) {
-        startIdx = ['Nam', 'Trung', 'Bắc'].indexOf(_optimalStartMien!);
+    // ✅ ƯU TIÊN DÙNG NGÀY ĐÃ TÍNH TOÁN (OPTIMAL)
+    if (type == BettingTableTypeEnum.tatca && _dateTatCa != null) {
+      startDate = _dateTatCa!;
+      if (_startMienTatCa != null) {
+        startIdx = ['Nam', 'Trung', 'Bắc'].indexOf(_startMienTatCa!);
       }
+    } else if (type == BettingTableTypeEnum.trung && _dateTrung != null) {
+      startDate = _dateTrung!;
+    } else if (type == BettingTableTypeEnum.bac && _dateBac != null) {
+      startDate = _dateBac!;
     }
 
     if (type == BettingTableTypeEnum.tatca) {
-      // ignore: unused_local_variable
-      String targetMien = 'Nam';
-      result.mienGroups.forEach((k, v) { if (v.contains(result.targetNumber)) targetMien = k; });
       var targetCount = config.duration.cycleDuration;
-      
       return (
         startDate: startDate, 
         endDate: fixedEndDate, 
@@ -562,7 +617,6 @@ class AnalysisViewModel extends ChangeNotifier {
   Future<void> _saveTableToSheet(BettingTableTypeEnum type, List<BettingRow> table, CycleAnalysisResult result) async {
     await _sheetsService.clearSheet(type.sheetName);
     
-    // Batch Update duy nhất
     final updates = <String, BatchUpdateData>{};
     final metadataRow = [
       result.maxGanDays.toString(),
@@ -618,15 +672,7 @@ class AnalysisViewModel extends ChangeNotifier {
     return (p[newMien] ?? 0) > (p[oldMien] ?? 0);
   }
 
-  BettingTableTypeEnum _getBettingTypeFromMien(String mien) {
-    switch (mien) {
-      case 'Trung': return BettingTableTypeEnum.trung;
-      case 'Bắc': return BettingTableTypeEnum.bac;
-      default: return BettingTableTypeEnum.tatca;
-    }
-  }
-
-  // --- TELEGRAM (Code cũ) ---
+  // --- TELEGRAM ---
   Future<void> sendCycleAnalysisToTelegram() async {
     if (_cycleResult == null) return;
     await _sendTelegram(_buildCycleMessage());
@@ -662,9 +708,19 @@ class AnalysisViewModel extends ChangeNotifier {
     buffer.writeln('<b>Lần cuối về:</b> ${date_utils.DateUtils.formatDate(_cycleResult!.lastSeenDate)}');
     buffer.writeln('<b>Số mục tiêu:</b> ${_cycleResult!.targetNumber}\n');
     
-    // Nếu có ngày tối ưu, gửi kèm tin nhắn
-    if (_optimalEntryLabel != null) {
-      buffer.writeln('<b>Kế hoạch:</b> $_optimalEntryLabel\n');
+    // Thêm thông tin tổng hợp dự kiến
+    if (_selectedMien == 'Tất cả') {
+       if (_optimalTatCa != "Đang tính..." && !_optimalTatCa.contains("Thiếu vốn")) {
+         buffer.writeln('<b>Kế hoạch (Tất cả):</b> $_optimalTatCa\n');
+       }
+    } else if (_selectedMien == 'Trung') {
+       if (_optimalTrung != "Đang tính..." && !_optimalTrung.contains("Thiếu vốn")) {
+         buffer.writeln('<b>Kế hoạch (Trung):</b> $_optimalTrung\n');
+       }
+    } else if (_selectedMien == 'Bắc') {
+       if (_optimalBac != "Đang tính..." && !_optimalBac.contains("Thiếu vốn")) {
+         buffer.writeln('<b>Kế hoạch (Bắc):</b> $_optimalBac\n');
+       }
     }
 
     buffer.writeln('<b>Nhóm số gan nhất:</b>\n${_cycleResult!.ganNumbersDisplay}\n');
@@ -682,8 +738,8 @@ class AnalysisViewModel extends ChangeNotifier {
     buffer.writeln('<b>Số ngày gan:</b> ${_ganPairInfo!.daysGan} ngày');
     buffer.writeln('<b>Lần cuối về:</b> ${date_utils.DateUtils.formatDate(_ganPairInfo!.lastSeen)}');
     
-    if (_optimalXienEntryLabel != null) {
-       buffer.writeln('\n<b>Kế hoạch:</b> $_optimalXienEntryLabel');
+    if (_optimalXien != "Đang tính..." && !_optimalXien.contains("Thiếu vốn")) {
+       buffer.writeln('\n<b>Kế hoạch:</b> $_optimalXien');
     }
     return buffer.toString();
   }
