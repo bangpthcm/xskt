@@ -206,7 +206,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Miền Bắc (ngày)',
                   icon: Icons.calendar_month,
                   hint: '43',
-                  minValue: 20,
+                  minValue: 18,
                   maxValue: 365,
                   helperText: 'Phải > 19 (threshold: 19). Mặc định: 43',
                 ),
@@ -246,10 +246,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _thresholdCycleDurationController,
                   label: 'Chu kỳ 00-99 (ngày)',
                   icon: Icons.calendar_month,
-                  hint: '5',
-                  minValue: 5,
-                  maxValue: 8,
-                  helperText: 'Mặc định: 20. Min: 5',
+                  hint: '4',
+                  minValue: 4,
+                  maxValue: 6,
+                  helperText: 'Mặc định: 5. Min: 4',
                 ),
                 const SizedBox(height: 16),
 
@@ -257,10 +257,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _thresholdTrungDurationController,
                   label: 'Miền Trung (ngày)',
                   icon: Icons.calendar_month,
-                  hint: '13',
-                  minValue: 10,
-                  maxValue: 365,
-                  helperText: 'Mặc định: 15. Min: 5',
+                  hint: '14',
+                  minValue: 13,
+                  maxValue: 16,
+                  helperText: 'Mặc định: 14. Min: 13',
                 ),
                 const SizedBox(height: 16),
 
@@ -268,10 +268,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _thresholdBacDurationController,
                   label: 'Miền Bắc (ngày)',
                   icon: Icons.calendar_month,
-                  hint: '16',
-                  minValue: 15,
-                  maxValue: 365,
-                  helperText: 'Mặc định: 20. Min: 5',
+                  hint: '18',
+                  minValue: 16,
+                  maxValue: 20,
+                  helperText: 'Mặc định: 18. Min: 16',
                 ),
 
                 const SizedBox(height: 16),
@@ -773,7 +773,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     int thresholdTrungDuration =
         int.tryParse(_thresholdTrungDurationController.text) ?? 12;
     int thresholdBacDuration =
-        int.tryParse(_thresholdBacDurationController.text) ?? 15;
+        int.tryParse(_thresholdBacDurationController.text) ?? 18;
 
     // ✨ THÊM: Validate Threshold
     if (thresholdCycleDuration < 5) {

@@ -10,9 +10,9 @@ class DurationConfig {
   final int xienDuration; // Xiên (default: 234, min: 156)
 
   // ✨ MỚI: Threshold Rebetting
-  final int thresholdCycleDuration; // Default: 20
-  final int thresholdTrungDuration; // Default: 15
-  final int thresholdBacDuration; // Default: 20
+  final int thresholdCycleDuration; // Default: 4
+  final int thresholdTrungDuration; // Default: 14
+  final int thresholdBacDuration; // Default: 18
 
   DurationConfig({
     this.cycleDuration = 10,
@@ -20,9 +20,9 @@ class DurationConfig {
     this.bacDuration = 43,
     this.xienDuration = 234,
     // ✨ THÊM
-    this.thresholdCycleDuration = 20,
-    this.thresholdTrungDuration = 15,
-    this.thresholdBacDuration = 20,
+    this.thresholdCycleDuration = 5,
+    this.thresholdTrungDuration = 14,
+    this.thresholdBacDuration = 18,
   });
 
   bool get isValid {
@@ -56,9 +56,9 @@ class DurationConfig {
       bacDuration: json['bacDuration'] ?? 43,
       xienDuration: json['xienDuration'] ?? 234,
       // ✨ THÊM
-      thresholdCycleDuration: json['thresholdCycleDuration'] ?? 20,
-      thresholdTrungDuration: json['thresholdTrungDuration'] ?? 15,
-      thresholdBacDuration: json['thresholdBacDuration'] ?? 20,
+      thresholdCycleDuration: json['thresholdCycleDuration'] ?? 4,
+      thresholdTrungDuration: json['thresholdTrungDuration'] ?? 14,
+      thresholdBacDuration: json['thresholdBacDuration'] ?? 18,
     );
   }
 
@@ -69,9 +69,9 @@ class DurationConfig {
       bacDuration: 43,
       xienDuration: 234,
       // ✨ THÊM
-      thresholdCycleDuration: 20,
-      thresholdTrungDuration: 15,
-      thresholdBacDuration: 20,
+      thresholdCycleDuration: 4,
+      thresholdTrungDuration: 14,
+      thresholdBacDuration: 18,
     );
   }
 

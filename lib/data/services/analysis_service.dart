@@ -404,12 +404,18 @@ class AnalysisService {
         final ngayTrungDate = date_utils.DateUtils.parseDate(ngayTrungCu);
         if (ngayTrungDate == null) continue;
 
+        // ✨ FIX LỖI Ở ĐÂY:
+        // Nếu mien là 'Mixed' (Tất cả), ta truyền chuỗi rỗng '' để hàm check không lọc theo miền
+        // Nếu là 'Nam', 'Trung', 'Bắc' thì giữ nguyên để lọc
+        String mienToCheck = (mien == 'Mixed') ? '' : mien;
+
         // 🔴 KEY CHECK: Nếu số đã về sau ngày trúng (cho MIỀN này) → LOẠI
         if (_hasNumberReappearedStatic(
           soMucTieu,
           ngayTrungDate,
           allResults,
-          mien: mien, // ✨ THÊM: Truyền miền để lọc
+          mien:
+              mienToCheck, // 👈 Sửa dòng này: Dùng biến mienToCheck thay vì mien
         )) {
           print('   ⏭️  Số $soMucTieu đã về sau $ngayTrungCu ($mien) → loại');
           continue; // ← Skip ứng viên này
@@ -548,30 +554,57 @@ class AnalysisService {
     List<LotteryResult> allResults, {
     String mien = '', // ✨ THÊM: Optional mien filter
   }) {
+    // 🐛 FIX: Normalize target number to 2 digits
+    final normalizedTarget = targetNumber.padLeft(2, '0');
+
     print(
-        '      🔍 Check xem $targetNumber có xuất hiện sau ${date_utils.DateUtils.formatDate(sinceDate)}${mien.isNotEmpty ? ' ($mien)' : ''}...');
+        '      🔍 Check xem $normalizedTarget có xuất hiện sau ${date_utils.DateUtils.formatDate(sinceDate)}${mien.isNotEmpty ? ' ($mien)' : ''}...');
+
+    // 🐛 DEBUG: Count total results and mien matches
+    int totalResults = 0;
+    int mienMatches = 0;
+    int dateMatches = 0;
 
     for (final result in allResults) {
+      totalResults++;
+
       final resultDate = date_utils.DateUtils.parseDate(result.ngay);
 
-      if (resultDate == null) continue;
+      if (resultDate == null) {
+        print('         ⚠️  Failed to parse date: ${result.ngay}');
+        continue;
+      }
 
       // ✅ CRITICAL: Chỉ check từ NGÀY TRÚNG trở đi (không bao gồm ngày trúng)
       if (resultDate.isAfter(sinceDate)) {
+        dateMatches++;
+
         // ✨ THÊM: Nếu có miền filter, chỉ check miền đó
         if (mien.isNotEmpty && result.mien != mien) {
           continue; // ← Bỏ qua nếu không phải miền cần check
         }
 
-        // Check số có trong ngày này không
-        if (result.numbers.contains(targetNumber)) {
+        mienMatches++;
+
+        // 🐛 DEBUG: Print matching dates
+        if (mienMatches <= 3) {
+          // Only print first 3 matches
           print(
-              '         ⚠️  FOUND: $targetNumber vào ngày ${result.ngay} (${result.mien})');
+              '         📅 Checking date ${result.ngay} (${result.mien}) - Numbers: ${result.numbers.take(5).join(", ")}...');
+        }
+
+        // 🐛 FIX: Check với cả 2 format (1 digit và 2 digits)
+        if (result.numbers.contains(normalizedTarget) ||
+            result.numbers.contains(targetNumber)) {
+          print(
+              '         ⚠️  FOUND: $normalizedTarget vào ngày ${result.ngay} (${result.mien})');
           return true; // ← Số đã vô lại
         }
       }
     }
 
+    print(
+        '         📊 Stats: Total=$totalResults, AfterDate=$dateMatches, MienMatch=$mienMatches');
     print('         ✅ Không tìm thấy');
     return false; // ← Chưa vô lại
   }

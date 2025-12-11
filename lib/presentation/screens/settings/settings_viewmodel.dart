@@ -38,9 +38,9 @@ class SettingsViewModel extends ChangeNotifier {
   List<bool?> get apiAccountStatus => _apiAccountStatus;
 
   // THÊM CONSTANT cho validation
-  static const int _minCycleDuration = 5; // > 4
-  static const int _minTrungDuration = 14; // > 13
-  static const int _minBacDuration = 20; // > 19
+  static const int _minCycleDuration = 4; // > 4
+  static const int _minTrungDuration = 14; // > 14
+  static const int _minBacDuration = 18; // > 18
   static const int _minXienDuration = 156; // > 155
 
   static const int _minThreshold = 5;
