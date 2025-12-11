@@ -1,24 +1,27 @@
 // lib/app.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:async';
-import 'data/services/google_sheets_service.dart';
+
+import 'core/theme/theme_provider.dart';
+import 'data/models/app_config.dart';
 import 'data/services/analysis_service.dart';
+import 'data/services/betting_table_service.dart';
+import 'data/services/cached_data_service.dart';
+import 'data/services/google_sheets_service.dart';
 import 'data/services/storage_service.dart';
 import 'data/services/telegram_service.dart';
-import 'data/services/betting_table_service.dart';
 import 'data/services/win_tracking_service.dart';
-import 'data/models/app_config.dart';
-import 'data/services/cached_data_service.dart';
-import 'presentation/screens/home/home_viewmodel.dart';
+import 'presentation/navigation/main_navigation.dart';
 import 'presentation/screens/analysis/analysis_viewmodel.dart';
 import 'presentation/screens/betting/betting_viewmodel.dart';
+import 'presentation/screens/home/home_viewmodel.dart';
 import 'presentation/screens/settings/settings_viewmodel.dart';
 import 'presentation/screens/win_history/win_history_viewmodel.dart';
-import 'presentation/navigation/main_navigation.dart';
-import 'core/theme/theme_provider.dart';
 
-final GlobalKey<MainNavigationState> mainNavigationKey = GlobalKey<MainNavigationState>();
+final GlobalKey<MainNavigationState> mainNavigationKey =
+    GlobalKey<MainNavigationState>();
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -43,21 +46,21 @@ class _MyAppState extends State<MyApp> {
       final storageService = context.read<StorageService>();
       final sheetsService = context.read<GoogleSheetsService>();
       final telegramService = context.read<TelegramService>();
-      
+
       var config = await storageService.loadConfig();
       if (config == null) {
         config = AppConfig.defaultConfig();
         await storageService.saveConfig(config);
       }
-      
+
       // Khởi tạo các service quan trọng
       await Future.wait([
         sheetsService.initialize(config.googleSheets),
         Future(() => telegramService.initialize(config!.telegram)),
       ]);
-      
+
       print('✅ Background: Core services initialized');
-      
+
       // Cache warm-up (chạy ngầm)
       _warmUpCache();
     } catch (e) {
@@ -81,54 +84,65 @@ class _MyAppState extends State<MyApp> {
         return MultiProvider(
           providers: [
             ProxyProvider<GoogleSheetsService, WinTrackingService>(
-              update: (_, sheets, __) => WinTrackingService(sheetsService: sheets),
+              update: (_, sheets, __) =>
+                  WinTrackingService(sheetsService: sheets),
             ),
-
             ChangeNotifierProvider(create: (_) => HomeViewModel()),
-            
-            ChangeNotifierProxyProvider6<CachedDataService, GoogleSheetsService, AnalysisService, StorageService, TelegramService, BettingTableService, AnalysisViewModel>(
+            ChangeNotifierProxyProvider6<
+                CachedDataService,
+                GoogleSheetsService,
+                AnalysisService,
+                StorageService,
+                TelegramService,
+                BettingTableService,
+                AnalysisViewModel>(
               create: (context) => AnalysisViewModel(
-                  cachedDataService: context.read<CachedDataService>(),
-                  sheetsService: context.read<GoogleSheetsService>(),
-                  analysisService: context.read<AnalysisService>(),
-                  storageService: context.read<StorageService>(),
-                  telegramService: context.read<TelegramService>(),
-                  bettingService: context.read<BettingTableService>(),
+                cachedDataService: context.read<CachedDataService>(),
+                sheetsService: context.read<GoogleSheetsService>(),
+                analysisService: context.read<AnalysisService>(),
+                storageService: context.read<StorageService>(),
+                telegramService: context.read<TelegramService>(),
+                bettingService: context.read<BettingTableService>(),
               ),
-              update: (context, cached, sheets, analysis, storage, telegram, betting, prev) => prev ?? AnalysisViewModel(
-                  cachedDataService: cached,
-                  sheetsService: sheets,
-                  analysisService: analysis,
-                  storageService: storage,
-                  telegramService: telegram,
-                  bettingService: betting,
-              ),
+              update: (context, cached, sheets, analysis, storage, telegram,
+                      betting, prev) =>
+                  prev ??
+                  AnalysisViewModel(
+                    cachedDataService: cached,
+                    sheetsService: sheets,
+                    analysisService: analysis,
+                    storageService: storage,
+                    telegramService: telegram,
+                    bettingService: betting,
+                  ),
             ),
-
-            ChangeNotifierProxyProvider2<GoogleSheetsService, TelegramService, BettingViewModel>(
+            ChangeNotifierProxyProvider2<GoogleSheetsService, TelegramService,
+                BettingViewModel>(
               create: (context) => BettingViewModel(
                 sheetsService: context.read<GoogleSheetsService>(),
                 telegramService: context.read<TelegramService>(),
               ),
               update: (_, sheets, telegram, prev) => prev!,
             ),
-            
-            ChangeNotifierProxyProvider3<StorageService, GoogleSheetsService, TelegramService, SettingsViewModel>(
+            ChangeNotifierProxyProvider3<StorageService, GoogleSheetsService,
+                TelegramService, SettingsViewModel>(
               create: (context) => SettingsViewModel(
                 storageService: context.read<StorageService>(),
                 sheetsService: context.read<GoogleSheetsService>(),
                 telegramService: context.read<TelegramService>(),
               ),
-               update: (_, storage, sheets, telegram, prev) => prev!,
+              update: (_, storage, sheets, telegram, prev) => prev!,
             ),
-
-            ChangeNotifierProxyProvider<WinTrackingService, WinHistoryViewModel>(
+            ChangeNotifierProxyProvider<WinTrackingService,
+                WinHistoryViewModel>(
               create: (context) => WinHistoryViewModel(
                 trackingService: context.read<WinTrackingService>(),
               ),
-              update: (_, tracking, prev) => prev ?? WinHistoryViewModel(
-                trackingService: tracking,
-              ),
+              update: (_, tracking, prev) =>
+                  prev ??
+                  WinHistoryViewModel(
+                    trackingService: tracking,
+                  ),
             ),
           ],
           child: MaterialApp(

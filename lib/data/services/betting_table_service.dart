@@ -1,13 +1,14 @@
 // lib/data/services/betting_table_service.dart
 
 import 'dart:math';
-import '../models/betting_row.dart';
-import '../models/gan_pair_info.dart';
-import '../models/cycle_analysis_result.dart';
+
+import '../../core/constants/app_constants.dart';
 import '../../core/utils/date_utils.dart' as date_utils;
 import '../../core/utils/number_utils.dart';
+import '../models/betting_row.dart';
+import '../models/cycle_analysis_result.dart';
+import '../models/gan_pair_info.dart';
 import '../models/lottery_result.dart';
-import '../../core/constants/app_constants.dart';
 
 class BettingTableService {
   /// Generate Xien Table
@@ -19,7 +20,7 @@ class BettingTableService {
     bool fitBudgetOnly = false,
   }) async {
     final soNgayGan = ganInfo.daysGan;
-    final durationDays = durationBase - soNgayGan;  // ✅ DÙNG parameter
+    final durationDays = durationBase - soNgayGan; // ✅ DÙNG parameter
 
     if (durationDays <= 1) {
       throw Exception('Số ngày gan quá lớn: $soNgayGan (cần < $durationBase)');
@@ -27,11 +28,14 @@ class BettingTableService {
 
     final capSoMucTieu = ganInfo.randomPair;
     final rawTable = <BettingRow>[];
-    
+
     double tongTien = 0.0;
-    final profitStep = (AppConstants.finalProfit - AppConstants.startingProfit) / (durationDays - 1);
-    
-    double tienCuocMien = AppConstants.startingProfit / (AppConstants.winMultiplierXien - 1);
+    final profitStep =
+        (AppConstants.finalProfit - AppConstants.startingProfit) /
+            (durationDays - 1);
+
+    double tienCuocMien =
+        AppConstants.startingProfit / (AppConstants.winMultiplierXien - 1);
     if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
       tienCuocMien = 100.0;
     }
@@ -39,28 +43,30 @@ class BettingTableService {
     // Bước 1: Tính toán thô
     final tempRows = <Map<String, dynamic>>[];
     for (int i = 0; i < durationDays; i++) {
-      final currentProfitTarget = AppConstants.startingProfit + (profitStep * i);
-      
+      final currentProfitTarget =
+          AppConstants.startingProfit + (profitStep * i);
+
       if (i > 0) {
-        tienCuocMien = (tongTien + currentProfitTarget) / (AppConstants.winMultiplierXien - 1);
+        tienCuocMien = (tongTien + currentProfitTarget) /
+            (AppConstants.winMultiplierXien - 1);
         if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
           tienCuocMien = 100.0;
         }
       }
-      
+
       if (tempRows.isNotEmpty) {
         final prevCuoc = tempRows.last['cuoc_mien'] as double? ?? 100.0;
         tienCuocMien = max(prevCuoc, tienCuocMien);
       }
-      
+
       tienCuocMien = tienCuocMien.ceilToDouble();
-      
+
       if (tienCuocMien.isFinite) {
         tongTien += tienCuocMien;
       } else {
         throw Exception('Invalid tienCuocMien: $tienCuocMien');
       }
-      
+
       tempRows.add({
         'ngay': _formatDateWith2Digits(startDate.add(Duration(days: i))),
         'cuoc_mien': tienCuocMien,
@@ -72,35 +78,38 @@ class BettingTableService {
     final rawTotalCost = tempRows.last['tong'] as double? ?? 1.0;
     double scalingFactor = xienBudget / rawTotalCost;
     if (fitBudgetOnly && scalingFactor > 1.0) {
-      scalingFactor = 1.0; 
+      scalingFactor = 1.0;
     }
     if (rawTotalCost <= 0) {
       throw Exception('Tổng tiền tính toán không hợp lệ: $rawTotalCost');
     }
-    
+
     //final scalingFactor = xienBudget / rawTotalCost;
-    
+
     if (scalingFactor.isNaN || scalingFactor.isInfinite || scalingFactor <= 0) {
-      throw Exception('Invalid scaling factor: $scalingFactor (budget: $xienBudget, cost: $rawTotalCost)');
+      throw Exception(
+          'Invalid scaling factor: $scalingFactor (budget: $xienBudget, cost: $rawTotalCost)');
     }
 
     for (int i = 0; i < tempRows.length; i++) {
       final row = tempRows[i];
-      
+
       double cuocMien = (row['cuoc_mien'] as double? ?? 100.0) * scalingFactor;
       cuocMien = cuocMien.ceilToDouble();
-      
+
       if (!cuocMien.isFinite) {
         throw Exception('Invalid cuocMien at row $i: $cuocMien');
       }
-      
-      double tongTienRow = i == 0 ? cuocMien : rawTable[i-1].tongTien + cuocMien;
+
+      double tongTienRow =
+          i == 0 ? cuocMien : rawTable[i - 1].tongTien + cuocMien;
       double loi = (cuocMien * AppConstants.winMultiplierXien) - tongTienRow;
-      
+
       if (!tongTienRow.isFinite || !loi.isFinite) {
-        throw Exception('Invalid values at row $i: tongTien=$tongTienRow, loi=$loi');
+        throw Exception(
+            'Invalid values at row $i: tongTien=$tongTienRow, loi=$loi');
       }
-      
+
       rawTable.add(BettingRow.forXien(
         stt: i + 1,
         ngay: row['ngay'] as String,
@@ -111,8 +120,9 @@ class BettingTableService {
         loi: loi,
       ));
     }
-    
-    print('✅ Generated ${rawTable.length} xien rows (budget: ${NumberUtils.formatCurrency(xienBudget)})');
+
+    print(
+        '✅ Generated ${rawTable.length} xien rows (budget: ${NumberUtils.formatCurrency(xienBudget)})');
     return rawTable;
   }
 
@@ -126,7 +136,7 @@ class BettingTableService {
     required double budgetMax,
     required List<LotteryResult> allResults,
     required int maxMienCount,
-    required int durationLimit,  // ✅ THÊM parameter
+    required int durationLimit, // ✅ THÊM parameter
   }) async {
     String targetMien = 'Nam';
     for (final entry in cycleResult.mienGroups.entries) {
@@ -162,7 +172,7 @@ class BettingTableService {
     required DateTime endDate,
     required double budgetMin,
     required double budgetMax,
-    required int durationLimit,  // ✅ THÊM parameter
+    required int durationLimit, // ✅ THÊM parameter
   }) async {
     return _optimizeTableSearch(
       budgetMin: budgetMin,
@@ -174,7 +184,7 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: durationLimit,  // ✅ DÙNG parameter
+        durationLimit: durationLimit, // ✅ DÙNG parameter
         winMultiplier: AppConstants.bacGanWinMultiplier,
       ),
       configName: "Bắc Gan",
@@ -190,7 +200,7 @@ class BettingTableService {
     required DateTime endDate,
     required double budgetMin,
     required double budgetMax,
-    required int durationLimit,  // ✅ THÊM parameter
+    required int durationLimit, // ✅ THÊM parameter
   }) async {
     return _optimizeTableSearch(
       budgetMin: budgetMin,
@@ -202,7 +212,7 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: durationLimit,  // ✅ DÙNG parameter
+        durationLimit: durationLimit, // ✅ DÙNG parameter
         winMultiplier: AppConstants.trungGanWinMultiplier,
       ),
       configName: "Trung Gan",
@@ -214,7 +224,8 @@ class BettingTableService {
   Future<List<BettingRow>> _optimizeTableSearch({
     required double budgetMin,
     required double budgetMax,
-    required Future<Map<String, dynamic>> Function(double profit, double bet) calculator,
+    required Future<Map<String, dynamic>> Function(double profit, double bet)
+        calculator,
     required String configName,
     int profitSearchRange = 12,
     int betSearchRange = 11,
@@ -239,7 +250,7 @@ class BettingTableService {
 
       if (foundTable != null) {
         bestTable ??= foundTable;
-        
+
         // Thử tinh chỉnh lợi nhuận một chút để tối ưu hơn
         final adjustedProfit = midProfit * 3.5 / 4.2; // Giữ logic cũ của bạn
         final optimizedTable = await _findBestStartBet(
@@ -251,7 +262,7 @@ class BettingTableService {
         );
 
         if (optimizedTable != null) bestTable = optimizedTable;
-        
+
         lowProfit = midProfit + 1;
       } else {
         highProfit = midProfit - 1;
@@ -265,18 +276,14 @@ class BettingTableService {
       final actualTotal = testResult['tong_tien'] as double;
 
       if (actualTotal > budgetMax) {
-        throw Exception(
-          'Không thể tạo bảng $configName!\n'
-          'Ngân sách tối đa: ${NumberUtils.formatCurrency(budgetMax)} VNĐ\n'
-          'Cần tối thiểu: ${NumberUtils.formatCurrency(actualTotal)} VNĐ\n'
-          'Thiếu: ${NumberUtils.formatCurrency(actualTotal - budgetMax)} VNĐ'
-        );
+        throw Exception('Không thể tạo bảng $configName!\n'
+            'Ngân sách tối đa: ${NumberUtils.formatCurrency(budgetMax)} VNĐ\n'
+            'Cần tối thiểu: ${NumberUtils.formatCurrency(actualTotal)} VNĐ\n'
+            'Thiếu: ${NumberUtils.formatCurrency(actualTotal - budgetMax)} VNĐ');
       } else {
-        throw Exception(
-          'Lỗi tạo bảng $configName!\n'
-          'Ngân sách: ${NumberUtils.formatCurrency(budgetMax)} VNĐ\n'
-          'Không tìm được cấu hình tối ưu. Vui lòng thử lại.'
-        );
+        throw Exception('Lỗi tạo bảng $configName!\n'
+            'Ngân sách: ${NumberUtils.formatCurrency(budgetMax)} VNĐ\n'
+            'Không tìm được cấu hình tối ưu. Vui lòng thử lại.');
       }
     }
 
@@ -288,7 +295,8 @@ class BettingTableService {
     required double budgetMin,
     required double budgetMax,
     required double profitTarget,
-    required Future<Map<String, dynamic>> Function(double profit, double bet) calculator,
+    required Future<Map<String, dynamic>> Function(double profit, double bet)
+        calculator,
     required int searchRange,
   }) async {
     double lowBet = profitTarget / 3 / 50; // Ước lượng
@@ -334,7 +342,8 @@ class BettingTableService {
     DateTime currentDate = startDate;
     int dayCount = 0;
 
-    while (dayCount < durationLimit && currentDate.isBefore(endDate.add(const Duration(days: 1)))) {
+    while (dayCount < durationLimit &&
+        currentDate.isBefore(endDate.add(const Duration(days: 1)))) {
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
       final soLo = NumberUtils.calculateSoLo(mien, weekday);
 
@@ -382,7 +391,7 @@ class BettingTableService {
   }) async {
     final tableData = <BettingRow>[];
     double tongTien = 0.0;
-    
+
     // Đếm số lần quay của targetMien
     int mienCount = _countTargetMienOccurrences(
       startDate: lastSeenDate,
@@ -390,14 +399,15 @@ class BettingTableService {
       targetMien: targetMien,
       allResults: allResults,
     );
-    
+
     int stt = 1;
     DateTime currentDate = startDate;
     bool isFirstDay = true;
     const mienOrder = AppConstants.mienOrder; // ['Nam', 'Trung', 'Bắc']
 
     outerLoop:
-    while (mienCount < maxMienCount && currentDate.isBefore(endDate.add(const Duration(days: 1)))) {
+    while (mienCount < maxMienCount &&
+        currentDate.isBefore(endDate.add(const Duration(days: 1)))) {
       final initialMienIdx = isFirstDay ? startMienIndex : 0;
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
 
@@ -448,7 +458,7 @@ class BettingTableService {
     required int winMultiplier,
   }) {
     final requiredBet = (prevTongTien + profitTarget) / (winMultiplier - soLo);
-    
+
     double tienCuoc1So = startBetValue;
     if (prevTable.isNotEmpty) {
       final lastBet = prevTable.last.cuocSo;
@@ -487,7 +497,7 @@ class BettingTableService {
     for (final result in allResults) {
       final date = date_utils.DateUtils.parseDate(result.ngay);
       if (date == null) continue;
-      if (date.isAfter(startDate) && 
+      if (date.isAfter(startDate) &&
           (date.isBefore(endDate) || date.isAtSameMomentAs(endDate)) &&
           result.mien == targetMien) {
         uniqueDates.add(result.ngay);
@@ -501,6 +511,130 @@ class BettingTableService {
     final month = date.month.toString().padLeft(2, '0');
     final year = date.year.toString();
     return '$day/$month/$year';
+  }
+
+  Future<String?> findOptimalStartDateForRebetting({
+    required DateTime endDate,
+    required double budgetMin,
+    required double budgetMax,
+    required String mien,
+    required String soMucTieu,
+    double profitTarget = 100.0,
+  }) async {
+    print('🔍 Finding optimal start date for Rebetting...');
+    print('   End date: ${_formatDateWith2Digits(endDate)}');
+    print(
+        '   Budget: ${NumberUtils.formatCurrency(budgetMin)} - ${NumberUtils.formatCurrency(budgetMax)}');
+
+    try {
+      DateTime currentDate = endDate;
+      String? bestStartDate;
+
+      // Thử từ endDate đi lùi tối đa 60 ngày
+      for (int dayOffset = 0; dayOffset < 60; dayOffset++) {
+        currentDate = endDate.subtract(Duration(days: dayOffset));
+
+        final weekday = date_utils.DateUtils.getWeekday(currentDate);
+        final soLo = NumberUtils.calculateSoLo(mien, weekday);
+
+        if (AppConstants.winMultiplier - soLo <= 0) {
+          continue;
+        }
+
+        final tempTable = await _calculateSingleMienTableForRebetting(
+          targetNumber: soMucTieu,
+          mien: mien,
+          startDate: currentDate,
+          endDate: endDate,
+          startBetValue: 1.0,
+          profitTarget: 100.0,
+          winMultiplier: AppConstants.winMultiplier,
+        );
+
+        if (tempTable.isEmpty) {
+          continue;
+        }
+
+        final totalMoney = tempTable.last.tongTien;
+
+        if (totalMoney >= budgetMin && totalMoney <= budgetMax) {
+          bestStartDate = _formatDateWith2Digits(currentDate);
+          print(
+              '   ✅ Found start date: $bestStartDate (total: ${NumberUtils.formatCurrency(totalMoney)})');
+          return bestStartDate;
+        }
+
+        if (totalMoney > budgetMax * 1.5) {
+          print(
+              '   ⏭️  Day $dayOffset: total ${NumberUtils.formatCurrency(totalMoney)} > budget, stopping');
+          break;
+        }
+      }
+
+      print('   ❌ Could not find suitable start date');
+      return null;
+    } catch (e) {
+      print('   ❌ Error finding start date: $e');
+      return null;
+    }
+  }
+
+  /// Helper: Tính table cho Rebetting
+  Future<List<BettingRow>> _calculateSingleMienTableForRebetting({
+    required String targetNumber,
+    required String mien,
+    required DateTime startDate,
+    required DateTime endDate,
+    required double startBetValue,
+    required double profitTarget,
+    required int winMultiplier,
+  }) async {
+    final tableData = <BettingRow>[];
+    double tongTien = 0.0;
+    int stt = 1;
+    DateTime currentDate = startDate;
+
+    while (currentDate.isBefore(endDate.add(const Duration(days: 1)))) {
+      final weekday = date_utils.DateUtils.getWeekday(currentDate);
+      final soLo = NumberUtils.calculateSoLo(mien, weekday);
+
+      if (winMultiplier - soLo <= 0) {
+        currentDate = currentDate.add(const Duration(days: 1));
+        continue;
+      }
+
+      final requiredBet = (tongTien + profitTarget) / (winMultiplier - soLo);
+      double tienCuoc1So = startBetValue;
+
+      if (tableData.isNotEmpty) {
+        final lastBet = tableData.last.cuocSo;
+        tienCuoc1So = tienCuoc1So > requiredBet ? tienCuoc1So : requiredBet;
+      }
+      tienCuoc1So = tienCuoc1So.ceilToDouble();
+
+      final tienCuocMien = tienCuoc1So * soLo;
+      final newTongTien = tongTien + tienCuocMien;
+      final tienLoi1So = (tienCuoc1So * winMultiplier) - newTongTien;
+      final tienLoi2So = (tienCuoc1So * winMultiplier * 2) - newTongTien;
+
+      tableData.add(BettingRow.forCycle(
+        stt: stt++,
+        ngay: _formatDateWith2Digits(currentDate),
+        mien: mien,
+        so: targetNumber,
+        soLo: soLo,
+        cuocSo: tienCuoc1So,
+        cuocMien: tienCuocMien,
+        tongTien: newTongTien,
+        loi1So: tienLoi1So,
+        loi2So: tienLoi2So,
+      ));
+
+      tongTien = newTongTien;
+      currentDate = currentDate.add(const Duration(days: 1));
+    }
+
+    return tableData;
   }
 }
 

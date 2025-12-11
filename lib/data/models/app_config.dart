@@ -3,23 +3,37 @@
 import 'api_account.dart';
 
 class DurationConfig {
-  final int cycleDuration;      // Chu kỳ (default: 10, min: 5)
-  final int trungDuration;      // Miền Trung (default: 26, min: 14)
-  final int bacDuration;        // Miền Bắc (default: 43, min: 20)
-  final int xienDuration;       // Xiên (default: 234, min: 156)
+  // 🔵 Hiện tại: Duration cơ bản (Farming)
+  final int cycleDuration; // Chu kỳ (default: 10, min: 5)
+  final int trungDuration; // Miền Trung (default: 26, min: 14)
+  final int bacDuration; // Miền Bắc (default: 43, min: 20)
+  final int xienDuration; // Xiên (default: 234, min: 156)
+
+  // ✨ MỚI: Threshold Rebetting
+  final int thresholdCycleDuration; // Default: 20
+  final int thresholdTrungDuration; // Default: 15
+  final int thresholdBacDuration; // Default: 20
 
   DurationConfig({
     this.cycleDuration = 10,
     this.trungDuration = 26,
     this.bacDuration = 43,
     this.xienDuration = 234,
+    // ✨ THÊM
+    this.thresholdCycleDuration = 20,
+    this.thresholdTrungDuration = 15,
+    this.thresholdBacDuration = 20,
   });
 
   bool get isValid {
-    return cycleDuration > 4 && 
-           trungDuration > 13 && 
-           bacDuration > 19 && 
-           xienDuration > 155;
+    return cycleDuration > 4 &&
+        trungDuration > 13 &&
+        bacDuration > 19 &&
+        xienDuration > 155 &&
+        // ✨ THÊM validation cho Threshold
+        thresholdCycleDuration > 5 &&
+        thresholdTrungDuration > 5 &&
+        thresholdBacDuration > 5;
   }
 
   Map<String, dynamic> toJson() {
@@ -28,6 +42,10 @@ class DurationConfig {
       'trungDuration': trungDuration,
       'bacDuration': bacDuration,
       'xienDuration': xienDuration,
+      // ✨ THÊM
+      'thresholdCycleDuration': thresholdCycleDuration,
+      'thresholdTrungDuration': thresholdTrungDuration,
+      'thresholdBacDuration': thresholdBacDuration,
     };
   }
 
@@ -37,6 +55,10 @@ class DurationConfig {
       trungDuration: json['trungDuration'] ?? 26,
       bacDuration: json['bacDuration'] ?? 43,
       xienDuration: json['xienDuration'] ?? 234,
+      // ✨ THÊM
+      thresholdCycleDuration: json['thresholdCycleDuration'] ?? 20,
+      thresholdTrungDuration: json['thresholdTrungDuration'] ?? 15,
+      thresholdBacDuration: json['thresholdBacDuration'] ?? 20,
     );
   }
 
@@ -46,6 +68,10 @@ class DurationConfig {
       trungDuration: 26,
       bacDuration: 43,
       xienDuration: 234,
+      // ✨ THÊM
+      thresholdCycleDuration: 20,
+      thresholdTrungDuration: 15,
+      thresholdBacDuration: 20,
     );
   }
 
@@ -54,12 +80,22 @@ class DurationConfig {
     int? trungDuration,
     int? bacDuration,
     int? xienDuration,
+    // ✨ THÊM
+    int? thresholdCycleDuration,
+    int? thresholdTrungDuration,
+    int? thresholdBacDuration,
   }) {
     return DurationConfig(
       cycleDuration: cycleDuration ?? this.cycleDuration,
       trungDuration: trungDuration ?? this.trungDuration,
       bacDuration: bacDuration ?? this.bacDuration,
       xienDuration: xienDuration ?? this.xienDuration,
+      // ✨ THÊM
+      thresholdCycleDuration:
+          thresholdCycleDuration ?? this.thresholdCycleDuration,
+      thresholdTrungDuration:
+          thresholdTrungDuration ?? this.thresholdTrungDuration,
+      thresholdBacDuration: thresholdBacDuration ?? this.thresholdBacDuration,
     );
   }
 }
@@ -102,7 +138,7 @@ class AppConfig {
   final GoogleSheetsConfig googleSheets;
   final TelegramConfig telegram;
   final BudgetConfig budget;
-  final DurationConfig duration;  // ✅ THÊM
+  final DurationConfig duration; // ✅ THÊM
   final List<ApiAccount> apiAccounts;
   final BettingConfig betting;
 
@@ -110,19 +146,19 @@ class AppConfig {
     required this.googleSheets,
     required this.telegram,
     required this.budget,
-    DurationConfig? duration,  // ✅ THÊM (optional)
+    DurationConfig? duration, // ✅ THÊM (optional)
     List<ApiAccount>? apiAccounts,
     BettingConfig? betting,
-  }) : duration = duration ?? DurationConfig.defaults(),  // ✅ THÊM
-       apiAccounts = apiAccounts ?? [],
-       betting = betting ?? BettingConfig.empty();
+  })  : duration = duration ?? DurationConfig.defaults(), // ✅ THÊM
+        apiAccounts = apiAccounts ?? [],
+        betting = betting ?? BettingConfig.empty();
 
   Map<String, dynamic> toJson() {
     return {
       'googleSheets': googleSheets.toJson(),
       'telegram': telegram.toJson(),
       'budget': budget.toJson(),
-      'duration': duration.toJson(),  // ✅ THÊM
+      'duration': duration.toJson(), // ✅ THÊM
       'apiAccounts': apiAccounts.map((a) => a.toJson()).toList(),
       'betting': betting.toJson(),
     };
@@ -133,10 +169,11 @@ class AppConfig {
       googleSheets: GoogleSheetsConfig.fromJson(json['googleSheets'] ?? {}),
       telegram: TelegramConfig.fromJson(json['telegram'] ?? {}),
       budget: BudgetConfig.fromJson(json['budget'] ?? {}),
-      duration: DurationConfig.fromJson(json['duration'] ?? {}),  // ✅ THÊM
+      duration: DurationConfig.fromJson(json['duration'] ?? {}), // ✅ THÊM
       apiAccounts: (json['apiAccounts'] as List<dynamic>?)
-          ?.map((item) => ApiAccount.fromJson(item))
-          .toList() ?? [],
+              ?.map((item) => ApiAccount.fromJson(item))
+              .toList() ??
+          [],
       betting: BettingConfig.fromJson(json['betting'] ?? {}),
     );
   }
@@ -148,7 +185,7 @@ class AppConfig {
       ),
       telegram: TelegramConfig.empty(),
       budget: BudgetConfig.defaultBudget(),
-      duration: DurationConfig.defaults(),  // ✅ THÊM
+      duration: DurationConfig.defaults(), // ✅ Giữ nguyên, defaults() đã update
       apiAccounts: [],
       betting: BettingConfig.empty(),
     );
@@ -158,7 +195,7 @@ class AppConfig {
     GoogleSheetsConfig? googleSheets,
     TelegramConfig? telegram,
     BudgetConfig? budget,
-    DurationConfig? duration,  // ✅ THÊM
+    DurationConfig? duration, // ✅ THÊM
     List<ApiAccount>? apiAccounts,
     BettingConfig? betting,
   }) {
@@ -166,7 +203,7 @@ class AppConfig {
       googleSheets: googleSheets ?? this.googleSheets,
       telegram: telegram ?? this.telegram,
       budget: budget ?? this.budget,
-      duration: duration ?? this.duration,  // ✅ THÊM
+      duration: duration ?? this.duration, // ✅ THÊM
       apiAccounts: apiAccounts ?? this.apiAccounts,
       betting: betting ?? this.betting,
     );
@@ -192,9 +229,9 @@ class GoogleSheetsConfig {
     required this.worksheetName,
   });
 
-  bool get isValid => 
-      projectId.isNotEmpty && 
-      privateKey.isNotEmpty && 
+  bool get isValid =>
+      projectId.isNotEmpty &&
+      privateKey.isNotEmpty &&
       clientEmail.isNotEmpty &&
       clientId.isNotEmpty &&
       sheetName.isNotEmpty &&
@@ -245,9 +282,9 @@ class GoogleSheetsConfig {
   }
 
   static const String _defaultProjectId = "fresh-heuristic-469212-h6";
-  static const String _defaultPrivateKeyId = "cf577e77874a18e644093da3a81dcfe53b49796e";
-  static const String _defaultPrivateKey = 
-      "-----BEGIN PRIVATE KEY-----\n"
+  static const String _defaultPrivateKeyId =
+      "cf577e77874a18e644093da3a81dcfe53b49796e";
+  static const String _defaultPrivateKey = "-----BEGIN PRIVATE KEY-----\n"
       "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQClGOjZt6bmTqxX\n"
       "DdpT3MQ/4ulQafPnUgO7eGxUKGmszAXpY4AdFOd5wHFjVM99v3AvRRHXwMZfzisg\n"
       "NfxoJpcWWkPKevwzEd5NLDhCTaGB+w0kv72kjeu5/I7PqAMWiak3uhHMRGvEJpMK\n"
@@ -275,11 +312,12 @@ class GoogleSheetsConfig {
       "U3jmMcW6p2s9UN1tXVxNcOcPECv8Ml1kwZGPm69J03omxAZPwAZK9URvRUcUQRyk\n"
       "XvKduo02M+x/RYTHwRxgOoI=\n"
       "-----END PRIVATE KEY-----\n";
-  static const String _defaultClientEmail = 
+  static const String _defaultClientEmail =
       "xskt-0311@fresh-heuristic-469212-h6.iam.gserviceaccount.com";
   static const String _defaultClientId = "118119191342625559220";
-  static const String _defaultSheetName = "1P7SitHUhauI8-4E-LxykqDERrQN6c-Dgx9UGnbGvVbs";
-  static const String _defaultWorksheetName = "KQXS"; 
+  static const String _defaultSheetName =
+      "1P7SitHUhauI8-4E-LxykqDERrQN6c-Dgx9UGnbGvVbs";
+  static const String _defaultWorksheetName = "KQXS";
 }
 
 class TelegramConfig {
@@ -308,12 +346,11 @@ class TelegramConfig {
 
   factory TelegramConfig.empty() {
     return TelegramConfig(
-      botToken: _defaultBotToken, 
-      chatIds: ['-1003060014477']
-    );
+        botToken: _defaultBotToken, chatIds: ['-1003060014477']);
   }
 
-  static const String _defaultBotToken = "7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs";
+  static const String _defaultBotToken =
+      "7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs";
   static String get defaultBotToken => _defaultBotToken;
 }
 

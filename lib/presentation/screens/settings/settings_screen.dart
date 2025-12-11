@@ -1,12 +1,13 @@
 // lib/presentation/screens/settings/settings_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
-import 'settings_viewmodel.dart';
-import '../../../data/models/app_config.dart';
-import '../../../data/models/api_account.dart';
-import '../../../core/utils/number_utils.dart';
+import 'package:provider/provider.dart';
+
 import '../../../core/theme/theme_provider.dart';
+import '../../../core/utils/number_utils.dart';
+import '../../../data/models/api_account.dart';
+import '../../../data/models/app_config.dart';
+import 'settings_viewmodel.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,7 +18,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   late TextEditingController _sheetNameController;
   late TextEditingController _chatIdsController;
   late TextEditingController _totalCapitalController;
@@ -36,7 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _initializeControllers();
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SettingsViewModel>().loadConfig().then((_) {
         _updateControllersFromConfig();
@@ -67,12 +68,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _updateControllersFromConfig() {
     final config = context.read<SettingsViewModel>().config;
-    
+
     _sheetNameController.text = config.googleSheets.sheetName;
     _chatIdsController.text = config.telegram.chatIds.join(', ');
     _bettingDomainController.text = config.betting.domain;
-    
-    _totalCapitalController.text = _formatToThousands(config.budget.totalCapital);
+
+    _totalCapitalController.text =
+        _formatToThousands(config.budget.totalCapital);
     _trungBudgetController.text = _formatToThousands(config.budget.trungBudget);
     _bacBudgetController.text = _formatToThousands(config.budget.bacBudget);
     _xienBudgetController.text = _formatToThousands(config.budget.xienBudget);
@@ -80,10 +82,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungDurationController.text = config.duration.trungDuration.toString();
     _bacDurationController.text = config.duration.bacDuration.toString();
     _xienDurationController.text = config.duration.xienDuration.toString();
-    
-    for (int i = 0; i < _apiAccountControllers.length && i < config.apiAccounts.length; i++) {
-      _apiAccountControllers[i]['username']!.text = config.apiAccounts[i].username;
-      _apiAccountControllers[i]['password']!.text = config.apiAccounts[i].password;
+
+    for (int i = 0;
+        i < _apiAccountControllers.length && i < config.apiAccounts.length;
+        i++) {
+      _apiAccountControllers[i]['username']!.text =
+          config.apiAccounts[i].username;
+      _apiAccountControllers[i]['password']!.text =
+          config.apiAccounts[i].password;
     }
   }
 
@@ -144,8 +150,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Card(
       child: ExpansionTile(
         leading: Icon(Icons.schedule, color: Theme.of(context).primaryColor),
-        title: const Text('Thời lượng chu kỳ', style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('Cấu hình số ngày cho mỗi loại cược', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        title: const Text('Thời lượng chu kỳ',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Cấu hình số ngày cho mỗi loại cược',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
         initiallyExpanded: false,
         children: [
           Padding(
@@ -289,8 +297,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Card(
       child: ExpansionTile(
         leading: Icon(Icons.cloud, color: Theme.of(context).primaryColor),
-        title: const Text('Google Sheets', style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('Cấu hình kết nối', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        title: const Text('Google Sheets',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Cấu hình kết nối',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
         initiallyExpanded: false,
         children: [
           Padding(
@@ -301,7 +311,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 labelText: 'Sheet ID',
                 prefixIcon: Icon(Icons.description),
               ),
-              validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập Sheet ID' : null,
+              validator: (value) => value == null || value.isEmpty
+                  ? 'Vui lòng nhập Sheet ID'
+                  : null,
             ),
           ),
         ],
@@ -313,8 +325,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Card(
       child: ExpansionTile(
         leading: Icon(Icons.telegram, color: Theme.of(context).primaryColor),
-        title: const Text('Telegram', style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('Cấu hình thông báo', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        title: const Text('Telegram',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Cấu hình thông báo',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
         initiallyExpanded: false,
         children: [
           Padding(
@@ -326,7 +340,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 helperText: 'Nhiều ID cách nhau bằng dấu phẩy',
                 prefixIcon: Icon(Icons.chat),
               ),
-              validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập Chat ID' : null,
+              validator: (value) => value == null || value.isEmpty
+                  ? 'Vui lòng nhập Chat ID'
+                  : null,
             ),
           ),
         ],
@@ -339,8 +355,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Card(
       child: ExpansionTile(
         leading: Icon(Icons.language, color: Theme.of(context).primaryColor),
-        title: const Text('Cấu hình sin88', style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('Domain và tài khoản', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        title: const Text('Cấu hình sin88',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Domain và tài khoản',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
         initiallyExpanded: false,
         children: [
           Padding(
@@ -356,20 +374,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     prefixIcon: Icon(Icons.language),
                     helperText: 'Domain chung cho tất cả tài khoản',
                   ),
-                  validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập domain' : null,
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Vui lòng nhập domain'
+                      : null,
                 ),
                 const SizedBox(height: 24),
                 const Divider(height: 1),
                 const SizedBox(height: 24),
-                
+
                 // ✅ Tài khoản 1
                 ..._buildApiAccountFields(0, 'Tài khoản 1'),
                 const Divider(height: 32),
-                
+
                 // ✅ Tài khoản 2
                 ..._buildApiAccountFields(1, 'Tài khoản 2'),
                 const Divider(height: 32),
-                
+
                 // ✅ Tài khoản 3
                 ..._buildApiAccountFields(2, 'Tài khoản 3'),
               ],
@@ -382,17 +402,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   List<Widget> _buildApiAccountFields(int index, String label) {
     return [
-      Align(alignment: Alignment.centerLeft, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+      Align(
+          alignment: Alignment.centerLeft,
+          child:
+              Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
       const SizedBox(height: 12),
       TextFormField(
         controller: _apiAccountControllers[index]['username'],
-        decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.person)),
+        decoration: const InputDecoration(
+            labelText: 'Username', prefixIcon: Icon(Icons.person)),
       ),
       const SizedBox(height: 8),
       TextFormField(
         controller: _apiAccountControllers[index]['password'],
         obscureText: true,
-        decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock)),
+        decoration: const InputDecoration(
+            labelText: 'Password', prefixIcon: Icon(Icons.lock)),
       ),
     ];
   }
@@ -400,9 +425,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildBudgetSection() {
     return Card(
       child: ExpansionTile(
-        leading: Icon(Icons.attach_money, color: Theme.of(context).primaryColor),
-        title: const Text('Ngân sách', style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('700 => 700.000K', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        leading:
+            Icon(Icons.attach_money, color: Theme.of(context).primaryColor),
+        title: const Text('Ngân sách',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('700 => 700.000K',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
         initiallyExpanded: false,
         children: [
           Padding(
@@ -425,7 +453,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _trungBudgetController,
-                  decoration: const InputDecoration(labelText: 'Miền Trung (triệu)', prefixIcon: Icon(Icons.filter_1)),
+                  decoration: const InputDecoration(
+                      labelText: 'Miền Trung (triệu)',
+                      prefixIcon: Icon(Icons.filter_1)),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onChanged: (_) => setState(() {}),
@@ -433,7 +463,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _bacBudgetController,
-                  decoration: const InputDecoration(labelText: 'Miền Bắc (triệu)', prefixIcon: Icon(Icons.filter_2)),
+                  decoration: const InputDecoration(
+                      labelText: 'Miền Bắc (triệu)',
+                      prefixIcon: Icon(Icons.filter_2)),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onChanged: (_) => setState(() {}),
@@ -441,7 +473,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _xienBudgetController,
-                  decoration: const InputDecoration(labelText: 'Xiên (triệu)', prefixIcon: Icon(Icons.favorite_border)),
+                  decoration: const InputDecoration(
+                      labelText: 'Xiên (triệu)',
+                      prefixIcon: Icon(Icons.favorite_border)),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onChanged: (_) => setState(() {}),
@@ -461,12 +495,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final trungBudget = _parseFromThousands(_trungBudgetController.text);
     final bacBudget = _parseFromThousands(_bacBudgetController.text);
     final xienBudget = _parseFromThousands(_xienBudgetController.text);
-    
+
     final totalAllocated = trungBudget + bacBudget + xienBudget;
     final remaining = totalCapital - totalAllocated;
     final isValid = totalAllocated <= totalCapital;
-    final color = isValid ? Theme.of(context).primaryColor : Theme.of(context).colorScheme.error;
-    
+    final color = isValid
+        ? Theme.of(context).primaryColor
+        : Theme.of(context).colorScheme.error;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -488,7 +524,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: TextStyle(color: color)),
-        Text('${NumberUtils.formatCurrency(value)} đ', style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+        Text('${NumberUtils.formatCurrency(value)} đ',
+            style: TextStyle(fontWeight: FontWeight.bold, color: color)),
       ],
     );
   }
@@ -498,7 +535,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       color: Theme.of(context).colorScheme.error.withOpacity(0.1),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Text(error, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        child: Text(error,
+            style: TextStyle(color: Theme.of(context).colorScheme.error)),
       ),
     );
   }
@@ -510,10 +548,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: viewModel.isLoading ? null : _saveConfigAndTest,
-            icon: viewModel.isLoading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            icon: viewModel.isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.save),
-            label: Text(viewModel.isLoading ? 'Đang xử lý...' : 'Lưu và kiểm tra kết nối'),
+            label: Text(viewModel.isLoading
+                ? 'Đang xử lý...'
+                : 'Lưu và kiểm tra kết nối'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -533,27 +576,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: _buildConnectionStatus('Google Sheets', viewModel.isGoogleSheetsConnected, Icons.cloud)),
+            Expanded(
+                child: _buildConnectionStatus('Google Sheets',
+                    viewModel.isGoogleSheetsConnected, Icons.cloud)),
             const SizedBox(width: 8),
-            Expanded(child: _buildConnectionStatus('Telegram', viewModel.isTelegramConnected, Icons.telegram)),
+            Expanded(
+                child: _buildConnectionStatus(
+                    'Telegram', viewModel.isTelegramConnected, Icons.telegram)),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildApiAccountStatus(SettingsViewModel viewModel, int index, String label) {
+  Widget _buildApiAccountStatus(
+      SettingsViewModel viewModel, int index, String label) {
     final status = viewModel.apiAccountStatus[index];
-    final color = status == true ? ThemeProvider.profit : (status == false ? ThemeProvider.loss : Colors.grey);
-    final icon = status == true ? Icons.check_circle : (status == false ? Icons.cancel : Icons.api);
-    
+    final color = status == true
+        ? ThemeProvider.profit
+        : (status == false ? ThemeProvider.loss : Colors.grey);
+    final icon = status == true
+        ? Icons.check_circle
+        : (status == false ? Icons.cancel : Icons.api);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
             Icon(icon, color: color, size: 24),
-            Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+            Text(label,
+                style: TextStyle(
+                    color: color, fontSize: 11, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -569,8 +623,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Icon(icon, color: color, size: 20),
             const SizedBox(width: 8),
-            Expanded(child: Text(label, style: TextStyle(color: color, fontSize: 12))),
-            Icon(isConnected ? Icons.check_circle : Icons.cancel, color: color, size: 18),
+            Expanded(
+                child:
+                    Text(label, style: TextStyle(color: color, fontSize: 12))),
+            Icon(isConnected ? Icons.check_circle : Icons.cancel,
+                color: color, size: 18),
           ],
         ),
       ),
@@ -579,13 +636,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveConfigAndTest() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     // Validate Budget
     final totalCapital = _parseFromThousands(_totalCapitalController.text);
     final trungBudget = _parseFromThousands(_trungBudgetController.text);
     final bacBudget = _parseFromThousands(_bacBudgetController.text);
     final xienBudget = _parseFromThousands(_xienBudgetController.text);
-    
+
     if (trungBudget + bacBudget + xienBudget > totalCapital) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Vốn phân bổ không hợp lệ'),
@@ -670,7 +727,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         bacBudget: bacBudget,
         xienBudget: xienBudget,
       ),
-      duration: durationConfig,  // ✅ THÊM
+      duration: durationConfig, // ✅ THÊM
       apiAccounts: apiAccounts,
       betting: BettingConfig(
         domain: _bettingDomainController.text.trim().isEmpty
@@ -682,11 +739,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final viewModel = context.read<SettingsViewModel>();
     final saved = await viewModel.saveConfig(config);
     if (!saved) return;
-    
+
     await viewModel.testGoogleSheetsConnection();
     await viewModel.testTelegramConnection();
     await viewModel.testAllApiAccounts(apiAccounts, config.betting.domain);
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Đã lưu và kiểm tra'),
@@ -696,5 +753,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   String _formatToThousands(double value) => (value / 1000).toStringAsFixed(0);
-  double _parseFromThousands(String text) => (double.tryParse(text) ?? 0) * 1000;
+  double _parseFromThousands(String text) =>
+      (double.tryParse(text) ?? 0) * 1000;
 }
