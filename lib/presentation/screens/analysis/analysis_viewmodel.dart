@@ -5,9 +5,12 @@ import '../../../core/utils/number_utils.dart';
 import '../../../data/models/app_config.dart';
 import '../../../data/models/betting_row.dart';
 import '../../../data/models/cycle_analysis_result.dart';
+import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/gan_pair_info.dart';
 import '../../../data/models/lottery_result.dart';
 import '../../../data/models/number_detail.dart';
+import '../../../data/models/rebetting_candidate.dart';
+import '../../../data/models/rebetting_summary.dart';
 import '../../../data/services/analysis_service.dart';
 import '../../../data/services/betting_table_service.dart';
 import '../../../data/services/budget_calculation_service.dart';
@@ -114,6 +117,9 @@ class AnalysisViewModel extends ChangeNotifier {
   // State Chung
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isRebettingMode = false;
+  RebettingResult? _rebettingResult;
+  String _selectedRebettingMien = 'Tất cả';
 
   // Dữ liệu phân tích
   GanPairInfo? _ganPairInfo;
@@ -150,6 +156,9 @@ class AnalysisViewModel extends ChangeNotifier {
   DateTime? get dateTrung => _dateTrung;
   DateTime? get dateBac => _dateBac;
   DateTime? get dateXien => _dateXien;
+  bool get isRebettingMode => _isRebettingMode;
+  RebettingResult? get rebettingResult => _rebettingResult;
+  String get selectedRebettingMien => _selectedRebettingMien;
 
   String get latestDataInfo {
     if (_allResults.isEmpty) return "Miền ... ngày ...";
@@ -831,5 +840,304 @@ class AnalysisViewModel extends ChangeNotifier {
 
   Future<NumberDetail?> analyzeNumberDetail(String number) async {
     return await _analysisService.analyzeNumberDetail(_allResults, number);
+  }
+
+  /// Toggle giữa Farming và Rebetting mode
+  void toggleRebettingMode(bool value) {
+    _isRebettingMode = value;
+    if (value) {
+      loadRebetting();
+    }
+    notifyListeners();
+  }
+
+  /// Load Rebetting data
+  Future<void> loadRebetting() async {
+    if (_allResults.isEmpty) {
+      _errorMessage = 'Chưa có dữ liệu KQXS';
+      notifyListeners();
+      return;
+    }
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      print('🔄 Loading Rebetting data...');
+
+      // ✅ FIX: Try-catch cho batchGetValues
+      late Map<String, List<List<dynamic>>> sheetData;
+      try {
+        sheetData = await _sheetsService.batchGetValues([
+          'cycleWinHistory',
+          'namWinHistory',
+          'trungWinHistory',
+          'bacWinHistory'
+        ]);
+        print('✅ Sheet data loaded successfully');
+      } catch (e) {
+        print('❌ Sheet API error: $e');
+        _errorMessage = 'Lỗi lấy dữ liệu từ Google Sheets: $e';
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      // ✅ FIX: Parse dữ liệu an toàn hơn
+      final winHistories = _parseWinHistories(sheetData);
+      print('✅ Win histories parsed: ${winHistories.toString()}');
+
+      // Lấy config
+      final config =
+          await _storageService.loadConfig() ?? AppConfig.defaultConfig();
+      print('✅ Config loaded');
+
+      // Tính Rebetting candidates
+      print('🔄 Calculating rebetting...');
+      _rebettingResult = await _analysisService.calculateRebetting(
+        allResults: _allResults,
+        config: config,
+        cycleWins: winHistories['tatCa'] as List<CycleWinHistory>,
+        namWins: winHistories['nam'] as List<CycleWinHistory>,
+        trungWins: winHistories['trung'] as List<CycleWinHistory>,
+        bacWins: winHistories['bac'] as List<CycleWinHistory>,
+        bettingService: _bettingService,
+      );
+      print('✅ Rebetting calculated: $_rebettingResult');
+
+      // ✨ Tính ngayCoTheVao cho từng candidate
+      await _calculateNgayCoTheVao();
+      print('✅ ngayCoTheVao calculated');
+
+      _isLoading = false;
+      notifyListeners();
+      print('✅ Rebetting loading completed successfully!');
+    } catch (e, stackTrace) {
+      print('❌ ERROR in loadRebetting: $e');
+      print('   StackTrace: $stackTrace');
+      _errorMessage = 'Lỗi tính Rebetting: ${e.toString()}';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// ✅ NEW: Helper để parse win histories an toàn
+  Map<String, List<CycleWinHistory>> _parseWinHistories(
+    Map<String, List<List<dynamic>>> sheetData,
+  ) {
+    final result = <String, List<CycleWinHistory>>{
+      'tatCa': [],
+      'nam': [],
+      'trung': [],
+      'bac': [],
+    };
+
+    try {
+      // Parse cycleWinHistory (tatCa)
+      final cycleData = sheetData['cycleWinHistory'];
+      if (cycleData != null && cycleData.isNotEmpty) {
+        result['tatCa'] = cycleData
+            .skip(1)
+            .map((row) {
+              try {
+                return CycleWinHistory.fromSheetRow(row);
+              } catch (e) {
+                print('⚠️ Error parsing cycle row: $e');
+                return null;
+              }
+            })
+            .whereType<CycleWinHistory>()
+            .toList();
+        print('   cycleWinHistory: ${result['tatCa']!.length} rows');
+      }
+
+      // Parse namWinHistory
+      final namData = sheetData['namWinHistory'];
+      if (namData != null && namData.isNotEmpty) {
+        result['nam'] = namData
+            .skip(1)
+            .map((row) {
+              try {
+                return CycleWinHistory.fromSheetRow(row);
+              } catch (e) {
+                print('⚠️ Error parsing nam row: $e');
+                return null;
+              }
+            })
+            .whereType<CycleWinHistory>()
+            .toList();
+        print('   namWinHistory: ${result['nam']!.length} rows');
+      }
+
+      // Parse trungWinHistory
+      final trungData = sheetData['trungWinHistory'];
+      if (trungData != null && trungData.isNotEmpty) {
+        result['trung'] = trungData
+            .skip(1)
+            .map((row) {
+              try {
+                return CycleWinHistory.fromSheetRow(row);
+              } catch (e) {
+                print('⚠️ Error parsing trung row: $e');
+                return null;
+              }
+            })
+            .whereType<CycleWinHistory>()
+            .toList();
+        print('   trungWinHistory: ${result['trung']!.length} rows');
+      }
+
+      // Parse bacWinHistory
+      final bacData = sheetData['bacWinHistory'];
+      if (bacData != null && bacData.isNotEmpty) {
+        result['bac'] = bacData
+            .skip(1)
+            .map((row) {
+              try {
+                return CycleWinHistory.fromSheetRow(row);
+              } catch (e) {
+                print('⚠️ Error parsing bac row: $e');
+                return null;
+              }
+            })
+            .whereType<CycleWinHistory>()
+            .toList();
+        print('   bacWinHistory: ${result['bac']!.length} rows');
+      }
+    } catch (e) {
+      print('❌ Error parsing win histories: $e');
+    }
+
+    return result;
+  }
+
+  /// Tính ngayCoTheVao cho từng selected candidate
+  Future<void> _calculateNgayCoTheVao() async {
+    if (_rebettingResult == null) return;
+
+    final config =
+        await _storageService.loadConfig() ?? AppConfig.defaultConfig();
+    final summaries = <String, RebettingSummary?>{};
+    final selected = <String, RebettingCandidate?>{};
+
+    for (final entry in _rebettingResult!.selected.entries) {
+      final mienKey = entry.key; // 'tatCa', 'nam', 'trung', 'bac'
+      final candidate = entry.value;
+
+      if (candidate == null) {
+        summaries[mienKey] = null;
+        selected[mienKey] = null;
+        continue;
+      }
+
+      // Tính endDate
+      final ngayTrungCu = date_utils.DateUtils.parseDate(candidate.ngayTrungCu);
+      if (ngayTrungCu == null) {
+        summaries[mienKey] = null;
+        selected[mienKey] = null;
+        continue;
+      }
+
+      final endDate =
+          ngayTrungCu.add(Duration(days: candidate.rebettingDuration));
+
+      // Xác định budget
+      double budgetMin = 100000;
+      double budgetMax = 500000;
+
+      if (mienKey == 'tatCa') {
+        budgetMax = config.budget.totalCapital;
+      } else if (mienKey == 'nam') {
+        budgetMax = config.budget.totalCapital;
+      } else if (mienKey == 'trung') {
+        budgetMax = config.budget.trungBudget;
+      } else if (mienKey == 'bac') {
+        budgetMax = config.budget.bacBudget;
+      }
+
+      // Tìm ngayCoTheVao
+      final ngayCoTheVao =
+          await _bettingService.findOptimalStartDateForRebetting(
+        endDate: endDate,
+        budgetMin: budgetMin,
+        budgetMax: budgetMax,
+        mien: candidate.mienTrung,
+        soMucTieu: candidate.soMucTieu,
+      );
+
+      if (ngayCoTheVao != null) {
+        // Update candidate với ngayCoTheVao
+        final updatedCandidate = RebettingCandidate(
+          soMucTieu: candidate.soMucTieu,
+          mienTrung: candidate.mienTrung,
+          ngayBatDauCu: candidate.ngayBatDauCu,
+          ngayTrungCu: candidate.ngayTrungCu,
+          soNgayGanCu: candidate.soNgayGanCu,
+          soNgayGanMoi: candidate.soNgayGanMoi,
+          rebettingDuration: candidate.rebettingDuration,
+          ngayCoTheVao: ngayCoTheVao,
+        );
+
+        // Update summary
+        summaries[mienKey] = RebettingSummary(
+          mien: _getMienDisplayName(mienKey),
+          ngayCoTheVao: ngayCoTheVao,
+          totalCandidates: _rebettingResult!.selected.values
+              .where((c) =>
+                  c != null && c.mienTrung == _getMienDisplayName(mienKey))
+              .length,
+        );
+
+        selected[mienKey] = updatedCandidate;
+      } else {
+        summaries[mienKey] = null;
+        selected[mienKey] = null;
+      }
+    }
+
+    // Update result
+    _rebettingResult = RebettingResult(
+      summaries: summaries,
+      selected: selected,
+    );
+  }
+
+  /// Đổi filter Rebetting
+  void setSelectedRebettingMien(String mien) {
+    _selectedRebettingMien = mien;
+    notifyListeners();
+  }
+
+  /// Helper: Lấy display name từ key
+  String _getMienDisplayName(String key) {
+    switch (key) {
+      case 'tatCa':
+        return 'Mixed';
+      case 'nam':
+        return 'Nam';
+      case 'trung':
+        return 'Trung';
+      case 'bac':
+        return 'Bắc';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  /// Helper: Lấy key từ display name
+  String _getMienKey(String name) {
+    switch (name) {
+      case 'Tất cả':
+        return 'tatCa';
+      case 'Nam':
+        return 'nam';
+      case 'Trung':
+        return 'trung';
+      case 'Bắc':
+        return 'bac';
+      default:
+        return 'tatCa';
+    }
   }
 }

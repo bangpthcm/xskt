@@ -369,7 +369,7 @@ class AnalysisService {
     return result;
   }
 
-  /// Static method để compute
+  /// Static method để compute - FIXED VERSION
   static RebettingResult _calculateRebettingCompute(
     Map<String, dynamic> params,
   ) {
@@ -400,9 +400,23 @@ class AnalysisService {
         final ngayTrungCu = win.ngayTrung;
         final soNgayGanCu = win.soNgayCuoc;
 
-        // ✨ Kiểm tra: số có xuất hiện lại không?
+        // ✅ CRITICAL FIX: Kiểm tra số có xuất hiện lại sau ngày trúng không
         final ngayTrungDate = date_utils.DateUtils.parseDate(ngayTrungCu);
         if (ngayTrungDate == null) continue;
+
+        // 🔴 KEY CHECK: Nếu số đã về sau ngày trúng (cho MIỀN này) → LOẠI
+        if (_hasNumberReappearedStatic(
+          soMucTieu,
+          ngayTrungDate,
+          allResults,
+          mien: mien, // ✨ THÊM: Truyền miền để lọc
+        )) {
+          print('   ⏭️  Số $soMucTieu đã về sau $ngayTrungCu ($mien) → loại');
+          continue; // ← Skip ứng viên này
+        }
+
+        // Nếu vượt qua check, mới tính toán tiếp
+        print('   ✅ Số $soMucTieu chưa về sau $ngayTrungCu → có thể dùng');
 
         // Tính gan mới
         final soNgayGanMoi = _calculateNewGanDaysStatic(
@@ -410,18 +424,11 @@ class AnalysisService {
           allResults,
         );
 
-        // Nếu số đã xuất hiện lại → skip
-        if (_hasNumberReappearedStatic(soMucTieu, ngayTrungDate, allResults)) {
-          print('   ⏭️  Số $soMucTieu đã về → bỏ qua');
-          continue;
-        }
-
         // Tính duration
         final rebettingDuration = (2 * threshold) - soNgayGanCu;
 
         if (rebettingDuration <= 0) {
-          print(
-              '   ⏭️  Số $soMucTieu có duration âm ($rebettingDuration) → bỏ qua');
+          print('       ⏭️  Duration âm ($rebettingDuration) → loại');
           continue;
         }
 
@@ -434,11 +441,11 @@ class AnalysisService {
           soNgayGanCu: soNgayGanCu,
           soNgayGanMoi: soNgayGanMoi,
           rebettingDuration: rebettingDuration,
-          ngayCoTheVao: '', // ✨ Tạm để trống, sẽ tính ở giai đoạn 4
+          ngayCoTheVao: '', // Tạm để trống
         );
 
         candidates.add(candidate);
-        print('   ✅ Thêm: $candidate');
+        print('       ✅ Thêm: số=$soMucTieu, duration=$rebettingDuration');
       }
 
       // Tìm 1 số có duration MIN
@@ -447,9 +454,9 @@ class AnalysisService {
         selected = candidates.reduce(
             (a, b) => a.rebettingDuration < b.rebettingDuration ? a : b);
         print(
-            '   🎯 Chọn: ${selected.soMucTieu} (duration: ${selected.rebettingDuration})');
+            '   🎯 Chọn: số=${selected.soMucTieu} (duration=${selected.rebettingDuration})');
       } else {
-        print('   ❌ Không có ứng viên');
+        print('   ❌ Không có ứng viên nào');
       }
 
       return {
@@ -493,7 +500,7 @@ class AnalysisService {
       'tatCa': tatCa['selected'] != null
           ? RebettingSummary(
               mien: 'Tất cả',
-              ngayCoTheVao: '', // Tạm để trống
+              ngayCoTheVao: '',
               totalCandidates: tatCa['total'] as int,
             )
           : null,
@@ -533,6 +540,42 @@ class AnalysisService {
     );
   }
 
+  /// Static helper: Kiểm tra số có vô lại sau ngày trúng
+  /// ✅ CRITICAL FIX: Lọc theo MIỀN + chỉ check từ ngàyTrúng đến hôm nay
+  static bool _hasNumberReappearedStatic(
+    String targetNumber,
+    DateTime sinceDate,
+    List<LotteryResult> allResults, {
+    String mien = '', // ✨ THÊM: Optional mien filter
+  }) {
+    print(
+        '      🔍 Check xem $targetNumber có xuất hiện sau ${date_utils.DateUtils.formatDate(sinceDate)}${mien.isNotEmpty ? ' ($mien)' : ''}...');
+
+    for (final result in allResults) {
+      final resultDate = date_utils.DateUtils.parseDate(result.ngay);
+
+      if (resultDate == null) continue;
+
+      // ✅ CRITICAL: Chỉ check từ NGÀY TRÚNG trở đi (không bao gồm ngày trúng)
+      if (resultDate.isAfter(sinceDate)) {
+        // ✨ THÊM: Nếu có miền filter, chỉ check miền đó
+        if (mien.isNotEmpty && result.mien != mien) {
+          continue; // ← Bỏ qua nếu không phải miền cần check
+        }
+
+        // Check số có trong ngày này không
+        if (result.numbers.contains(targetNumber)) {
+          print(
+              '         ⚠️  FOUND: $targetNumber vào ngày ${result.ngay} (${result.mien})');
+          return true; // ← Số đã vô lại
+        }
+      }
+    }
+
+    print('         ✅ Không tìm thấy');
+    return false; // ← Chưa vô lại
+  }
+
   /// Static helper: Tính gan mới
   static int _calculateNewGanDaysStatic(
     DateTime ngayTrungCu,
@@ -551,26 +594,5 @@ class AnalysisService {
 
     newestDate ??= DateTime.now();
     return newestDate.difference(ngayTrungCu).inDays;
-  }
-
-  /// Static helper: Kiểm tra số có vô lại
-  static bool _hasNumberReappearedStatic(
-    String targetNumber,
-    DateTime sinceDate,
-    List<LotteryResult> allResults,
-  ) {
-    for (final result in allResults) {
-      final resultDate = date_utils.DateUtils.parseDate(result.ngay);
-
-      if (resultDate == null) continue;
-
-      if ((resultDate.isAfter(sinceDate) ||
-              resultDate.isAtSameMomentAs(sinceDate)) &&
-          result.numbers.contains(targetNumber)) {
-        return true;
-      }
-    }
-
-    return false;
   }
 }

@@ -7,6 +7,7 @@ import '../../../app.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../data/models/number_detail.dart';
+import '../../../data/models/rebetting_summary.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../betting/betting_viewmodel.dart';
 import '../settings/settings_viewmodel.dart';
@@ -24,6 +25,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   String? _selectedNumber;
   NumberDetail? _currentNumberDetail;
   bool _isLoadingDetail = false;
+  bool _isRebettingMode = false;
 
   @override
   void initState() {
@@ -76,6 +78,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     return Scaffold(
       body: Consumer<AnalysisViewModel>(
         builder: (context, viewModel, child) {
+          _isRebettingMode = viewModel.isRebettingMode;
+
           if (viewModel.isLoading) {
             return const ShimmerLoading(type: ShimmerType.card);
           }
@@ -121,11 +125,22 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
-                _buildOptimalSummaryCard(viewModel),
+                // ✨ THÊM: Toggle buttons
+                _buildToggleButtons(viewModel),
                 const SizedBox(height: 16),
-                _buildCycleSection(viewModel),
-                const SizedBox(height: 16),
-                _buildGanPairSection(viewModel),
+
+                // ✨ Hiển thị Rebetting hoặc Farming
+                if (_isRebettingMode) ...[
+                  _buildRebettingSummaryCards(viewModel),
+                  const SizedBox(height: 16),
+                  _buildRebettingCycleSection(viewModel),
+                ] else ...[
+                  _buildOptimalSummaryCard(viewModel),
+                  const SizedBox(height: 16),
+                  _buildCycleSection(viewModel),
+                  const SizedBox(height: 16),
+                  _buildGanPairSection(viewModel),
+                ],
               ],
             ),
           );
@@ -935,5 +950,288 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         ],
       ),
     );
+  }
+
+// ✨ NEW: REBETTING UI METHODS
+
+  /// Build toggle buttons
+  Widget _buildToggleButtons(AnalysisViewModel viewModel) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildToggleButton(
+              label: '🌾 FARMING',
+              isSelected: !_isRebettingMode,
+              onPressed: () {
+                setState(() => _isRebettingMode = false);
+                viewModel.toggleRebettingMode(false);
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildToggleButton(
+              label: '♻️ REBETTING',
+              isSelected: _isRebettingMode,
+              onPressed: () {
+                setState(() => _isRebettingMode = true);
+                viewModel.toggleRebettingMode(true);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleButton({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected
+            ? Theme.of(context).primaryColor.withOpacity(0.3)
+            : Colors.grey.withOpacity(0.2),
+        foregroundColor:
+            isSelected ? Theme.of(context).primaryColor : Colors.grey,
+        side: BorderSide(
+          color: isSelected
+              ? Theme.of(context).primaryColor
+              : Colors.grey.withOpacity(0.5),
+        ),
+      ),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+    );
+  }
+
+  /// Build Rebetting summary cards
+  Widget _buildRebettingSummaryCards(AnalysisViewModel viewModel) {
+    final result = viewModel.rebettingResult;
+    if (result == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Ngày hôm nay: ${date_utils.DateUtils.formatDate(DateTime.now())}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const Divider(),
+            _buildRebettingSummaryRow('Tất cả', result.summaries['tatCa']),
+            _buildRebettingSummaryRow('Nam', result.summaries['nam']),
+            _buildRebettingSummaryRow('Trung', result.summaries['trung']),
+            _buildRebettingSummaryRow('Bắc', result.summaries['bac']),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRebettingSummaryRow(String mien, RebettingSummary? summary) {
+    final text = summary == null ? 'Không có' : summary.ngayCoTheVao;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(mien),
+          Text(text, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  /// Build Rebetting Chu kỳ section
+  Widget _buildRebettingCycleSection(AnalysisViewModel viewModel) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Chu kỳ 00-99',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.table_chart),
+                  onPressed: () => _createRebettingTable(context, viewModel),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: () => _sendRebettingToTelegram(context, viewModel),
+                ),
+              ],
+            ),
+            const Divider(),
+            _buildRebettingMienFilter(viewModel),
+            const SizedBox(height: 16),
+            _buildRebettingDetail(viewModel),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRebettingMienFilter(AnalysisViewModel viewModel) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: ['Tất cả', 'Nam', 'Trung', 'Bắc'].map((mien) {
+          final isSelected = viewModel.selectedRebettingMien == mien;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: Text(mien),
+              selected: isSelected,
+              onSelected: (selected) {
+                viewModel.setSelectedRebettingMien(mien);
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildRebettingDetail(AnalysisViewModel viewModel) {
+    final mienKey = _getMienKey(viewModel.selectedRebettingMien);
+    final candidate = viewModel.rebettingResult?.selected[mienKey];
+
+    if (candidate == null) {
+      return const Center(child: Text('Không có ứng viên'));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildDetailSection('📅 Lịch sử cũ:', [
+          '• Bắt đầu cũ: ${candidate.ngayBatDauCu}',
+          '• Trúng cũ: ${candidate.ngayTrungCu}',
+        ]),
+        const SizedBox(height: 12),
+        _buildDetailSection('📊 Thông tin Gan:', [
+          '• Gan cũ: ${candidate.soNgayGanCu} ngày',
+          '• Gan mới: ${candidate.soNgayGanMoi} ngày',
+          '• Duration: ${candidate.rebettingDuration} ngày',
+        ]),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Text('Số mục tiêu: '),
+            Chip(
+              label: Text(candidate.soMucTieu),
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.3),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Text('Ngày vào: '),
+            Chip(
+              label: Text(candidate.ngayCoTheVao),
+              backgroundColor: Colors.green.withOpacity(0.3),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailSection(String title, List<String> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ...items
+            .map((item) => Text(item, style: const TextStyle(fontSize: 14))),
+      ],
+    );
+  }
+
+  void _createRebettingTable(
+      BuildContext context, AnalysisViewModel viewModel) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận'),
+        content: const Text('Tạo bảng cược Rebetting?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              // TODO: Implement create rebetting table
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('Tính năng sắp có!'),
+                    backgroundColor: Colors.orange),
+              );
+            },
+            child: const Text('Tạo bảng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _sendRebettingToTelegram(
+      BuildContext context, AnalysisViewModel viewModel) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận'),
+        content: const Text('Gửi kết quả Rebetting qua Telegram?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // TODO: Implement send to telegram
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('Tính năng sắp có!'),
+                    backgroundColor: Colors.orange),
+              );
+            },
+            child: const Text('Gửi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getMienKey(String mien) {
+    switch (mien) {
+      case 'Tất cả':
+        return 'tatCa';
+      case 'Nam':
+        return 'nam';
+      case 'Trung':
+        return 'trung';
+      case 'Bắc':
+        return 'bac';
+      default:
+        return 'tatCa';
+    }
   }
 }

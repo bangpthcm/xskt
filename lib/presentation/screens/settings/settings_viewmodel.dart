@@ -1,11 +1,12 @@
 // lib/presentation/screens/settings/settings_viewmodel.dart
 import 'package:flutter/material.dart';
-import '../../../data/models/app_config.dart';
+
 import '../../../data/models/api_account.dart';
-import '../../../data/services/storage_service.dart';
-import '../../../data/services/google_sheets_service.dart';
-import '../../../data/services/telegram_service.dart';
+import '../../../data/models/app_config.dart';
 import '../../../data/services/betting_api_service.dart';
+import '../../../data/services/google_sheets_service.dart';
+import '../../../data/services/storage_service.dart';
+import '../../../data/services/telegram_service.dart';
 
 class SettingsViewModel extends ChangeNotifier {
   final StorageService _storageService;
@@ -23,10 +24,10 @@ class SettingsViewModel extends ChangeNotifier {
   AppConfig _config = AppConfig.defaultConfig();
   bool _isLoading = false;
   String? _errorMessage;
-  
+
   bool _isGoogleSheetsConnected = false;
   bool _isTelegramConnected = false;
-  
+
   final List<bool?> _apiAccountStatus = [null, null, null];
 
   AppConfig get config => _config;
@@ -37,10 +38,25 @@ class SettingsViewModel extends ChangeNotifier {
   List<bool?> get apiAccountStatus => _apiAccountStatus;
 
   // THÊM CONSTANT cho validation
-  static const int _minCycleDuration = 5;     // > 4
-  static const int _minTrungDuration = 14;    // > 13
-  static const int _minBacDuration = 20;      // > 19
-  static const int _minXienDuration = 156;    // > 155
+  static const int _minCycleDuration = 5; // > 4
+  static const int _minTrungDuration = 14; // > 13
+  static const int _minBacDuration = 20; // > 19
+  static const int _minXienDuration = 156; // > 155
+
+  static const int _minThreshold = 5;
+
+  String? _validateThresholdConfig(DurationConfig config) {
+    if (config.thresholdCycleDuration < _minThreshold) {
+      return 'Threshold Chu kỳ phải >= $_minThreshold';
+    }
+    if (config.thresholdTrungDuration < _minThreshold) {
+      return 'Threshold Trung phải >= $_minThreshold';
+    }
+    if (config.thresholdBacDuration < _minThreshold) {
+      return 'Threshold Bắc phải >= $_minThreshold';
+    }
+    return null;
+  }
 
   // THÊM METHOD VALIDATION:
   String? _validateDurationConfig(DurationConfig config) {
@@ -101,9 +117,9 @@ class SettingsViewModel extends ChangeNotifier {
 
       await _storageService.saveConfig(newConfig);
       _config = newConfig;
-      
+
       print('🔄 Reinitializing services with new config...');
-      
+
       try {
         await _sheetsService.initialize(newConfig.googleSheets);
         _telegramService.initialize(newConfig.telegram);
@@ -111,7 +127,7 @@ class SettingsViewModel extends ChangeNotifier {
       } catch (e) {
         print('⚠️ Error reinitializing services: $e');
       }
-      
+
       _errorMessage = null;
       _isLoading = false;
       notifyListeners();
@@ -128,11 +144,11 @@ class SettingsViewModel extends ChangeNotifier {
     try {
       await _sheetsService.initialize(_config.googleSheets);
       _isGoogleSheetsConnected = await _sheetsService.testConnection();
-      
+
       if (!_isGoogleSheetsConnected) {
         _errorMessage = 'Không thể kết nối Google Sheets';
       }
-      
+
       notifyListeners();
       return _isGoogleSheetsConnected;
     } catch (e) {
@@ -147,11 +163,11 @@ class SettingsViewModel extends ChangeNotifier {
     try {
       _telegramService.initialize(_config.telegram);
       _isTelegramConnected = await _telegramService.testConnection();
-      
+
       if (!_isTelegramConnected) {
         _errorMessage = 'Không thể kết nối Telegram (bot token không hợp lệ)';
       }
-      
+
       notifyListeners();
       return _isTelegramConnected;
     } catch (e) {
@@ -162,7 +178,8 @@ class SettingsViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> testAllApiAccounts(List<ApiAccount> accounts, String domain) async {
+  Future<void> testAllApiAccounts(
+      List<ApiAccount> accounts, String domain) async {
     for (int i = 0; i < 3; i++) {
       _apiAccountStatus[i] = null;
     }
@@ -170,7 +187,7 @@ class SettingsViewModel extends ChangeNotifier {
 
     for (int i = 0; i < accounts.length && i < 3; i++) {
       final account = accounts[i];
-      
+
       if (account.username.isEmpty || account.password.isEmpty) {
         _apiAccountStatus[i] = null;
         continue;
@@ -178,24 +195,24 @@ class SettingsViewModel extends ChangeNotifier {
 
       try {
         print('🔐 Testing API account ${i + 1}: ${account.username}');
-        
+
         final apiService = BettingApiService();
         final token = await apiService.authenticateAndGetToken(account, domain);
-        
+
         _apiAccountStatus[i] = (token != null && token.isNotEmpty);
-        
+
         if (_apiAccountStatus[i] == true) {
           print('✅ Account ${i + 1} authentication successful');
         } else {
           print('❌ Account ${i + 1} authentication failed');
         }
-        
+
         apiService.clearCache();
       } catch (e) {
         print('❌ Error testing account ${i + 1}: $e');
         _apiAccountStatus[i] = false;
       }
-      
+
       notifyListeners();
     }
   }
@@ -204,7 +221,7 @@ class SettingsViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
   }
-  
+
   void resetConnectionStatus() {
     _isGoogleSheetsConnected = false;
     _isTelegramConnected = false;

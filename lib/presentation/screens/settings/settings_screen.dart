@@ -30,6 +30,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _trungDurationController;
   late TextEditingController _bacDurationController;
   late TextEditingController _xienDurationController;
+  late TextEditingController _thresholdCycleDurationController;
+  late TextEditingController _thresholdTrungDurationController;
+  late TextEditingController _thresholdBacDurationController;
 
   final List<Map<String, TextEditingController>> _apiAccountControllers = [];
 
@@ -57,6 +60,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungDurationController = TextEditingController();
     _bacDurationController = TextEditingController();
     _xienDurationController = TextEditingController();
+    _thresholdCycleDurationController = TextEditingController();
+    _thresholdTrungDurationController = TextEditingController();
+    _thresholdBacDurationController = TextEditingController();
 
     for (int i = 0; i < 3; i++) {
       _apiAccountControllers.add({
@@ -82,6 +88,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungDurationController.text = config.duration.trungDuration.toString();
     _bacDurationController.text = config.duration.bacDuration.toString();
     _xienDurationController.text = config.duration.xienDuration.toString();
+    _thresholdCycleDurationController.text =
+        config.duration.thresholdCycleDuration.toString();
+    _thresholdTrungDurationController.text =
+        config.duration.thresholdTrungDuration.toString();
+    _thresholdBacDurationController.text =
+        config.duration.thresholdBacDuration.toString();
 
     for (int i = 0;
         i < _apiAccountControllers.length && i < config.apiAccounts.length;
@@ -106,6 +118,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungDurationController.dispose();
     _bacDurationController.dispose();
     _xienDurationController.dispose();
+    _thresholdCycleDurationController.dispose();
+    _thresholdTrungDurationController.dispose();
+    _thresholdBacDurationController.dispose();
 
     for (var controllers in _apiAccountControllers) {
       controllers['username']?.dispose();
@@ -211,6 +226,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 const Divider(height: 1),
                 const SizedBox(height: 12),
+
+                const Text(
+                  'THRESHOLD REBETTING',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Dùng để tính duration rebetting (formula: 2×Threshold - lastGan)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+
+                _buildDurationField(
+                  controller: _thresholdCycleDurationController,
+                  label: 'Chu kỳ 00-99 (ngày)',
+                  icon: Icons.calendar_month,
+                  hint: '5',
+                  minValue: 5,
+                  maxValue: 8,
+                  helperText: 'Mặc định: 20. Min: 5',
+                ),
+                const SizedBox(height: 16),
+
+                _buildDurationField(
+                  controller: _thresholdTrungDurationController,
+                  label: 'Miền Trung (ngày)',
+                  icon: Icons.calendar_month,
+                  hint: '13',
+                  minValue: 10,
+                  maxValue: 365,
+                  helperText: 'Mặc định: 15. Min: 5',
+                ),
+                const SizedBox(height: 16),
+
+                _buildDurationField(
+                  controller: _thresholdBacDurationController,
+                  label: 'Miền Bắc (ngày)',
+                  icon: Icons.calendar_month,
+                  hint: '16',
+                  minValue: 15,
+                  maxValue: 365,
+                  helperText: 'Mặc định: 20. Min: 5',
+                ),
+
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).canvasColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: const Text(
+                    '💡 Công thức: duration = 2 × Threshold - soNgayGanCu\n'
+                    'Ví dụ: Threshold=15, lastGan=16 → duration=14 ngày',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ),
 
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -690,6 +767,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
+    // ✨ THÊM: Parse Threshold
+    int thresholdCycleDuration =
+        int.tryParse(_thresholdCycleDurationController.text) ?? 4;
+    int thresholdTrungDuration =
+        int.tryParse(_thresholdTrungDurationController.text) ?? 12;
+    int thresholdBacDuration =
+        int.tryParse(_thresholdBacDurationController.text) ?? 15;
+
+    // ✨ THÊM: Validate Threshold
+    if (thresholdCycleDuration < 5) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Threshold Chu kỳ phải >= 5 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    if (thresholdTrungDuration < 5) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Threshold Trung phải >= 5 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    if (thresholdBacDuration < 5) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Threshold Bắc phải >= 5 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
     // Build API Accounts
     final apiAccounts = <ApiAccount>[];
     for (int i = 0; i < _apiAccountControllers.length; i++) {
@@ -706,6 +816,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       trungDuration: trungDuration,
       bacDuration: bacDuration,
       xienDuration: xienDuration,
+      // ✨ THÊM: Threshold values
+      thresholdCycleDuration: thresholdCycleDuration,
+      thresholdTrungDuration: thresholdTrungDuration,
+      thresholdBacDuration: thresholdBacDuration,
     );
 
     // Build full config
