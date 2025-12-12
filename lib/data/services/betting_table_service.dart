@@ -607,7 +607,6 @@ class BettingTableService {
       double tienCuoc1So = startBetValue;
 
       if (tableData.isNotEmpty) {
-        final lastBet = tableData.last.cuocSo;
         tienCuoc1So = tienCuoc1So > requiredBet ? tienCuoc1So : requiredBet;
       }
       tienCuoc1So = tienCuoc1So.ceilToDouble();

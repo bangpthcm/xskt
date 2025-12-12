@@ -43,21 +43,6 @@ class SettingsViewModel extends ChangeNotifier {
   static const int _minBacDuration = 18; // > 18
   static const int _minXienDuration = 156; // > 155
 
-  static const int _minThreshold = 5;
-
-  String? _validateThresholdConfig(DurationConfig config) {
-    if (config.thresholdCycleDuration < _minThreshold) {
-      return 'Threshold Chu kỳ phải >= $_minThreshold';
-    }
-    if (config.thresholdTrungDuration < _minThreshold) {
-      return 'Threshold Trung phải >= $_minThreshold';
-    }
-    if (config.thresholdBacDuration < _minThreshold) {
-      return 'Threshold Bắc phải >= $_minThreshold';
-    }
-    return null;
-  }
-
   // THÊM METHOD VALIDATION:
   String? _validateDurationConfig(DurationConfig config) {
     // Validate Chu kỳ
