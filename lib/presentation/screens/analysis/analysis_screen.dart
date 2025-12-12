@@ -1059,6 +1059,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ✅ HEADER: Title + Nút "Tạo bảng" + Nút "Gửi Telegram"
             Row(
               children: [
                 Expanded(
@@ -1067,22 +1068,190 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
+                // Nút "Tạo bảng cược"
                 IconButton(
-                  icon: const Icon(Icons.table_chart),
-                  onPressed: () => _createRebettingTable(context, viewModel),
+                  icon: Icon(Icons.table_chart,
+                      color: Theme.of(context).primaryColor.withOpacity(0.9)),
+                  tooltip: 'Tạo bảng cược rebetting',
+                  onPressed: viewModel.rebettingResult?.selected.values
+                              .any((c) => c != null) ==
+                          true
+                      ? () =>
+                          _showCreateRebettingTableDialog(context, viewModel)
+                      : null,
                 ),
+                // Nút "Gửi Telegram"
                 IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: () => _sendRebettingToTelegram(context, viewModel),
+                  icon: Icon(Icons.send,
+                      color: Theme.of(context).primaryColor.withOpacity(0.9)),
+                  tooltip: 'Gửi kết quả rebetting qua Telegram',
+                  onPressed: viewModel.rebettingResult?.selected.values
+                              .any((c) => c != null) ==
+                          true
+                      ? () =>
+                          _showSendRebettingTelegramDialog(context, viewModel)
+                      : null,
                 ),
               ],
             ),
-            const Divider(),
+            const Divider(color: Colors.grey),
+            const SizedBox(height: 16),
+
+            // ✅ FILTER MIỀN
             _buildRebettingMienFilter(viewModel),
             const SizedBox(height: 16),
+
+            // ✅ CHI TIẾT CANDIDATE
             _buildRebettingDetail(viewModel),
           ],
         ),
+      ),
+    );
+  }
+
+  /// ✅ DIALOG: Xác nhận tạo bảng cược Rebetting
+  void _showCreateRebettingTableDialog(
+      BuildContext context, AnalysisViewModel viewModel) {
+    final mienKey = _getMienKey(viewModel.selectedRebettingMien);
+    final candidate = viewModel.rebettingResult?.selected[mienKey];
+
+    if (candidate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa có ứng viên để tạo bảng cược'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận tạo bảng cược Rebetting'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Text('Số cược lại: ${candidate.soMucTieu}',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text('Miền: ${candidate.mienTrung}',
+                style: const TextStyle(fontSize: 14)),
+            const SizedBox(height: 4),
+            Text('Ngày vào: ${candidate.ngayCoTheVao}',
+                style: const TextStyle(fontSize: 14)),
+            const SizedBox(height: 4),
+            Text('Duration: ${candidate.rebettingDuration} ngày',
+                style: const TextStyle(fontSize: 14)),
+            const SizedBox(height: 12),
+            const Text(
+              'Bảng cược sẽ được tạo trong tab "Bảng cược".',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+
+              final config = context.read<SettingsViewModel>().config;
+              await viewModel.createRebettingBettingTable(
+                candidate,
+                config,
+              );
+
+              if (context.mounted) {
+                if (viewModel.errorMessage == null) {
+                  await context.read<BettingViewModel>().loadBettingTables();
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Tạo bảng cược Rebetting thành công!'),
+                      backgroundColor: ThemeProvider.profit,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  await Future.delayed(const Duration(milliseconds: 300));
+
+                  if (context.mounted) {
+                    mainNavigationKey.currentState?.switchToTab(1);
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content:
+                          Text(viewModel.errorMessage ?? 'Lỗi tạo bảng cược'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Tạo bảng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ✅ DIALOG: Xác nhận gửi Telegram Rebetting
+  void _showSendRebettingTelegramDialog(
+      BuildContext context, AnalysisViewModel viewModel) {
+    final mienKey = _getMienKey(viewModel.selectedRebettingMien);
+    final candidate = viewModel.rebettingResult?.selected[mienKey];
+
+    if (candidate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa có ứng viên để gửi'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận'),
+        content: Text(
+          'Gửi kết quả Rebetting cho số ${candidate.soMucTieu} qua Telegram?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await viewModel.sendRebettingToTelegram(candidate);
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      viewModel.errorMessage ?? 'Gửi thành công!',
+                    ),
+                    backgroundColor: viewModel.errorMessage != null
+                        ? ThemeProvider.loss
+                        : ThemeProvider.profit,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: const Text('Gửi'),
+          ),
+        ],
       ),
     );
   }
@@ -1161,62 +1330,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         ...items
             .map((item) => Text(item, style: const TextStyle(fontSize: 14))),
       ],
-    );
-  }
-
-  void _createRebettingTable(
-      BuildContext context, AnalysisViewModel viewModel) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: const Text('Tạo bảng cược Rebetting?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Hủy')),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              // TODO: Implement create rebetting table
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Tính năng sắp có!'),
-                    backgroundColor: Colors.orange),
-              );
-            },
-            child: const Text('Tạo bảng'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _sendRebettingToTelegram(
-      BuildContext context, AnalysisViewModel viewModel) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: const Text('Gửi kết quả Rebetting qua Telegram?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Hủy')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Implement send to telegram
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Tính năng sắp có!'),
-                    backgroundColor: Colors.orange),
-              );
-            },
-            child: const Text('Gửi'),
-          ),
-        ],
-      ),
     );
   }
 

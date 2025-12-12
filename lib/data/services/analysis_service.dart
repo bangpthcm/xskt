@@ -431,7 +431,7 @@ class AnalysisService {
         );
 
         // Tính duration
-        final rebettingDuration = (2 * threshold) - soNgayGanCu;
+        final rebettingDuration = ((2.4 * threshold) - soNgayGanCu).round();
 
         if (rebettingDuration <= 0) {
           print('       ⏭️  Duration âm ($rebettingDuration) → loại');

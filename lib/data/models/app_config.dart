@@ -22,7 +22,7 @@ class DurationConfig {
     // ✨ THÊM
     this.thresholdCycleDuration = 5,
     this.thresholdTrungDuration = 14,
-    this.thresholdBacDuration = 18,
+    this.thresholdBacDuration = 16,
   });
 
   bool get isValid {

@@ -183,8 +183,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.calendar_month,
                   hint: '10',
                   minValue: 5,
-                  maxValue: 365,
-                  helperText: 'Phải > 4 (threshold: 4). Mặc định: 10',
+                  maxValue: 11,
+                  helperText: 'Phải > 9 (farming: 9). Mặc định: 10',
                 ),
                 const SizedBox(height: 16),
 
@@ -194,9 +194,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Miền Trung (ngày)',
                   icon: Icons.calendar_month,
                   hint: '26',
-                  minValue: 14,
-                  maxValue: 365,
-                  helperText: 'Phải > 13 (threshold: 13). Mặc định: 26',
+                  minValue: 25,
+                  maxValue: 28,
+                  helperText: 'Phải > 25 (farming: 25). Mặc định: 28',
                 ),
                 const SizedBox(height: 16),
 
@@ -206,9 +206,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Miền Bắc (ngày)',
                   icon: Icons.calendar_month,
                   hint: '43',
-                  minValue: 18,
-                  maxValue: 365,
-                  helperText: 'Phải > 19 (threshold: 19). Mặc định: 43',
+                  minValue: 41,
+                  maxValue: 46,
+                  helperText: 'Phải > 41 (threshold: 41). Mặc định: 43',
                 ),
                 const SizedBox(height: 16),
 
@@ -218,9 +218,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Xiên Bắc (ngày)',
                   icon: Icons.calendar_month,
                   hint: '234',
-                  minValue: 156,
-                  maxValue: 365,
-                  helperText: 'Phải > 155 (threshold: 155). Mặc định: 234',
+                  minValue: 222,
+                  maxValue: 245,
+                  helperText: 'Phải > 222 (threshold: 222). Mặc định: 234',
                 ),
 
                 const SizedBox(height: 16),
@@ -248,7 +248,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.calendar_month,
                   hint: '4',
                   minValue: 4,
-                  maxValue: 6,
+                  maxValue: 5,
                   helperText: 'Mặc định: 5. Min: 4',
                 ),
                 const SizedBox(height: 16),
@@ -259,7 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.calendar_month,
                   hint: '14',
                   minValue: 13,
-                  maxValue: 16,
+                  maxValue: 15,
                   helperText: 'Mặc định: 14. Min: 13',
                 ),
                 const SizedBox(height: 16),
@@ -268,9 +268,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _thresholdBacDurationController,
                   label: 'Miền Bắc (ngày)',
                   icon: Icons.calendar_month,
-                  hint: '18',
-                  minValue: 16,
-                  maxValue: 20,
+                  hint: '16',
+                  minValue: 15,
+                  maxValue: 17,
                   helperText: 'Mặc định: 18. Min: 16',
                 ),
 
@@ -773,28 +773,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     int thresholdTrungDuration =
         int.tryParse(_thresholdTrungDurationController.text) ?? 12;
     int thresholdBacDuration =
-        int.tryParse(_thresholdBacDurationController.text) ?? 18;
+        int.tryParse(_thresholdBacDurationController.text) ?? 16;
 
     // ✨ THÊM: Validate Threshold
-    if (thresholdCycleDuration < 5) {
+    if (thresholdCycleDuration < 4) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Threshold Chu kỳ phải >= 5 ngày'),
+        content: Text('Threshold Chu kỳ phải >= 4 ngày'),
         backgroundColor: Colors.red,
       ));
       return;
     }
 
-    if (thresholdTrungDuration < 5) {
+    if (thresholdTrungDuration < 12) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Threshold Trung phải >= 5 ngày'),
+        content: Text('Threshold Trung phải >= 12 ngày'),
         backgroundColor: Colors.red,
       ));
       return;
     }
 
-    if (thresholdBacDuration < 5) {
+    if (thresholdBacDuration < 16) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Threshold Bắc phải >= 5 ngày'),
+        content: Text('Threshold Bắc phải >= 16 ngày'),
         backgroundColor: Colors.red,
       ));
       return;

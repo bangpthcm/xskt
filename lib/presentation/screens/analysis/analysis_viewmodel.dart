@@ -1125,19 +1125,302 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  /// Helper: Lấy key từ display name
-  String _getMienKey(String name) {
-    switch (name) {
-      case 'Tất cả':
-        return 'tatCa';
+  /// ✅ BƯỚC 2: Tạo bảng cược Rebetting (FIXED)
+  Future<void> createRebettingBettingTable(
+    RebettingCandidate candidate,
+    AppConfig config,
+  ) async {
+    print('🔄 Creating rebetting betting table for: ${candidate.soMucTieu}');
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // ========== 1. PARSE DỮ LIỆU TỪ CANDIDATE ==========
+      final targetNumber = candidate.soMucTieu;
+      final mien = candidate.mienTrung;
+
+      // ========== 2. TÌM NGÀY CUỐI CÙNG TRONG KQXS ==========
+      DateTime? lastDate;
+      for (final result in _allResults) {
+        final date = date_utils.DateUtils.parseDate(result.ngay);
+        if (date != null) {
+          if (lastDate == null || date.isAfter(lastDate)) {
+            lastDate = date;
+          }
+        }
+      }
+      final baseDate = lastDate ?? DateTime.now();
+
+      print(
+          '📅 Base date (last KQXS date): ${date_utils.DateUtils.formatDate(baseDate)}');
+
+      // ========== 3. TÍNH END DATE ==========
+      // endDate = baseDate + rebettingDuration
+      final endDate = baseDate.add(Duration(days: candidate.rebettingDuration));
+
+      print('📅 End date: ${date_utils.DateUtils.formatDate(endDate)}');
+      print('⏱️  Duration: ${candidate.rebettingDuration} days');
+
+      // ========== 4. TÍNH BUDGET DỰA TRÊN END DATE ==========
+      final budgetService =
+          BudgetCalculationService(sheetsService: _sheetsService);
+      final budgetResult =
+          await budgetService.calculateAvailableBudgetByEndDate(
+        totalCapital: config.budget.totalCapital,
+        targetTable: _getMienBudgetKey(mien),
+        configBudget: _getMienConfigBudget(mien, config),
+        endDate: endDate,
+      );
+
+      print('💰 Budget available: ${budgetResult.budgetMax}');
+
+      // ========== 5. TÌM NGÀY BẮT ĐẦU TỐI ƯU ==========
+      // ✅ FIX: Gọi hàm tìm optimal start date với endDate đã tính
+      final optimalStartDate =
+          await _bettingService.findOptimalStartDateForRebetting(
+        endDate: endDate,
+        budgetMin: budgetResult.budgetMax * 0.9,
+        budgetMax: budgetResult.budgetMax,
+        mien: mien,
+        soMucTieu: targetNumber,
+      );
+
+      if (optimalStartDate == null) {
+        throw Exception('Không tìm được ngày bắt đầu tối ưu');
+      }
+
+      final startDate = date_utils.DateUtils.parseDate(optimalStartDate);
+      if (startDate == null) {
+        throw Exception('Ngày bắt đầu không hợp lệ: $optimalStartDate');
+      }
+
+      print('📅 Optimal start date: $optimalStartDate');
+
+      // ========== 6. TẠO FAKE CYCLE RESULT ĐỂ DÙNG HÀM GENERATE ==========
+      final tempCycleResult = CycleAnalysisResult(
+        ganNumbers: {targetNumber},
+        maxGanDays: candidate.soNgayGanMoi,
+        lastSeenDate: baseDate,
+        mienGroups: {
+          mien: [targetNumber]
+        },
+        targetNumber: targetNumber,
+      );
+
+      // ========== 7. XÁC ĐỊNH DURATION LIMIT ==========
+      int durationLimit = candidate.rebettingDuration;
+
+      // ========== 8. XÁC ĐỊNH MIỀN INDEX BẮT ĐẦU ==========
+      int startMienIndex = 0;
+      if (mien == 'Trung') {
+        startMienIndex = 1; // Miền Trung = index 1
+      } else if (mien == 'Bắc') {
+        startMienIndex = 2; // Miền Bắc = index 2
+      }
+
+      // ========== 9. TẠO BẢNG CƯỢC ==========
+      List<BettingRow> table;
+
+      if (mien == 'Nam') {
+        // Cho "Tất cả" nhưng bắt đầu từ Nam
+        table = await BettingTableTypeEnum.tatca.generateTable(
+          service: _bettingService,
+          result: tempCycleResult,
+          start: startDate,
+          end: endDate,
+          startIdx: startMienIndex,
+          min: budgetResult.budgetMax * 0.9,
+          max: budgetResult.budgetMax,
+          results: _allResults,
+          maxCount: durationLimit,
+          durationLimit: durationLimit,
+        );
+      } else if (mien == 'Trung') {
+        // Trung Gan
+        table = await BettingTableTypeEnum.trung.generateTable(
+          service: _bettingService,
+          result: tempCycleResult,
+          start: startDate,
+          end: endDate,
+          startIdx: 0,
+          min: budgetResult.budgetMax * 0.9,
+          max: budgetResult.budgetMax,
+          results: _allResults,
+          maxCount: durationLimit,
+          durationLimit: durationLimit,
+        );
+      } else {
+        // Bắc Gan (mien == 'Bắc')
+        table = await BettingTableTypeEnum.bac.generateTable(
+          service: _bettingService,
+          result: tempCycleResult,
+          start: startDate,
+          end: endDate,
+          startIdx: 0,
+          min: budgetResult.budgetMax * 0.9,
+          max: budgetResult.budgetMax,
+          results: _allResults,
+          maxCount: durationLimit,
+          durationLimit: durationLimit,
+        );
+      }
+
+      if (table.isEmpty) {
+        throw Exception('Không thể tạo bảng cược với tham số hiện tại');
+      }
+
+      print('✅ Table created with ${table.length} rows');
+      print('   Total: ${NumberUtils.formatCurrency(table.last.tongTien)}');
+
+      // ========== 10. LƯU VÀO SHEET ==========
+      await _saveRebettingTableToSheet(mien, table, tempCycleResult, candidate);
+
+      print('✅ Table saved to Google Sheets');
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error creating rebetting table: $e');
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// ✅ BƯỚC 3: Gửi Telegram Rebetting
+  Future<void> sendRebettingToTelegram(RebettingCandidate candidate) async {
+    print('📤 Sending rebetting to Telegram: ${candidate.soMucTieu}');
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final message = _buildRebettingMessage(candidate);
+      await _telegramService.sendMessage(message);
+
+      print('✅ Rebetting message sent to Telegram');
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error sending rebetting to Telegram: $e');
+      _errorMessage = 'Lỗi gửi Telegram: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// ========== HELPER METHODS ==========
+
+  /// Helper: Xây dựng message Telegram cho Rebetting
+  String _buildRebettingMessage(RebettingCandidate candidate) {
+    final buffer = StringBuffer();
+
+    buffer.writeln('<b>💎 BẢNG CƯỢC REBETTING 💎</b>\n');
+
+    buffer.writeln('<b>📋 Thông tin cổ:</b>');
+    buffer.writeln('• Số mục tiêu: <b>${candidate.soMucTieu}</b>');
+    buffer.writeln('• Miền: <b>${candidate.mienTrung}</b>');
+    buffer.writeln('• Ngày trúng cũ: ${candidate.ngayTrungCu}');
+    buffer.writeln('• Gan cũ: ${candidate.soNgayGanCu} ngày\n');
+
+    buffer.writeln('<b>📊 Thông tin cược lại:</b>');
+    buffer.writeln('• Gan mới: ${candidate.soNgayGanMoi} ngày');
+    buffer.writeln('• Duration: <b>${candidate.rebettingDuration} ngày</b>');
+    buffer.writeln('• Ngày bắt đầu: <b>${candidate.ngayCoTheVao}</b>\n');
+
+    buffer.writeln('<b>💡 Ghi chú:</b>');
+    buffer.writeln('Bảng cược đã được tạo và sẵn sàng sử dụng.');
+
+    return buffer.toString();
+  }
+
+  /// Helper: Lưu bảng cược Rebetting vào Google Sheets
+  Future<void> _saveRebettingTableToSheet(
+    String mien,
+    List<BettingRow> table,
+    CycleAnalysisResult result,
+    RebettingCandidate candidate,
+  ) async {
+    // Xác định sheet dựa trên miền
+    String sheetName;
+    if (mien == 'Nam') {
+      sheetName = 'xsktBot1'; // Bảng "Tất cả"
+    } else if (mien == 'Trung') {
+      sheetName = 'trungBot';
+    } else {
+      sheetName = 'bacBot';
+    }
+
+    print('💾 Saving to sheet: $sheetName');
+
+    await _sheetsService.clearSheet(sheetName);
+
+    final updates = <String, BatchUpdateData>{};
+
+    // Metadata row (thông tin cơ bản)
+    final metadataRow = [
+      result.maxGanDays.toString(),
+      date_utils.DateUtils.formatDate(result.lastSeenDate),
+      result.ganNumbersDisplay,
+      result.targetNumber,
+    ];
+
+    // Header row
+    final headerRow = [
+      'STT',
+      'Ngày',
+      'Miền',
+      'Số',
+      'Số lô',
+      'Cược/số',
+      'Cược/miền',
+      'Tổng tiền',
+      'Lời (1 số)',
+      'Lời (2 số)'
+    ];
+
+    // Data rows
+    final dataRows = table.map((e) => e.toSheetRow()).toList();
+
+    updates[sheetName] = BatchUpdateData(
+      range: 'A1',
+      values: [metadataRow, [], headerRow, ...dataRows],
+    );
+
+    await _sheetsService.batchUpdateRanges(updates);
+
+    print('✅ Saved ${table.length} rows to $sheetName');
+  }
+
+  /// Helper: Xác định sheet key cho budget calculation
+  String _getMienBudgetKey(String mien) {
+    switch (mien) {
       case 'Nam':
-        return 'nam';
+        return 'tatca';
       case 'Trung':
         return 'trung';
       case 'Bắc':
         return 'bac';
       default:
-        return 'tatCa';
+        return 'tatca';
+    }
+  }
+
+  /// Helper: Lấy budget từ config dựa trên miền
+  double? _getMienConfigBudget(String mien, AppConfig config) {
+    switch (mien) {
+      case 'Nam':
+        return null; // Tất cả không có limit
+      case 'Trung':
+        return config.budget.trungBudget;
+      case 'Bắc':
+        return config.budget.bacBudget;
+      default:
+        return null;
     }
   }
 }
