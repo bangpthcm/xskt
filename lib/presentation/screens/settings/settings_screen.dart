@@ -268,9 +268,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _thresholdBacDurationController,
                   label: 'Miền Bắc (ngày)',
                   icon: Icons.calendar_month,
-                  hint: '16',
-                  minValue: 15,
-                  maxValue: 17,
+                  hint: '18',
+                  minValue: 16,
+                  maxValue: 19,
                   helperText: 'Mặc định: 18. Min: 16',
                 ),
 

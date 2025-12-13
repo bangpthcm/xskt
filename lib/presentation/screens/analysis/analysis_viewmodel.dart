@@ -121,6 +121,7 @@ class BettingTableParams {
         'target: $targetNumber, '
         'start: ${date_utils.DateUtils.formatDate(startDate)}, '
         'end: ${date_utils.DateUtils.formatDate(endDate)}, '
+        'startIdx: $startMienIndex, '
         'duration: $durationLimit)';
   }
 }
@@ -163,13 +164,11 @@ class AnalysisViewModel extends ChangeNotifier {
   List<LotteryResult> _allResults = [];
 
   // ✅ State Tối ưu Tổng hợp (Tính 1 lần, dùng mãi mãi)
-  // Biến String để hiển thị lên UI
   String _optimalTatCa = "Đang tính...";
   String _optimalTrung = "Đang tính...";
   String _optimalBac = "Đang tính...";
   String _optimalXien = "Đang tính...";
 
-  // Biến DateTime để dùng khi tạo bảng (đảm bảo chính xác)
   DateTime? _dateTatCa;
   DateTime? _dateTrung;
   DateTime? _dateBac;
@@ -205,7 +204,6 @@ class AnalysisViewModel extends ChangeNotifier {
   void setSelectedMien(String mien) {
     if (_selectedMien == mien) return;
     _selectedMien = mien;
-    // ✅ CHỈ reload danh sách số, KHÔNG tính lại ngày tối ưu
     _reloadCycleOnly();
   }
 
@@ -227,7 +225,6 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Hàm load chính (Gọi khi vào màn hình hoặc refresh)
   Future<void> loadAnalysis({bool useCache = true}) async {
     _isLoading = true;
     _errorMessage = null;
@@ -245,7 +242,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ Hàm reload nhẹ (Gọi khi đổi Filter)
   Future<void> _reloadCycleOnly() async {
     try {
       if (_selectedMien == 'Tất cả') {
@@ -261,26 +257,17 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // Luồng phân tích đầy đủ
   Future<void> _analyzeFullFlow() async {
-    // 1. Phân tích Gan Pair (nếu chưa có)
     _ganPairInfo ??= await _analysisService.findGanPairsMienBac(_allResults);
-
-    // 2. Phân tích Chu kỳ cho view hiện tại
     await _reloadCycleOnly();
-
-    // 3. Chạy tính toán Tối ưu Tổng hợp (Chạy ngầm song song cho cả 4 loại)
-    // Tính 1 lần, lưu vào biến, không tính lại khi đổi tab
     _calculateAllOptimalEntries();
   }
 
-  // ✅ HÀM TÍNH TOÁN TỐI ƯU TỔNG HỢP (CORE FIX)
   Future<void> _calculateAllOptimalEntries() async {
     _optimalTatCa = "Đang tính...";
     _optimalTrung = "Đang tính...";
     _optimalBac = "Đang tính...";
     _optimalXien = "Đang tính...";
-    // notifyListeners(); // Có thể bỏ để tránh UI update quá nhiều lần
 
     try {
       final allSheetsData = await _sheetsService
@@ -293,7 +280,6 @@ class AnalysisViewModel extends ChangeNotifier {
           BudgetCalculationService(sheetsService: _sheetsService);
       final lastInfo = _getLastResultInfo();
 
-      // Helper function: Tính toán cho 1 loại cụ thể
       Future<void> calculateForType(BettingTableTypeEnum type) async {
         try {
           CycleAnalysisResult? tempResult;
@@ -301,7 +287,6 @@ class AnalysisViewModel extends ChangeNotifier {
 
           if (type == BettingTableTypeEnum.tatca) {
             tempResultsList = _allResults;
-            // Tận dụng kết quả nếu có sẵn
             if (_selectedMien == 'Tất cả' && _cycleResult != null) {
               tempResult = _cycleResult;
             } else {
@@ -408,7 +393,6 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
-      // Chạy song song 4 tác vụ
       await Future.wait([
         calculateForType(BettingTableTypeEnum.tatca),
         calculateForType(BettingTableTypeEnum.trung),
@@ -438,7 +422,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // Tính toán Xiên
   Future<void> _findOptimalXienEntry(
       Map<String, List<List<dynamic>>> allSheetsData, AppConfig config) async {
     try {
@@ -584,22 +567,18 @@ class AnalysisViewModel extends ChangeNotifier {
   }) async {
     print('🔄 [Farming] Preparing params for $mien...');
 
-    // 1. Xác định enum type
     final type = _mapMienToEnum(mien);
     final duration = _getDurationForType(type, config);
 
-    // 2. Lấy optimal date đã tính toán trước đó
     DateTime startDate;
     int startMienIndex;
     DateTime endDate;
 
     if (type == BettingTableTypeEnum.tatca) {
-      // SỬA: Đổi _dataTatCa thành _dateTatCa
       if (_dateTatCa == null) {
         throw Exception(
             'Chưa tính ngày tối ưu cho Tất cả. Hãy quay lại tab Phân tích.');
       }
-      // SỬA: Đổi _dataTatCa thành _dateTatCa
       startDate = _dateTatCa!;
 
       startMienIndex = _startMienTatCa != null
@@ -615,7 +594,6 @@ class AnalysisViewModel extends ChangeNotifier {
       startMienIndex = 0;
       endDate = startDate.add(Duration(days: duration));
     } else {
-      // BettingTableTypeEnum.bac
       if (_dateBac == null) {
         throw Exception(
             'Chưa tính ngày tối ưu cho Miền Bắc. Hãy quay lại tab Phân tích.');
@@ -625,7 +603,6 @@ class AnalysisViewModel extends ChangeNotifier {
       endDate = startDate.add(Duration(days: duration));
     }
 
-    // 3. Lấy CycleResult (từ phân tích sẵn có)
     if (_cycleResult == null) {
       throw Exception('Chưa có kết quả phân tích Chu kỳ.');
     }
@@ -649,6 +626,7 @@ class AnalysisViewModel extends ChangeNotifier {
     );
   }
 
+  // ✅ [LOGIC ĐÃ SỬA] Tính toán params cho Rebetting có context
   Future<BettingTableParams> _prepareRebettingParams(
     RebettingCandidate candidate,
   ) async {
@@ -672,6 +650,31 @@ class AnalysisViewModel extends ChangeNotifier {
     final endDate =
         ngayTrungCu.add(Duration(days: candidate.rebettingDuration));
 
+    // ✅ FIX QUAN TRỌNG: Tính startMienIndex
+    int startMienIndex = 0; // Mặc định là 0 (Nam)
+
+    if (type == BettingTableTypeEnum.tatca) {
+      // Với 'Tất cả', phải tính index dựa trên độ lệch ngày so với kết quả mới nhất
+      final lastInfo = _getLastResultInfo();
+
+      // Tính số ngày chênh lệch
+      final diffDays = startDate.difference(lastInfo.date).inDays;
+
+      // Logic: Index mới = (Index cũ + số ngày trôi qua) % 3
+      // VD: Hôm qua (lastInfo) là Nam (0). Ngày mai (startDate = +2 ngày) sẽ là Bắc (2).
+      // (0 + 2) % 3 = 2.
+      // Lưu ý: diffDays có thể âm nếu startDate < lastInfo.date (ít xảy ra nhưng cứ tính)
+      // Nhưng thường startDate > lastInfo.date vì là ngày tương lai
+      if (diffDays >= 0) {
+        startMienIndex = (lastInfo.mienIndex + diffDays) % 3;
+        print(
+            '   Calculated startMienIdx: $startMienIndex (Last: ${lastInfo.mienIndex}, Diff: $diffDays)');
+      } else {
+        // Fallback đơn giản nếu dữ liệu quá khứ, tạm để 0 hoặc tính lùi
+        startMienIndex = 0;
+      }
+    }
+
     // 4. Tạo fake CycleAnalysisResult từ candidate data
     final tempResult = CycleAnalysisResult(
       ganNumbers: {candidate.soMucTieu},
@@ -687,6 +690,7 @@ class AnalysisViewModel extends ChangeNotifier {
     print('   Type: ${type.displayName}');
     print('   Number: ${candidate.soMucTieu}');
     print('   Start: ${date_utils.DateUtils.formatDate(startDate)}');
+    print('   Start Index: $startMienIndex');
     print('   End: ${date_utils.DateUtils.formatDate(endDate)}');
     print('   Duration: ${candidate.rebettingDuration} days');
 
@@ -695,7 +699,7 @@ class AnalysisViewModel extends ChangeNotifier {
       targetNumber: candidate.soMucTieu,
       startDate: startDate,
       endDate: endDate,
-      startMienIndex: 0,
+      startMienIndex: startMienIndex, // ✅ Đã truyền giá trị tính toán đúng
       durationLimit: candidate.rebettingDuration,
       soNgayGan: candidate.soNgayGanMoi,
       cycleResult: tempResult,
@@ -711,7 +715,6 @@ class AnalysisViewModel extends ChangeNotifier {
     print('   $params');
 
     try {
-      // ========== 1. CALCULATE BUDGET ==========
       print('💰 Step 1: Calculating budget...');
       final budgetService =
           BudgetCalculationService(sheetsService: _sheetsService);
@@ -727,7 +730,6 @@ class AnalysisViewModel extends ChangeNotifier {
       print(
           '   ✅ Budget available: ${NumberUtils.formatCurrency(budgetResult.budgetMax)}');
 
-      // ========== 2. GENERATE TABLE ==========
       print('📋 Step 2: Generating betting table...');
       final table = await params.type.generateTable(
         service: _bettingService,
@@ -747,12 +749,10 @@ class AnalysisViewModel extends ChangeNotifier {
       print('   ✅ Generated ${table.length} rows');
       print('   ✅ Total: ${NumberUtils.formatCurrency(table.last.tongTien)}');
 
-      // ========== 3. SAVE TO SHEET ==========
       print('💾 Step 3: Saving to Google Sheets...');
       await _saveTableToSheet(params.type, table, params.cycleResult);
       print('   ✅ Saved to ${params.type.sheetName}');
 
-      // ========== 4. SUCCESS ==========
       _isLoading = false;
       notifyListeners();
 
@@ -802,7 +802,6 @@ class AnalysisViewModel extends ChangeNotifier {
       final lastInfo = _getLastResultInfo();
       DateTime start = lastInfo.date.add(const Duration(days: 1));
 
-      // ✅ Ưu tiên dùng ngày đã tính toán tối ưu nếu có
       if (_dateXien != null) {
         start = _dateXien!;
       }
@@ -853,79 +852,6 @@ class AnalysisViewModel extends ChangeNotifier {
   }
 
   // --- HELPERS ---
-
-  Future<CycleAnalysisResult> _prepareCycleResult(
-      BettingTableTypeEnum type, String number) async {
-    // Nếu tạo bảng từ tab Tất cả, dùng result hiện tại
-    if (type == BettingTableTypeEnum.tatca) {
-      if (_cycleResult == null) throw Exception('Chưa có dữ liệu chu kỳ');
-      return _cycleResult!;
-    }
-
-    // Nếu tạo bảng từ nút shortcut (Trung/Bắc) nhưng đang ở tab khác, cần check lại số đó
-    final detail =
-        await _analysisService.analyzeNumberDetail(_allResults, number);
-    final mien = type == BettingTableTypeEnum.trung ? 'Trung' : 'Bắc';
-    final mienDetail = detail?.mienDetails[mien];
-
-    if (mienDetail == null)
-      throw Exception('Không tìm thấy thông tin số $number cho $mien');
-
-    return CycleAnalysisResult(
-      ganNumbers: {number},
-      maxGanDays: mienDetail.daysGan,
-      lastSeenDate: mienDetail.lastSeenDate,
-      mienGroups: {
-        mien: [number]
-      },
-      targetNumber: number,
-    );
-  }
-
-  ({DateTime startDate, DateTime endDate, int startMienIndex, int targetCount})
-      _calculateDateParameters(
-    BettingTableTypeEnum type,
-    CycleAnalysisResult result,
-    AppConfig config,
-  ) {
-    final duration = _getDurationForType(type, config);
-    final fixedEndDate = result.lastSeenDate.add(Duration(days: duration));
-
-    final lastInfo = _getLastResultInfo();
-    var startDate = lastInfo.isLastBac
-        ? lastInfo.date.add(const Duration(days: 1))
-        : lastInfo.date;
-    var startIdx = lastInfo.isLastBac ? 0 : lastInfo.mienIndex + 1;
-
-    // ✅ ƯU TIÊN DÙNG NGÀY ĐÃ TÍNH TOÁN (OPTIMAL)
-    if (type == BettingTableTypeEnum.tatca && _dateTatCa != null) {
-      startDate = _dateTatCa!;
-      if (_startMienTatCa != null) {
-        startIdx = ['Nam', 'Trung', 'Bắc'].indexOf(_startMienTatCa!);
-      }
-    } else if (type == BettingTableTypeEnum.trung && _dateTrung != null) {
-      startDate = _dateTrung!;
-    } else if (type == BettingTableTypeEnum.bac && _dateBac != null) {
-      startDate = _dateBac!;
-    }
-
-    if (type == BettingTableTypeEnum.tatca) {
-      var targetCount = config.duration.cycleDuration;
-      return (
-        startDate: startDate,
-        endDate: fixedEndDate,
-        startMienIndex: startIdx,
-        targetCount: targetCount
-      );
-    } else {
-      return (
-        startDate: startDate,
-        endDate: fixedEndDate,
-        startMienIndex: startIdx,
-        targetCount: 0
-      );
-    }
-  }
 
   int _getDurationForType(BettingTableTypeEnum type, AppConfig config) {
     return switch (type) {
@@ -1065,7 +991,6 @@ class AnalysisViewModel extends ChangeNotifier {
         '<b>Lần cuối về:</b> ${date_utils.DateUtils.formatDate(_cycleResult!.lastSeenDate)}');
     buffer.writeln('<b>Số mục tiêu:</b> ${_cycleResult!.targetNumber}\n');
 
-    // Thêm thông tin tổng hợp dự kiến
     if (_selectedMien == 'Tất cả') {
       if (_optimalTatCa != "Đang tính..." &&
           !_optimalTatCa.contains("Thiếu vốn")) {
@@ -1110,7 +1035,6 @@ class AnalysisViewModel extends ChangeNotifier {
     return await _analysisService.analyzeNumberDetail(_allResults, number);
   }
 
-  /// Toggle giữa Farming và Rebetting mode
   void toggleRebettingMode(bool value) {
     _isRebettingMode = value;
     if (value) {
@@ -1119,7 +1043,6 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load Rebetting data
   Future<void> loadRebetting() async {
     if (_allResults.isEmpty) {
       _errorMessage = 'Chưa có dữ liệu KQXS';
@@ -1134,7 +1057,6 @@ class AnalysisViewModel extends ChangeNotifier {
     try {
       print('🔄 Loading Rebetting data...');
 
-      // ✅ FIX: Try-catch cho batchGetValues
       late Map<String, List<List<dynamic>>> sheetData;
       try {
         sheetData = await _sheetsService.batchGetValues([
@@ -1152,16 +1074,13 @@ class AnalysisViewModel extends ChangeNotifier {
         return;
       }
 
-      // ✅ FIX: Parse dữ liệu an toàn hơn
       final winHistories = _parseWinHistories(sheetData);
       print('✅ Win histories parsed: ${winHistories.toString()}');
 
-      // Lấy config
       final config =
           await _storageService.loadConfig() ?? AppConfig.defaultConfig();
       print('✅ Config loaded');
 
-      // Tính Rebetting candidates
       print('🔄 Calculating rebetting...');
       _rebettingResult = await _analysisService.calculateRebetting(
         allResults: _allResults,
@@ -1174,7 +1093,6 @@ class AnalysisViewModel extends ChangeNotifier {
       );
       print('✅ Rebetting calculated: $_rebettingResult');
 
-      // ✨ Tính ngayCoTheVao cho từng candidate
       await _calculateNgayCoTheVao();
       print('✅ ngayCoTheVao calculated');
 
@@ -1190,7 +1108,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  /// ✅ NEW: Helper để parse win histories an toàn
   Map<String, List<CycleWinHistory>> _parseWinHistories(
     Map<String, List<List<dynamic>>> sheetData,
   ) {
@@ -1202,7 +1119,6 @@ class AnalysisViewModel extends ChangeNotifier {
     };
 
     try {
-      // Parse cycleWinHistory (tatCa)
       final cycleData = sheetData['cycleWinHistory'];
       if (cycleData != null && cycleData.isNotEmpty) {
         result['tatCa'] = cycleData
@@ -1217,10 +1133,8 @@ class AnalysisViewModel extends ChangeNotifier {
             })
             .whereType<CycleWinHistory>()
             .toList();
-        print('   cycleWinHistory: ${result['tatCa']!.length} rows');
       }
 
-      // Parse namWinHistory
       final namData = sheetData['namWinHistory'];
       if (namData != null && namData.isNotEmpty) {
         result['nam'] = namData
@@ -1235,10 +1149,8 @@ class AnalysisViewModel extends ChangeNotifier {
             })
             .whereType<CycleWinHistory>()
             .toList();
-        print('   namWinHistory: ${result['nam']!.length} rows');
       }
 
-      // Parse trungWinHistory
       final trungData = sheetData['trungWinHistory'];
       if (trungData != null && trungData.isNotEmpty) {
         result['trung'] = trungData
@@ -1253,10 +1165,8 @@ class AnalysisViewModel extends ChangeNotifier {
             })
             .whereType<CycleWinHistory>()
             .toList();
-        print('   trungWinHistory: ${result['trung']!.length} rows');
       }
 
-      // Parse bacWinHistory
       final bacData = sheetData['bacWinHistory'];
       if (bacData != null && bacData.isNotEmpty) {
         result['bac'] = bacData
@@ -1271,7 +1181,6 @@ class AnalysisViewModel extends ChangeNotifier {
             })
             .whereType<CycleWinHistory>()
             .toList();
-        print('   bacWinHistory: ${result['bac']!.length} rows');
       }
     } catch (e) {
       print('❌ Error parsing win histories: $e');
@@ -1280,7 +1189,7 @@ class AnalysisViewModel extends ChangeNotifier {
     return result;
   }
 
-  /// Tính ngayCoTheVao cho từng selected candidate
+  // ✅ [LOGIC ĐÃ SỬA] Có truyền context neo miền vào Service
   Future<void> _calculateNgayCoTheVao() async {
     if (_rebettingResult == null) return;
 
@@ -1289,8 +1198,11 @@ class AnalysisViewModel extends ChangeNotifier {
     final summaries = <String, RebettingSummary?>{};
     final selected = <String, RebettingCandidate?>{};
 
+    // ✅ BƯỚC 1: Lấy thông tin KQXS mới nhất để làm mốc (anchor)
+    final lastInfo = _getLastResultInfo();
+
     for (final entry in _rebettingResult!.selected.entries) {
-      final mienKey = entry.key; // 'tatCa', 'nam', 'trung', 'bac'
+      final mienKey = entry.key;
       final candidate = entry.value;
 
       if (candidate == null) {
@@ -1299,7 +1211,6 @@ class AnalysisViewModel extends ChangeNotifier {
         continue;
       }
 
-      // Tính endDate
       final ngayTrungCu = date_utils.DateUtils.parseDate(candidate.ngayTrungCu);
       if (ngayTrungCu == null) {
         summaries[mienKey] = null;
@@ -1310,7 +1221,6 @@ class AnalysisViewModel extends ChangeNotifier {
       final endDate =
           ngayTrungCu.add(Duration(days: candidate.rebettingDuration));
 
-      // Xác định budget
       double budgetMin = 100000;
       double budgetMax = 500000;
 
@@ -1324,7 +1234,16 @@ class AnalysisViewModel extends ChangeNotifier {
         budgetMax = config.budget.bacBudget;
       }
 
-      // Tìm ngayCoTheVao
+      // ✅ BƯỚC 2: Chuẩn bị context neo (chỉ cần cho loại Tất cả)
+      DateTime? anchorDate;
+      int? anchorMienIndex;
+
+      if (mienKey == 'tatCa') {
+        anchorDate = lastInfo.date;
+        anchorMienIndex = lastInfo.mienIndex;
+      }
+
+      // ✅ BƯỚC 3: Truyền context vào Service
       final ngayCoTheVao =
           await _bettingService.findOptimalStartDateForRebetting(
         endDate: endDate,
@@ -1332,10 +1251,12 @@ class AnalysisViewModel extends ChangeNotifier {
         budgetMax: budgetMax,
         mien: candidate.mienTrung,
         soMucTieu: candidate.soMucTieu,
+        // NOTE: BettingService phải được cập nhật để dùng 2 tham số này tính startIdx
+        anchorDate: anchorDate,
+        anchorMienIndex: anchorMienIndex,
       );
 
       if (ngayCoTheVao != null) {
-        // Update candidate với ngayCoTheVao
         final updatedCandidate = RebettingCandidate(
           soMucTieu: candidate.soMucTieu,
           mienTrung: candidate.mienTrung,
@@ -1347,7 +1268,6 @@ class AnalysisViewModel extends ChangeNotifier {
           ngayCoTheVao: ngayCoTheVao,
         );
 
-        // Update summary
         summaries[mienKey] = RebettingSummary(
           mien: _getMienDisplayName(mienKey),
           ngayCoTheVao: ngayCoTheVao,
@@ -1364,36 +1284,32 @@ class AnalysisViewModel extends ChangeNotifier {
       }
     }
 
-    // Update result
     _rebettingResult = RebettingResult(
       summaries: summaries,
       selected: selected,
     );
   }
 
-  /// Đổi filter Rebetting
   void setSelectedRebettingMien(String mien) {
     _selectedRebettingMien = mien;
     notifyListeners();
   }
 
-  /// Helper: Lấy display name từ key
   String _getMienDisplayName(String key) {
     switch (key) {
       case 'tatCa':
-        return 'Tất cả'; // ✅ Thay 'Mixed' -> 'Tất cả'
+        return 'Tất cả';
       case 'nam':
         return 'Nam';
       case 'trung':
         return 'Trung';
       case 'bac':
-        return 'Báº¯c';
+        return 'Bắc';
       default:
         return 'Unknown';
     }
   }
 
-  /// ✅ BƯỚC 3: Gửi Telegram Rebetting
   Future<void> sendRebettingToTelegram(RebettingCandidate candidate) async {
     print('📤 Sending rebetting to Telegram: ${candidate.soMucTieu}');
 
@@ -1417,9 +1333,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  /// ========== HELPER METHODS ==========
-
-  /// Helper: Xây dựng message Telegram cho Rebetting
   String _buildRebettingMessage(RebettingCandidate candidate) {
     final buffer = StringBuffer();
 
@@ -1440,91 +1353,5 @@ class AnalysisViewModel extends ChangeNotifier {
     buffer.writeln('Bảng cược đã được tạo và sẵn sàng sử dụng.');
 
     return buffer.toString();
-  }
-
-  /// Helper: Lưu bảng cược Rebetting vào Google Sheets
-  Future<void> _saveRebettingTableToSheet(
-    String mien,
-    List<BettingRow> table,
-    CycleAnalysisResult result,
-    RebettingCandidate candidate,
-  ) async {
-    // Xác định sheet dựa trên miền
-    String sheetName;
-    if (mien == 'Nam') {
-      sheetName = 'xsktBot1'; // Bảng "Tất cả"
-    } else if (mien == 'Trung') {
-      sheetName = 'trungBot';
-    } else {
-      sheetName = 'bacBot';
-    }
-
-    print('💾 Saving to sheet: $sheetName');
-
-    await _sheetsService.clearSheet(sheetName);
-
-    final updates = <String, BatchUpdateData>{};
-
-    // Metadata row (thông tin cơ bản)
-    final metadataRow = [
-      result.maxGanDays.toString(),
-      date_utils.DateUtils.formatDate(result.lastSeenDate),
-      result.ganNumbersDisplay,
-      result.targetNumber,
-    ];
-
-    // Header row
-    final headerRow = [
-      'STT',
-      'Ngày',
-      'Miền',
-      'Số',
-      'Số lô',
-      'Cược/số',
-      'Cược/miền',
-      'Tổng tiền',
-      'Lời (1 số)',
-      'Lời (2 số)'
-    ];
-
-    // Data rows
-    final dataRows = table.map((e) => e.toSheetRow()).toList();
-
-    updates[sheetName] = BatchUpdateData(
-      range: 'A1',
-      values: [metadataRow, [], headerRow, ...dataRows],
-    );
-
-    await _sheetsService.batchUpdateRanges(updates);
-
-    print('✅ Saved ${table.length} rows to $sheetName');
-  }
-
-  /// Helper: Xác định sheet key cho budget calculation
-  String _getMienBudgetKey(String mien) {
-    switch (mien) {
-      case 'Nam':
-        return 'tatca';
-      case 'Trung':
-        return 'trung';
-      case 'Bắc':
-        return 'bac';
-      default:
-        return 'tatca';
-    }
-  }
-
-  /// Helper: Lấy budget từ config dựa trên miền
-  double? _getMienConfigBudget(String mien, AppConfig config) {
-    switch (mien) {
-      case 'Nam':
-        return null; // Tất cả không có limit
-      case 'Trung':
-        return config.budget.trungBudget;
-      case 'Bắc':
-        return config.budget.bacBudget;
-      default:
-        return null;
-    }
   }
 }

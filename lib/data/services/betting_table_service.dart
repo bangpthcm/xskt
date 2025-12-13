@@ -20,7 +20,7 @@ class BettingTableService {
     bool fitBudgetOnly = false,
   }) async {
     final soNgayGan = ganInfo.daysGan;
-    final durationDays = durationBase - soNgayGan; // ✅ DÙNG parameter
+    final durationDays = durationBase - soNgayGan;
 
     if (durationDays <= 1) {
       throw Exception('Số ngày gan quá lớn: $soNgayGan (cần < $durationBase)');
@@ -84,8 +84,6 @@ class BettingTableService {
       throw Exception('Tổng tiền tính toán không hợp lệ: $rawTotalCost');
     }
 
-    //final scalingFactor = xienBudget / rawTotalCost;
-
     if (scalingFactor.isNaN || scalingFactor.isInfinite || scalingFactor <= 0) {
       throw Exception(
           'Invalid scaling factor: $scalingFactor (budget: $xienBudget, cost: $rawTotalCost)');
@@ -136,7 +134,7 @@ class BettingTableService {
     required double budgetMax,
     required List<LotteryResult> allResults,
     required int maxMienCount,
-    required int durationLimit, // ✅ THÊM parameter
+    required int durationLimit,
   }) async {
     String targetMien = 'Nam';
     for (final entry in cycleResult.mienGroups.entries) {
@@ -165,14 +163,14 @@ class BettingTableService {
     );
   }
 
-  /// Generate Bac Gan Table - CẬP NHẬT
+  /// Generate Bac Gan Table
   Future<List<BettingRow>> generateBacGanTable({
     required CycleAnalysisResult cycleResult,
     required DateTime startDate,
     required DateTime endDate,
     required double budgetMin,
     required double budgetMax,
-    required int durationLimit, // ✅ THÊM parameter
+    required int durationLimit,
   }) async {
     return _optimizeTableSearch(
       budgetMin: budgetMin,
@@ -184,7 +182,7 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: durationLimit, // ✅ DÙNG parameter
+        durationLimit: durationLimit,
         winMultiplier: AppConstants.bacGanWinMultiplier,
       ),
       configName: "Bắc Gan",
@@ -193,14 +191,14 @@ class BettingTableService {
     );
   }
 
-  /// Generate Trung Gan Table - CẬP NHẬT
+  /// Generate Trung Gan Table
   Future<List<BettingRow>> generateTrungGanTable({
     required CycleAnalysisResult cycleResult,
     required DateTime startDate,
     required DateTime endDate,
     required double budgetMin,
     required double budgetMax,
-    required int durationLimit, // ✅ THÊM parameter
+    required int durationLimit,
   }) async {
     return _optimizeTableSearch(
       budgetMin: budgetMin,
@@ -212,7 +210,7 @@ class BettingTableService {
         endDate: endDate,
         startBetValue: startBet,
         profitTarget: profitTarget,
-        durationLimit: durationLimit, // ✅ DÙNG parameter
+        durationLimit: durationLimit,
         winMultiplier: AppConstants.trungGanWinMultiplier,
       ),
       configName: "Trung Gan",
@@ -234,12 +232,10 @@ class BettingTableService {
     double highProfit = 100000.0;
     List<BettingRow>? bestTable;
 
-    // Vòng lặp 1: Tìm Profit Target phù hợp
     for (int i = 0; i < profitSearchRange; i++) {
       if (highProfit < lowProfit) break;
       final midProfit = ((lowProfit + highProfit) / 2);
 
-      // Tìm StartBet tốt nhất cho Profit này
       final foundTable = await _findBestStartBet(
         budgetMin: budgetMin,
         budgetMax: budgetMax,
@@ -251,8 +247,7 @@ class BettingTableService {
       if (foundTable != null) {
         bestTable ??= foundTable;
 
-        // Thử tinh chỉnh lợi nhuận một chút để tối ưu hơn
-        final adjustedProfit = midProfit * 3.5 / 4.2; // Giữ logic cũ của bạn
+        final adjustedProfit = midProfit * 3.5 / 4.2;
         final optimizedTable = await _findBestStartBet(
           budgetMin: budgetMin,
           budgetMax: budgetMax,
@@ -269,9 +264,7 @@ class BettingTableService {
       }
     }
 
-    // Xử lý khi không tìm thấy bảng (Error handling)
     if (bestTable == null) {
-      // Chạy thử 1 lần với tham số cơ bản để lấy số tiền thực tế báo lỗi
       final testResult = await calculator(100.0, 1.0);
       final actualTotal = testResult['tong_tien'] as double;
 
@@ -290,7 +283,6 @@ class BettingTableService {
     return bestTable;
   }
 
-  /// Hàm tìm StartBet (Vòng lặp con bên trong)
   Future<List<BettingRow>?> _findBestStartBet({
     required double budgetMin,
     required double budgetMax,
@@ -299,7 +291,7 @@ class BettingTableService {
         calculator,
     required int searchRange,
   }) async {
-    double lowBet = profitTarget / 3 / 50; // Ước lượng
+    double lowBet = profitTarget / 3 / 50;
     if (lowBet < 0.5) lowBet = 0.5;
     double highBet = 2000.0;
     List<BettingRow>? localBestTable;
@@ -315,7 +307,7 @@ class BettingTableService {
 
       if (tongTien >= budgetMin && tongTien <= budgetMax) {
         localBestTable = table;
-        highBet = midBet - 0.1; // Cố gắng giảm cược để tiết kiệm
+        highBet = midBet - 0.1;
       } else if (tongTien > budgetMax) {
         highBet = midBet - 0.1;
       } else {
@@ -325,7 +317,6 @@ class BettingTableService {
     return localBestTable;
   }
 
-  /// Logic tính toán bảng cho Single Mien (Bắc Gan / Trung Gan)
   Future<Map<String, dynamic>> _calculateSingleMienTable({
     required String targetNumber,
     required String mien,
@@ -347,7 +338,6 @@ class BettingTableService {
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
       final soLo = NumberUtils.calculateSoLo(mien, weekday);
 
-      // Skip nếu số lô quá nhiều (lợi nhuận âm)
       if (winMultiplier - soLo <= 0) {
         currentDate = currentDate.add(const Duration(days: 1));
         continue;
@@ -376,7 +366,6 @@ class BettingTableService {
     return {'table': tableData, 'tong_tien': tongTien};
   }
 
-  /// Logic tính toán bảng cho Cycle (Xoay vòng miền)
   Future<Map<String, dynamic>> _calculateCycleTableInternal({
     required String targetNumber,
     required String targetMien,
@@ -392,7 +381,6 @@ class BettingTableService {
     final tableData = <BettingRow>[];
     double tongTien = 0.0;
 
-    // Đếm số lần quay của targetMien
     int mienCount = _countTargetMienOccurrences(
       startDate: lastSeenDate,
       endDate: startDate,
@@ -403,7 +391,7 @@ class BettingTableService {
     int stt = 1;
     DateTime currentDate = startDate;
     bool isFirstDay = true;
-    const mienOrder = AppConstants.mienOrder; // ['Nam', 'Trung', 'Bắc']
+    const mienOrder = AppConstants.mienOrder;
 
     outerLoop:
     while (mienCount < maxMienCount &&
@@ -444,7 +432,6 @@ class BettingTableService {
     return {'table': tableData, 'tong_tien': tongTien};
   }
 
-  /// Hàm tính toán chi tiết 1 dòng (Common Row Calculation)
   _RowCalculationResult _calculateOneRow({
     required int stt,
     required DateTime currentDate,
@@ -513,6 +500,7 @@ class BettingTableService {
     return '$day/$month/$year';
   }
 
+  // ✅ CẬP NHẬT: Thêm tham số anchorDate và anchorMienIndex
   Future<String?> findOptimalStartDateForRebetting({
     required DateTime endDate,
     required double budgetMin,
@@ -520,6 +508,8 @@ class BettingTableService {
     required String mien,
     required String soMucTieu,
     double profitTarget = 100.0,
+    DateTime? anchorDate,
+    int? anchorMienIndex,
   }) async {
     print('🔍 Finding optimal start date for Rebetting...');
     print('   End date: ${_formatDateWith2Digits(endDate)}');
@@ -534,22 +524,56 @@ class BettingTableService {
       for (int dayOffset = 0; dayOffset < 60; dayOffset++) {
         currentDate = endDate.subtract(Duration(days: dayOffset));
 
-        final weekday = date_utils.DateUtils.getWeekday(currentDate);
-        final soLo = NumberUtils.calculateSoLo(mien, weekday);
+        List<BettingRow> tempTable;
 
-        if (AppConstants.winMultiplier - soLo <= 0) {
-          continue;
+        // ✅ LOGIC PHÂN NHÁNH: Xử lý riêng cho "Tất cả" và các miền cụ thể
+        if (mien == 'Tất cả' || mien == 'Mixed' || mien == 'tatCa') {
+          if (anchorDate == null || anchorMienIndex == null) {
+            print('   ⚠️ Warning: Missing anchor data for mixed rebetting');
+            // Fallback nếu thiếu anchor (mặc định start index 0)
+            tempTable = await _calculateCycleTableForRebetting(
+              targetNumber: soMucTieu,
+              startDate: currentDate,
+              endDate: endDate,
+              startMienIndex: 0,
+              startBetValue: 1.0,
+              profitTarget: 100.0,
+            );
+          } else {
+            // ✅ Tính toán Start Index chính xác dựa trên Anchor
+            final diffDays = currentDate.difference(anchorDate).inDays;
+            // Modulo có thể ra số âm, cần xử lý: ((a % n) + n) % n
+            final rawIdx = (anchorMienIndex + diffDays) % 3;
+            final startMienIdx = (rawIdx + 3) % 3;
+
+            tempTable = await _calculateCycleTableForRebetting(
+              targetNumber: soMucTieu,
+              startDate: currentDate,
+              endDate: endDate,
+              startMienIndex: startMienIdx,
+              startBetValue: 1.0,
+              profitTarget: 100.0,
+            );
+          }
+        } else {
+          // Logic cũ cho miền cụ thể
+          final weekday = date_utils.DateUtils.getWeekday(currentDate);
+          final soLo = NumberUtils.calculateSoLo(mien, weekday);
+
+          if (AppConstants.winMultiplier - soLo <= 0) {
+            continue;
+          }
+
+          tempTable = await _calculateSingleMienTableForRebetting(
+            targetNumber: soMucTieu,
+            mien: mien,
+            startDate: currentDate,
+            endDate: endDate,
+            startBetValue: 1.0,
+            profitTarget: 100.0,
+            winMultiplier: AppConstants.winMultiplier,
+          );
         }
-
-        final tempTable = await _calculateSingleMienTableForRebetting(
-          targetNumber: soMucTieu,
-          mien: mien,
-          startDate: currentDate,
-          endDate: endDate,
-          startBetValue: 1.0,
-          profitTarget: 100.0,
-          winMultiplier: AppConstants.winMultiplier,
-        );
 
         if (tempTable.isEmpty) {
           continue;
@@ -579,7 +603,71 @@ class BettingTableService {
     }
   }
 
-  /// Helper: Tính table cho Rebetting
+  /// ✅ MỚI: Tính table cho Rebetting kiểu "Tất cả" (Cycle)
+  Future<List<BettingRow>> _calculateCycleTableForRebetting({
+    required String targetNumber,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int startMienIndex,
+    required double startBetValue,
+    required double profitTarget,
+  }) async {
+    final tableData = <BettingRow>[];
+    double tongTien = 0.0;
+    int stt = 1;
+    DateTime currentDate = startDate;
+    bool isFirstDay = true;
+    const mienOrder = AppConstants.mienOrder; // ['Nam', 'Trung', 'Bắc']
+
+    while (currentDate.isBefore(endDate.add(const Duration(days: 1)))) {
+      final initialMienIdx = isFirstDay ? startMienIndex : 0;
+      final weekday = date_utils.DateUtils.getWeekday(currentDate);
+
+      for (int i = initialMienIdx; i < mienOrder.length; i++) {
+        final mien = mienOrder[i];
+        final soLo = NumberUtils.calculateSoLo(mien, weekday);
+
+        if (AppConstants.winMultiplier - soLo <= 0) continue;
+
+        final requiredBet =
+            (tongTien + profitTarget) / (AppConstants.winMultiplier - soLo);
+        double tienCuoc1So = startBetValue;
+
+        if (tableData.isNotEmpty) {
+          // Đảm bảo cược tăng hoặc giữ, không giảm quá sâu (logic simple profit)
+          tienCuoc1So = tienCuoc1So > requiredBet ? tienCuoc1So : requiredBet;
+        }
+        tienCuoc1So = tienCuoc1So.ceilToDouble();
+
+        final tienCuocMien = tienCuoc1So * soLo;
+        final newTongTien = tongTien + tienCuocMien;
+        final tienLoi1So =
+            (tienCuoc1So * AppConstants.winMultiplier) - newTongTien;
+        final tienLoi2So =
+            (tienCuoc1So * AppConstants.winMultiplier * 2) - newTongTien;
+
+        tableData.add(BettingRow.forCycle(
+          stt: stt++,
+          ngay: _formatDateWith2Digits(currentDate),
+          mien: mien,
+          so: targetNumber,
+          soLo: soLo,
+          cuocSo: tienCuoc1So,
+          cuocMien: tienCuocMien,
+          tongTien: newTongTien,
+          loi1So: tienLoi1So,
+          loi2So: tienLoi2So,
+        ));
+
+        tongTien = newTongTien;
+      }
+      isFirstDay = false;
+      currentDate = currentDate.add(const Duration(days: 1));
+    }
+    return tableData;
+  }
+
+  /// Helper: Tính table cho Rebetting (Single Mien)
   Future<List<BettingRow>> _calculateSingleMienTableForRebetting({
     required String targetNumber,
     required String mien,
@@ -637,7 +725,6 @@ class BettingTableService {
   }
 }
 
-// Helper class nội bộ để trả về dữ liệu từ hàm tính dòng
 class _RowCalculationResult {
   final BettingRow row;
   final double newTongTien;
