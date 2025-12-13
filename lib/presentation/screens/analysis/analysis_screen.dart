@@ -681,7 +681,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Tạo bảng cược thành công!'),
+                      content: Text('✅ Tạo bảng cược thành công!'),
                       backgroundColor: ThemeProvider.profit,
                       duration: Duration(seconds: 2),
                     ),
@@ -692,6 +692,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
                   }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ ${viewModel.errorMessage}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               }
             },
@@ -841,9 +848,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             const Text(
               'Tạo bảng cược cho số gan Miền Trung?\n\n'
               '• Chỉ cược Miền Trung\n'
-              '• Số lượt: 30 lượt\n'
-              '• Thời gian: ~35 ngày\n'
-              '• Ăn: 98 lần\n'
+              '• Dựa trên kết quả phân tích\n'
               '• Bảng hiện tại sẽ bị thay thế',
               style: TextStyle(fontSize: 13),
             ),
@@ -867,7 +872,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Tạo bảng cược Trung gan thành công!'),
+                      content: Text('✅ Tạo bảng cược Miền Trung thành công!'),
                       backgroundColor: ThemeProvider.profit,
                       duration: Duration(seconds: 2),
                     ),
@@ -878,6 +883,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
                   }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ ${viewModel.errorMessage}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               }
             },
@@ -906,8 +918,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             const Text(
               'Tạo bảng cược cho số gan Miền Bắc?\n\n'
               '• Chỉ cược Miền Bắc\n'
-              '• Thời gian: 35 ngày\n'
-              '• Ăn: 99 lần\n'
+              '• Dựa trên kết quả phân tích\n'
               '• Bảng hiện tại sẽ bị thay thế',
               style: TextStyle(fontSize: 13),
             ),
@@ -931,7 +942,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Tạo bảng cược Bắc gan thành công!'),
+                      content: Text('✅ Tạo bảng cược Miền Bắc thành công!'),
                       backgroundColor: ThemeProvider.profit,
                       duration: Duration(seconds: 2),
                     ),
@@ -942,6 +953,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
                   }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ ${viewModel.errorMessage}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               }
             },
@@ -1118,7 +1136,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     if (candidate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Chưa có ứng viên để tạo bảng cược'),
+          content: Text('⚠️ Chưa có ứng viên để tạo bảng cược'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -1162,10 +1180,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               Navigator.pop(context);
 
               final config = context.read<SettingsViewModel>().config;
-              await viewModel.createRebettingBettingTable(
-                candidate,
-                config,
-              );
+              await viewModel.createRebettingBettingTable(candidate, config);
 
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
@@ -1173,7 +1188,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Tạo bảng cược Rebetting thành công!'),
+                      content: Text('✅ Tạo bảng cược Rebetting thành công!'),
                       backgroundColor: ThemeProvider.profit,
                       duration: Duration(seconds: 2),
                     ),
@@ -1187,8 +1202,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content:
-                          Text(viewModel.errorMessage ?? 'Lỗi tạo bảng cược'),
+                      content: Text('❌ ${viewModel.errorMessage}'),
                       backgroundColor: Colors.red,
                     ),
                   );

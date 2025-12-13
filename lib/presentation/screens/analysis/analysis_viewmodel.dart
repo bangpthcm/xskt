@@ -91,6 +91,40 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
   }
 }
 
+class BettingTableParams {
+  final BettingTableTypeEnum type;
+  final String targetNumber;
+  final DateTime startDate;
+  final DateTime endDate;
+  final int startMienIndex;
+  final int durationLimit;
+  final int soNgayGan;
+  final CycleAnalysisResult cycleResult;
+  final List<LotteryResult> allResults;
+
+  BettingTableParams({
+    required this.type,
+    required this.targetNumber,
+    required this.startDate,
+    required this.endDate,
+    required this.startMienIndex,
+    required this.durationLimit,
+    required this.soNgayGan,
+    required this.cycleResult,
+    required this.allResults,
+  });
+
+  @override
+  String toString() {
+    return 'BettingTableParams('
+        'type: ${type.displayName}, '
+        'target: $targetNumber, '
+        'start: ${date_utils.DateUtils.formatDate(startDate)}, '
+        'end: ${date_utils.DateUtils.formatDate(endDate)}, '
+        'duration: $durationLimit)';
+  }
+}
+
 // --- VIEW MODEL ---
 class AnalysisViewModel extends ChangeNotifier {
   final CachedDataService _cachedDataService;
@@ -467,54 +501,288 @@ class AnalysisViewModel extends ChangeNotifier {
 
   // --- CREATE TABLES ---
 
-  Future<void> createCycleBettingTable(String number, AppConfig config) =>
-      _createBettingTableGeneric(BettingTableTypeEnum.tatca, number, config);
-
-  Future<void> createTrungGanBettingTable(String number, AppConfig config) =>
-      _createBettingTableGeneric(BettingTableTypeEnum.trung, number, config);
-
-  Future<void> createBacGanBettingTable(String number, AppConfig config) =>
-      _createBettingTableGeneric(BettingTableTypeEnum.bac, number, config);
-
-  Future<void> _createBettingTableGeneric(
-      BettingTableTypeEnum type, String number, AppConfig config) async {
+  Future<void> createCycleBettingTable(String number, AppConfig config) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
+
     try {
-      final result = await _prepareCycleResult(type, number);
-      final dates = _calculateDateParameters(type, result, config);
-
-      final budgetService =
-          BudgetCalculationService(sheetsService: _sheetsService);
-      final budgetResult =
-          await budgetService.calculateAvailableBudgetByEndDate(
-        totalCapital: config.budget.totalCapital,
-        targetTable: type.budgetTableName,
-        configBudget: type.getBudgetConfig(config),
-        endDate: dates.endDate,
+      final params = await _prepareFarmingParams(
+        mien: 'Tất cả',
+        config: config,
+        targetNumber: number,
       );
-
-      final table = await type.generateTable(
-        service: _bettingService,
-        result: result,
-        start: dates.startDate,
-        end: dates.endDate,
-        startIdx: dates.startMienIndex,
-        min: budgetResult.budgetMax * 0.9,
-        max: budgetResult.budgetMax,
-        results: _allResults,
-        maxCount: dates.targetCount,
-        durationLimit: _getDurationForType(type, config),
-      );
-
-      await _saveTableToSheet(type, table, result);
-      _isLoading = false;
-      notifyListeners();
+      await _createBettingTableGeneric(params, config);
     } catch (e) {
       _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> createTrungGanBettingTable(
+      String number, AppConfig config) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final params = await _prepareFarmingParams(
+        mien: 'Trung',
+        config: config,
+        targetNumber: number,
+      );
+      await _createBettingTableGeneric(params, config);
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> createBacGanBettingTable(String number, AppConfig config) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final params = await _prepareFarmingParams(
+        mien: 'Bắc',
+        config: config,
+        targetNumber: number,
+      );
+      await _createBettingTableGeneric(params, config);
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> createRebettingBettingTable(
+    RebettingCandidate candidate,
+    AppConfig config,
+  ) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final params = await _prepareRebettingParams(candidate);
+      await _createBettingTableGeneric(params, config);
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<BettingTableParams> _prepareFarmingParams({
+    required String mien,
+    required AppConfig config,
+    required String targetNumber,
+  }) async {
+    print('🔄 [Farming] Preparing params for $mien...');
+
+    // 1. Xác định enum type
+    final type = _mapMienToEnum(mien);
+    final duration = _getDurationForType(type, config);
+
+    // 2. Lấy optimal date đã tính toán trước đó
+    DateTime startDate;
+    int startMienIndex;
+    DateTime endDate;
+
+    if (type == BettingTableTypeEnum.tatca) {
+      // SỬA: Đổi _dataTatCa thành _dateTatCa
+      if (_dateTatCa == null) {
+        throw Exception(
+            'Chưa tính ngày tối ưu cho Tất cả. Hãy quay lại tab Phân tích.');
+      }
+      // SỬA: Đổi _dataTatCa thành _dateTatCa
+      startDate = _dateTatCa!;
+
+      startMienIndex = _startMienTatCa != null
+          ? ['Nam', 'Trung', 'Bắc'].indexOf(_startMienTatCa!)
+          : 0;
+      endDate = startDate.add(Duration(days: duration));
+    } else if (type == BettingTableTypeEnum.trung) {
+      if (_dateTrung == null) {
+        throw Exception(
+            'Chưa tính ngày tối ưu cho Miền Trung. Hãy quay lại tab Phân tích.');
+      }
+      startDate = _dateTrung!;
+      startMienIndex = 0;
+      endDate = startDate.add(Duration(days: duration));
+    } else {
+      // BettingTableTypeEnum.bac
+      if (_dateBac == null) {
+        throw Exception(
+            'Chưa tính ngày tối ưu cho Miền Bắc. Hãy quay lại tab Phân tích.');
+      }
+      startDate = _dateBac!;
+      startMienIndex = 0;
+      endDate = startDate.add(Duration(days: duration));
+    }
+
+    // 3. Lấy CycleResult (từ phân tích sẵn có)
+    if (_cycleResult == null) {
+      throw Exception('Chưa có kết quả phân tích Chu kỳ.');
+    }
+
+    print('✅ [Farming] Prepared:');
+    print('   Type: ${type.displayName}');
+    print('   Start: ${date_utils.DateUtils.formatDate(startDate)}');
+    print('   End: ${date_utils.DateUtils.formatDate(endDate)}');
+    print('   Duration: $duration days');
+
+    return BettingTableParams(
+      type: type,
+      targetNumber: targetNumber,
+      startDate: startDate,
+      endDate: endDate,
+      startMienIndex: startMienIndex,
+      durationLimit: duration,
+      soNgayGan: _cycleResult!.maxGanDays,
+      cycleResult: _cycleResult!,
+      allResults: _allResults,
+    );
+  }
+
+  Future<BettingTableParams> _prepareRebettingParams(
+    RebettingCandidate candidate,
+  ) async {
+    print('🔄 [Rebetting] Preparing params for ${candidate.soMucTieu}...');
+
+    // 1. Xác định enum type
+    final type = _mapMienToEnum(candidate.mienTrung);
+
+    // 2. Parse dates từ candidate
+    final ngayTrungCu = date_utils.DateUtils.parseDate(candidate.ngayTrungCu);
+    if (ngayTrungCu == null) {
+      throw Exception('Ngày trúng cũ không hợp lệ: ${candidate.ngayTrungCu}');
+    }
+
+    final startDate = date_utils.DateUtils.parseDate(candidate.ngayCoTheVao);
+    if (startDate == null) {
+      throw Exception('Ngày bắt đầu không hợp lệ: ${candidate.ngayCoTheVao}');
+    }
+
+    // 3. Tính end date từ duration
+    final endDate =
+        ngayTrungCu.add(Duration(days: candidate.rebettingDuration));
+
+    // 4. Tạo fake CycleAnalysisResult từ candidate data
+    final tempResult = CycleAnalysisResult(
+      ganNumbers: {candidate.soMucTieu},
+      maxGanDays: candidate.soNgayGanMoi,
+      lastSeenDate: ngayTrungCu,
+      mienGroups: {
+        candidate.mienTrung: [candidate.soMucTieu]
+      },
+      targetNumber: candidate.soMucTieu,
+    );
+
+    print('✅ [Rebetting] Prepared:');
+    print('   Type: ${type.displayName}');
+    print('   Number: ${candidate.soMucTieu}');
+    print('   Start: ${date_utils.DateUtils.formatDate(startDate)}');
+    print('   End: ${date_utils.DateUtils.formatDate(endDate)}');
+    print('   Duration: ${candidate.rebettingDuration} days');
+
+    return BettingTableParams(
+      type: type,
+      targetNumber: candidate.soMucTieu,
+      startDate: startDate,
+      endDate: endDate,
+      startMienIndex: 0,
+      durationLimit: candidate.rebettingDuration,
+      soNgayGan: candidate.soNgayGanMoi,
+      cycleResult: tempResult,
+      allResults: _allResults,
+    );
+  }
+
+  Future<void> _createBettingTableGeneric(
+    BettingTableParams params,
+    AppConfig config,
+  ) async {
+    print('🚀 [Generic] Starting table creation...');
+    print('   $params');
+
+    try {
+      // ========== 1. CALCULATE BUDGET ==========
+      print('💰 Step 1: Calculating budget...');
+      final budgetService =
+          BudgetCalculationService(sheetsService: _sheetsService);
+
+      final budgetResult =
+          await budgetService.calculateAvailableBudgetByEndDate(
+        totalCapital: config.budget.totalCapital,
+        targetTable: params.type.budgetTableName,
+        configBudget: params.type.getBudgetConfig(config),
+        endDate: params.endDate,
+      );
+
+      print(
+          '   ✅ Budget available: ${NumberUtils.formatCurrency(budgetResult.budgetMax)}');
+
+      // ========== 2. GENERATE TABLE ==========
+      print('📋 Step 2: Generating betting table...');
+      final table = await params.type.generateTable(
+        service: _bettingService,
+        result: params.cycleResult,
+        start: params.startDate,
+        end: params.endDate,
+        startIdx: params.startMienIndex,
+        min: budgetResult.budgetMax * 0.9,
+        max: budgetResult.budgetMax,
+        results: params.allResults,
+        maxCount: params.type == BettingTableTypeEnum.tatca
+            ? params.durationLimit
+            : 0,
+        durationLimit: params.durationLimit,
+      );
+
+      print('   ✅ Generated ${table.length} rows');
+      print('   ✅ Total: ${NumberUtils.formatCurrency(table.last.tongTien)}');
+
+      // ========== 3. SAVE TO SHEET ==========
+      print('💾 Step 3: Saving to Google Sheets...');
+      await _saveTableToSheet(params.type, table, params.cycleResult);
+      print('   ✅ Saved to ${params.type.sheetName}');
+
+      // ========== 4. SUCCESS ==========
+      _isLoading = false;
+      notifyListeners();
+
+      print('✅ [Generic] Table creation completed!');
+    } catch (e) {
+      print('❌ [Generic] Error: $e');
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  BettingTableTypeEnum _mapMienToEnum(String mien) {
+    final normalized = mien.toLowerCase().trim();
+
+    switch (normalized) {
+      case 'tất cả':
+      case 'tatca':
+      case 'nam':
+      case 'all':
+      case 'mixed':
+        return BettingTableTypeEnum.tatca;
+      case 'trung':
+        return BettingTableTypeEnum.trung;
+      case 'bắc':
+      case 'bac':
+        return BettingTableTypeEnum.bac;
+      default:
+        throw Exception('Miền không hợp lệ: $mien');
     }
   }
 
@@ -1113,180 +1381,15 @@ class AnalysisViewModel extends ChangeNotifier {
   String _getMienDisplayName(String key) {
     switch (key) {
       case 'tatCa':
-        return 'Mixed';
+        return 'Tất cả'; // ✅ Thay 'Mixed' -> 'Tất cả'
       case 'nam':
         return 'Nam';
       case 'trung':
         return 'Trung';
       case 'bac':
-        return 'Bắc';
+        return 'Báº¯c';
       default:
         return 'Unknown';
-    }
-  }
-
-  /// ✅ BƯỚC 2: Tạo bảng cược Rebetting (FIXED)
-  Future<void> createRebettingBettingTable(
-    RebettingCandidate candidate,
-    AppConfig config,
-  ) async {
-    print('🔄 Creating rebetting betting table for: ${candidate.soMucTieu}');
-
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      // ========== 1. PARSE DỮ LIỆU TỪ CANDIDATE ==========
-      final targetNumber = candidate.soMucTieu;
-      final mien = candidate.mienTrung;
-
-      // ========== 2. TÌM NGÀY CUỐI CÙNG TRONG KQXS ==========
-      DateTime? lastDate;
-      for (final result in _allResults) {
-        final date = date_utils.DateUtils.parseDate(result.ngay);
-        if (date != null) {
-          if (lastDate == null || date.isAfter(lastDate)) {
-            lastDate = date;
-          }
-        }
-      }
-      final baseDate = lastDate ?? DateTime.now();
-
-      print(
-          '📅 Base date (last KQXS date): ${date_utils.DateUtils.formatDate(baseDate)}');
-
-      // ========== 3. TÍNH END DATE ==========
-      // endDate = baseDate + rebettingDuration
-      final endDate = baseDate.add(Duration(days: candidate.rebettingDuration));
-
-      print('📅 End date: ${date_utils.DateUtils.formatDate(endDate)}');
-      print('⏱️  Duration: ${candidate.rebettingDuration} days');
-
-      // ========== 4. TÍNH BUDGET DỰA TRÊN END DATE ==========
-      final budgetService =
-          BudgetCalculationService(sheetsService: _sheetsService);
-      final budgetResult =
-          await budgetService.calculateAvailableBudgetByEndDate(
-        totalCapital: config.budget.totalCapital,
-        targetTable: _getMienBudgetKey(mien),
-        configBudget: _getMienConfigBudget(mien, config),
-        endDate: endDate,
-      );
-
-      print('💰 Budget available: ${budgetResult.budgetMax}');
-
-      // ========== 5. TÌM NGÀY BẮT ĐẦU TỐI ƯU ==========
-      // ✅ FIX: Gọi hàm tìm optimal start date với endDate đã tính
-      final optimalStartDate =
-          await _bettingService.findOptimalStartDateForRebetting(
-        endDate: endDate,
-        budgetMin: budgetResult.budgetMax * 0.9,
-        budgetMax: budgetResult.budgetMax,
-        mien: mien,
-        soMucTieu: targetNumber,
-      );
-
-      if (optimalStartDate == null) {
-        throw Exception('Không tìm được ngày bắt đầu tối ưu');
-      }
-
-      final startDate = date_utils.DateUtils.parseDate(optimalStartDate);
-      if (startDate == null) {
-        throw Exception('Ngày bắt đầu không hợp lệ: $optimalStartDate');
-      }
-
-      print('📅 Optimal start date: $optimalStartDate');
-
-      // ========== 6. TẠO FAKE CYCLE RESULT ĐỂ DÙNG HÀM GENERATE ==========
-      final tempCycleResult = CycleAnalysisResult(
-        ganNumbers: {targetNumber},
-        maxGanDays: candidate.soNgayGanMoi,
-        lastSeenDate: baseDate,
-        mienGroups: {
-          mien: [targetNumber]
-        },
-        targetNumber: targetNumber,
-      );
-
-      // ========== 7. XÁC ĐỊNH DURATION LIMIT ==========
-      int durationLimit = candidate.rebettingDuration;
-
-      // ========== 8. XÁC ĐỊNH MIỀN INDEX BẮT ĐẦU ==========
-      int startMienIndex = 0;
-      if (mien == 'Trung') {
-        startMienIndex = 1; // Miền Trung = index 1
-      } else if (mien == 'Bắc') {
-        startMienIndex = 2; // Miền Bắc = index 2
-      }
-
-      // ========== 9. TẠO BẢNG CƯỢC ==========
-      List<BettingRow> table;
-
-      if (mien == 'Mixed' || mien == 'Nam') {
-        // "Tất cả" hoặc Nam → Chu kỳ tất cả miền
-        print('📊 Creating CYCLE table (Tất cả)');
-        table = await BettingTableTypeEnum.tatca.generateTable(
-          service: _bettingService,
-          result: tempCycleResult,
-          start: startDate,
-          end: endDate,
-          startIdx: 0, // Bắt đầu từ Nam (index 0)
-          min: budgetResult.budgetMax * 0.9,
-          max: budgetResult.budgetMax,
-          results: _allResults,
-          maxCount: durationLimit,
-          durationLimit: durationLimit,
-        );
-      } else if (mien == 'Trung') {
-        // Trung Gan
-        print('📊 Creating TRUNG GAN table');
-        table = await BettingTableTypeEnum.trung.generateTable(
-          service: _bettingService,
-          result: tempCycleResult,
-          start: startDate,
-          end: endDate,
-          startIdx: 0,
-          min: budgetResult.budgetMax * 0.9,
-          max: budgetResult.budgetMax,
-          results: _allResults,
-          maxCount: durationLimit,
-          durationLimit: durationLimit,
-        );
-      } else if (mien == 'Bắc') {
-        // Bắc Gan
-        print('📊 Creating BẮC GAN table');
-        table = await BettingTableTypeEnum.bac.generateTable(
-          service: _bettingService,
-          result: tempCycleResult,
-          start: startDate,
-          end: endDate,
-          startIdx: 0,
-          min: budgetResult.budgetMax * 0.9,
-          max: budgetResult.budgetMax,
-          results: _allResults,
-          maxCount: durationLimit,
-          durationLimit: durationLimit,
-        );
-      } else {
-        throw Exception('Miền không hợp lệ: $mien');
-      }
-
-      print('✅ Table created with ${table.length} rows');
-      print('   Total: ${NumberUtils.formatCurrency(table.last.tongTien)}');
-
-      // ========== 10. LƯU VÀO SHEET ==========
-      await _saveRebettingTableToSheet(mien, table, tempCycleResult, candidate);
-
-      print('✅ Table saved to Google Sheets');
-
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      print('❌ Error creating rebetting table: $e');
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
     }
   }
 
