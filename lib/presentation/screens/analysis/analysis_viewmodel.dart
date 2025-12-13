@@ -1223,14 +1223,15 @@ class AnalysisViewModel extends ChangeNotifier {
       // ========== 9. TẠO BẢNG CƯỢC ==========
       List<BettingRow> table;
 
-      if (mien == 'Nam') {
-        // Cho "Tất cả" nhưng bắt đầu từ Nam
+      if (mien == 'Mixed' || mien == 'Nam') {
+        // "Tất cả" hoặc Nam → Chu kỳ tất cả miền
+        print('📊 Creating CYCLE table (Tất cả)');
         table = await BettingTableTypeEnum.tatca.generateTable(
           service: _bettingService,
           result: tempCycleResult,
           start: startDate,
           end: endDate,
-          startIdx: startMienIndex,
+          startIdx: 0, // Bắt đầu từ Nam (index 0)
           min: budgetResult.budgetMax * 0.9,
           max: budgetResult.budgetMax,
           results: _allResults,
@@ -1239,6 +1240,7 @@ class AnalysisViewModel extends ChangeNotifier {
         );
       } else if (mien == 'Trung') {
         // Trung Gan
+        print('📊 Creating TRUNG GAN table');
         table = await BettingTableTypeEnum.trung.generateTable(
           service: _bettingService,
           result: tempCycleResult,
@@ -1251,8 +1253,9 @@ class AnalysisViewModel extends ChangeNotifier {
           maxCount: durationLimit,
           durationLimit: durationLimit,
         );
-      } else {
-        // Bắc Gan (mien == 'Bắc')
+      } else if (mien == 'Bắc') {
+        // Bắc Gan
+        print('📊 Creating BẮC GAN table');
         table = await BettingTableTypeEnum.bac.generateTable(
           service: _bettingService,
           result: tempCycleResult,
@@ -1265,10 +1268,8 @@ class AnalysisViewModel extends ChangeNotifier {
           maxCount: durationLimit,
           durationLimit: durationLimit,
         );
-      }
-
-      if (table.isEmpty) {
-        throw Exception('Không thể tạo bảng cược với tham số hiện tại');
+      } else {
+        throw Exception('Miền không hợp lệ: $mien');
       }
 
       print('✅ Table created with ${table.length} rows');

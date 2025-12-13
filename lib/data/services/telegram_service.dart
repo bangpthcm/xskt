@@ -1,16 +1,18 @@
 // lib/data/services/telegram_service.dart
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'dart:convert';
+
 import '../models/app_config.dart';
 import '../models/betting_row.dart';
 
 // ✅ THÊM ENUM ĐỂ PHÂN BIỆT LOẠI BẢNG
 enum TelegramTableType {
-  tatCa,   // Chu kỳ tất cả miền
-  trung,   // Chu kỳ miền Trung
-  bac,     // Chu kỳ miền Bắc
-  xien,    // Xiên miền Bắc
+  tatCa, // Chu kỳ tất cả miền
+  trung, // Chu kỳ miền Trung
+  bac, // Chu kỳ miền Bắc
+  xien, // Xiên miền Bắc
 }
 
 class TelegramService {
@@ -29,16 +31,18 @@ class TelegramService {
     try {
       // ✅ Dùng API getMe để kiểm tra bot token
       final url = 'https://api.telegram.org/bot${_config!.botToken}/getMe';
-      
+
       print('🔄 Testing Telegram connection...');
-      
-      final response = await http.get(
-        Uri.parse(url),
-      ).timeout(const Duration(seconds: 10));
+
+      final response = await http
+          .get(
+            Uri.parse(url),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         if (data['ok'] == true) {
           final botInfo = data['result'];
           print('✅ Telegram connected successfully!');
@@ -68,15 +72,17 @@ class TelegramService {
 
     for (final chatId in _config!.chatIds) {
       try {
-        final response = await http.post(
-          Uri.parse(url),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'chat_id': chatId,
-            'text': message,
-            'parse_mode': 'HTML',
-          }),
-        ).timeout(const Duration(seconds: 10));
+        final response = await http
+            .post(
+              Uri.parse(url),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'chat_id': chatId,
+                'text': message,
+                'parse_mode': 'HTML',
+              }),
+            )
+            .timeout(const Duration(seconds: 10));
 
         if (response.statusCode != 200) {
           print('Failed to send to $chatId: ${response.body}');
@@ -89,7 +95,8 @@ class TelegramService {
 
   // ✅ FORMAT XIÊN - GIỮ NGUYÊN NHƯNG CẬP NHẬT TIÊU ĐỀ
 // ✅ FORMAT XIÊN - ĐÃ SỬA LỖI HIỂN THỊ CỘT MIỀN
-  String formatXienTableMessage(List<BettingRow> table, String capSo, int soNgayGan, String lanCuoiVe) {
+  String formatXienTableMessage(
+      List<BettingRow> table, String capSo, int soNgayGan, String lanCuoiVe) {
     final buffer = StringBuffer();
     buffer.writeln('<b>💎 BẢNG CƯỢC XIÊN BẮC 💎</b>\n');
     buffer.writeln('<b>Cặp:</b> $capSo');
@@ -98,8 +105,8 @@ class TelegramService {
     buffer.writeln('<pre>');
 
     // Header
-    buffer.writeln('Ngày |Miền| Cược  |  Tổng | Lời ');
-    buffer.writeln('-----|----|-------|-------|------');
+    buffer.writeln('Ngày |Miền | Cược  |  Tổng | Lời ');
+    buffer.writeln('-----|-----|-------|-------|-----');
 
     // Rows
     for (final row in table) {
@@ -110,7 +117,8 @@ class TelegramService {
       final loi = _formatNumber(row.loi1So);
 
       // ✅ Đã thêm biến $mien vào chuỗi in ra
-      buffer.writeln('${ngay.padRight(5)}|$mien|${cuoc.padLeft(7)}|${tong.padLeft(7)}|${loi.padLeft(6)}');
+      buffer.writeln(
+          '${ngay.padRight(5)}|$mien|${cuoc.padLeft(6)}|${tong.padLeft(7)}|${loi.padLeft(6)}');
     }
 
     buffer.writeln('</pre>');
@@ -139,7 +147,7 @@ class TelegramService {
     TelegramTableType type,
   ) {
     final buffer = StringBuffer();
-    
+
     // ✅ CHỌN TIÊU ĐỀ THEO TYPE
     switch (type) {
       case TelegramTableType.tatCa:
@@ -155,7 +163,7 @@ class TelegramService {
         buffer.writeln('<b>💎 BẢNG CƯỢC XIÊN BẮC 💎</b>\n');
         break;
     }
-    
+
     buffer.writeln('<b>Nhóm gan:</b> $nhomGan');
     buffer.writeln('<b>Số mục tiêu:</b> $soMucTieu\n');
     buffer.writeln('<pre>');
@@ -166,7 +174,7 @@ class TelegramService {
 
     // Rows (chỉ hiển thị một số dòng để không quá dài)
     final displayRows = table.length > 20 ? table.take(20).toList() : table;
-    
+
     for (final row in displayRows) {
       final ngay = row.ngay.substring(0, 5);
       final mien = row.mien.padRight(5);
@@ -174,7 +182,8 @@ class TelegramService {
       final tong = _formatNumber(row.tongTien);
       final loi = _formatNumber(row.loi1So);
 
-      buffer.writeln('${ngay.padRight(5)}|$mien|${cuoc.padLeft(6)}|${tong.padLeft(7)}|${loi.padLeft(6)}');
+      buffer.writeln(
+          '${ngay.padRight(5)}|$mien|${cuoc.padLeft(6)}|${tong.padLeft(7)}|${loi.padLeft(6)}');
     }
 
     if (table.length > 20) {
