@@ -7,6 +7,7 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/number_utils.dart';
 import '../../../data/models/api_account.dart';
 import '../../../data/models/app_config.dart';
+import '../../../data/models/probability_config.dart';
 import 'settings_viewmodel.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -33,6 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _thresholdCycleDurationController;
   late TextEditingController _thresholdTrungDurationController;
   late TextEditingController _thresholdBacDurationController;
+  late TextEditingController _probabilityThresholdController;
 
   final List<Map<String, TextEditingController>> _apiAccountControllers = [];
 
@@ -63,6 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _thresholdCycleDurationController = TextEditingController();
     _thresholdTrungDurationController = TextEditingController();
     _thresholdBacDurationController = TextEditingController();
+    _probabilityThresholdController = TextEditingController();
 
     for (int i = 0; i < 3; i++) {
       _apiAccountControllers.add({
@@ -94,6 +97,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         config.duration.thresholdTrungDuration.toString();
     _thresholdBacDurationController.text =
         config.duration.thresholdBacDuration.toString();
+    _probabilityThresholdController.text =
+        config.probability.thresholdPercentageString;
 
     for (int i = 0;
         i < _apiAccountControllers.length && i < config.apiAccounts.length;
@@ -121,6 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _thresholdCycleDurationController.dispose();
     _thresholdTrungDurationController.dispose();
     _thresholdBacDurationController.dispose();
+    _probabilityThresholdController.dispose();
 
     for (var controllers in _apiAccountControllers) {
       controllers['username']?.dispose();
@@ -152,11 +158,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (viewModel.errorMessage != null)
                   _buildErrorCard(viewModel.errorMessage!),
                 const SizedBox(height: 10),
+                _buildProbabilitySection(),
+                const SizedBox(height: 10),
                 _buildActionButtons(viewModel),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildProbabilitySection() {
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(Icons.insights, color: Theme.of(context).primaryColor),
+        title: const Text('Probability Mode (Độ hiếm)',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('Cấu hình ngưỡng xác suất',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
+        initiallyExpanded: false,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Input field với format scientific notation
+                TextFormField(
+                  controller: _probabilityThresholdController,
+                  decoration: const InputDecoration(
+                    labelText: 'Ngưỡng xác suất (%)',
+                    prefixIcon: Icon(Icons.percent),
+                    hintText: '2.00e-14',
+                    helperText: 'Format: Scientific notation (ví dụ: 2.00e-14)',
+                    helperMaxLines: 2,
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Vui lòng nhập giá trị';
+                    }
+
+                    try {
+                      final threshold =
+                          ProbabilityConfig.parsePercentageString(value);
+
+                      // Validate range: 1e-18 đến 3e-16
+                      if (threshold < 1e-18) {
+                        return 'Phải >= 1.00e-16 %';
+                      }
+                      if (threshold > 3e-16) {
+                        return 'Phải <= 3.00e-14 %';
+                      }
+                    } catch (e) {
+                      return 'Format không hợp lệ';
+                    }
+
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Helper info
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).canvasColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '📌 Giải thích:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                          fontSize: 13,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        '• Ngưỡng xác suất: Giá trị P_total mà tại đó hệ thống dừng mô phỏng\n'
+                        '• Giá trị càng nhỏ → Dự đoán càng xa vào tương lai\n'
+                        '• Mặc định: 2.00e-14 % (0.00000000000002%)\n'
+                        '• Range cho phép: 1.00e-16% đến 3.00e-14%',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -720,6 +825,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final bacBudget = _parseFromThousands(_bacBudgetController.text);
     final xienBudget = _parseFromThousands(_xienBudgetController.text);
 
+    final thresholdStr = _probabilityThresholdController.text.trim();
+    final threshold = ProbabilityConfig.parsePercentageString(thresholdStr);
+    final probabilityConfig = ProbabilityConfig(threshold: threshold);
+
+    if (!probabilityConfig.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Ngưỡng xác suất không hợp lệ'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
     if (trungBudget + bacBudget + xienBudget > totalCapital) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Vốn phân bổ không hợp lệ'),
@@ -842,6 +959,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         xienBudget: xienBudget,
       ),
       duration: durationConfig, // ✅ THÊM
+      probability: probabilityConfig, // ✅ THÊM
       apiAccounts: apiAccounts,
       betting: BettingConfig(
         domain: _bettingDomainController.text.trim().isEmpty

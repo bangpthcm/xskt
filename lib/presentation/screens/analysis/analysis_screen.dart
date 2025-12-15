@@ -7,6 +7,7 @@ import '../../../app.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../data/models/number_detail.dart';
+import '../../../data/models/probability_config.dart';
 import '../../../data/models/rebetting_summary.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../betting/betting_viewmodel.dart';
@@ -128,9 +129,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 // ✨ THÊM: Toggle buttons
                 _buildToggleButtons(viewModel),
                 const SizedBox(height: 16),
-
-                // ✨ Hiển thị Rebetting hoặc Farming
-                if (_isRebettingMode) ...[
+                if (viewModel.isProbabilityMode) ...[
+                  _buildProbabilitySummaryCards(viewModel),
+                  const SizedBox(height: 16),
+                  _buildProbabilityDetailSection(viewModel),
+                ] else if (_isRebettingMode) ...[
                   _buildRebettingSummaryCards(viewModel),
                   const SizedBox(height: 16),
                   _buildRebettingCycleSection(viewModel),
@@ -970,9 +973,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-// ✨ NEW: REBETTING UI METHODS
-
-  /// Build toggle buttons
   Widget _buildToggleButtons(AnalysisViewModel viewModel) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
@@ -981,10 +981,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           Expanded(
             child: _buildToggleButton(
               label: '🌾 FARMING',
-              isSelected: !_isRebettingMode,
+              isSelected: !_isRebettingMode && !viewModel.isProbabilityMode,
               onPressed: () {
-                setState(() => _isRebettingMode = false);
+                setState(() {
+                  _isRebettingMode = false;
+                });
                 viewModel.toggleRebettingMode(false);
+                viewModel.toggleProbabilityMode(false);
               },
             ),
           ),
@@ -992,15 +995,170 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           Expanded(
             child: _buildToggleButton(
               label: '♻️ REBETTING',
-              isSelected: _isRebettingMode,
+              isSelected: _isRebettingMode && !viewModel.isProbabilityMode,
               onPressed: () {
-                setState(() => _isRebettingMode = true);
+                setState(() {
+                  _isRebettingMode = true;
+                });
                 viewModel.toggleRebettingMode(true);
+                viewModel.toggleProbabilityMode(false);
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildToggleButton(
+              label: '📊 PROBABILITY',
+              isSelected: viewModel.isProbabilityMode,
+              onPressed: () {
+                setState(() {
+                  _isRebettingMode = false;
+                });
+                viewModel.toggleRebettingMode(false);
+                viewModel.toggleProbabilityMode(true);
               },
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProbabilitySummaryCards(AnalysisViewModel viewModel) {
+    final tatCa = viewModel.probabilityResultTatCa;
+    final trung = viewModel.probabilityResultTrung;
+    final bac = viewModel.probabilityResultBac;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Ngày hôm nay:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                Text(
+                  date_utils.DateUtils.formatDate(DateTime.now()),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ],
+            ),
+            const Divider(),
+            _buildProbabilitySummaryRow('Tất cả', tatCa),
+            _buildProbabilitySummaryRow('Trung', trung),
+            _buildProbabilitySummaryRow('Bắc', bac),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProbabilitySummaryRow(
+    String mien,
+    ProbabilityAnalysisResult? result,
+  ) {
+    final text = result == null
+        ? 'Không có'
+        : date_utils.DateUtils.formatDate(result.entryDate);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(mien),
+          Text(
+            text,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+// ✅ Widget Chi tiết
+  Widget _buildProbabilityDetailSection(AnalysisViewModel viewModel) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Chi tiết Probability',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const Divider(color: Colors.grey),
+            const SizedBox(height: 16),
+
+            // Filter miền
+            _buildMienFilter(viewModel),
+            const SizedBox(height: 16),
+
+            // Chi tiết kết quả
+            _buildProbabilityDetail(viewModel),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProbabilityDetail(AnalysisViewModel viewModel) {
+    final result = viewModel.getProbabilityResultForSelectedMien();
+
+    if (result == null) {
+      return const Center(child: Text('Không có dữ liệu'));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildDetailSection('🎯 Số mục tiêu:', [
+          result.targetNumber,
+        ]),
+        const SizedBox(height: 12),
+        _buildDetailSection('📊 Xác suất hiện tại:', [
+          'P_total: ${result.currentProbability.toStringAsExponential(4)}',
+          'P1: ${result.probabilities['P1']!.toStringAsExponential(4)}',
+          'P2: ${result.probabilities['P2']!.toStringAsExponential(4)}',
+          'P3: ${result.probabilities['P3']!.toStringAsExponential(4)}',
+        ]),
+        const SizedBox(height: 12),
+        _buildDetailSection('📅 Dự báo:', [
+          'Gan hiện tại: ${result.currentGanDays} ngày',
+          'Cần nuôi thêm: ${result.additionalDaysNeeded} ngày',
+          'Ngày đạt ngưỡng: ${date_utils.DateUtils.formatDate(result.projectedEndDate)}',
+        ]),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Text('Ngày vào cược: '),
+            Chip(
+              label: Text(date_utils.DateUtils.formatDate(result.entryDate)),
+              backgroundColor: Colors.green.withOpacity(0.3),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailSection(String title, List<String> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ...items.map((item) => Text(
+              '• $item',
+              style: const TextStyle(fontSize: 14),
+            )),
+      ],
     );
   }
 
@@ -1332,17 +1490,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             ),
           ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildDetailSection(String title, List<String> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ...items
-            .map((item) => Text(item, style: const TextStyle(fontSize: 14))),
       ],
     );
   }

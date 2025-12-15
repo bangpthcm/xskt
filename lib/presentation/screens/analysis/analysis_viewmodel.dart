@@ -9,6 +9,7 @@ import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/gan_pair_info.dart';
 import '../../../data/models/lottery_result.dart';
 import '../../../data/models/number_detail.dart';
+import '../../../data/models/probability_config.dart';
 import '../../../data/models/rebetting_candidate.dart';
 import '../../../data/models/rebetting_summary.dart';
 import '../../../data/services/analysis_service.dart';
@@ -175,6 +176,11 @@ class AnalysisViewModel extends ChangeNotifier {
   DateTime? _dateXien;
   String? _startMienTatCa; // Chỉ dùng cho loại Tất cả
 
+  late bool _isProbabilityMode = false;
+  ProbabilityAnalysisResult? _probabilityResultTatCa;
+  ProbabilityAnalysisResult? _probabilityResultTrung;
+  ProbabilityAnalysisResult? _probabilityResultBac;
+
   // Getters
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -192,6 +198,12 @@ class AnalysisViewModel extends ChangeNotifier {
   bool get isRebettingMode => _isRebettingMode;
   RebettingResult? get rebettingResult => _rebettingResult;
   String get selectedRebettingMien => _selectedRebettingMien;
+  bool get isProbabilityMode => _isProbabilityMode;
+  ProbabilityAnalysisResult? get probabilityResultTatCa =>
+      _probabilityResultTatCa;
+  ProbabilityAnalysisResult? get probabilityResultTrung =>
+      _probabilityResultTrung;
+  ProbabilityAnalysisResult? get probabilityResultBac => _probabilityResultBac;
 
   String get latestDataInfo {
     if (_allResults.isEmpty) return "Miền ... ngày ...";
@@ -205,6 +217,14 @@ class AnalysisViewModel extends ChangeNotifier {
     if (_selectedMien == mien) return;
     _selectedMien = mien;
     _reloadCycleOnly();
+  }
+
+  void toggleProbabilityMode(bool value) {
+    _isProbabilityMode = value;
+    if (value) {
+      loadProbabilityAnalysis();
+    }
+    notifyListeners();
   }
 
   void setTargetNumber(String number) {
@@ -223,6 +243,66 @@ class AnalysisViewModel extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  ProbabilityAnalysisResult? getProbabilityResultForSelectedMien() {
+    switch (_selectedMien) {
+      case 'Tất cả':
+        return _probabilityResultTatCa;
+      case 'Trung':
+        return _probabilityResultTrung;
+      case 'Bắc':
+        return _probabilityResultBac;
+      default:
+        return null;
+    }
+  }
+
+  Future<void> loadProbabilityAnalysis() async {
+    if (_allResults.isEmpty) {
+      _errorMessage = 'Chưa có dữ liệu KQXS';
+      notifyListeners();
+      return;
+    }
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      print('🔄 Loading Probability Analysis...');
+
+      final config =
+          await _storageService.loadConfig() ?? AppConfig.defaultConfig();
+      final threshold = config.probability.threshold;
+
+      // Chạy song song cho 3 miền
+      final results = await Future.wait([
+        _analysisService.analyzeProbabilityMode(
+            _allResults, 'Tất cả', threshold),
+        _analysisService.analyzeProbabilityMode(
+            _allResults, 'Trung', threshold),
+        _analysisService.analyzeProbabilityMode(_allResults, 'Bắc', threshold),
+      ]);
+
+      _probabilityResultTatCa = results[0];
+      _probabilityResultTrung = results[1];
+      _probabilityResultBac = results[2];
+
+      print('✅ Probability Analysis loaded successfully!');
+      print('   Tất cả: $_probabilityResultTatCa');
+      print('   Trung: $_probabilityResultTrung');
+      print('   Bắc: $_probabilityResultBac');
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      print('❌ ERROR in loadProbabilityAnalysis: $e');
+      print('   StackTrace: $stackTrace');
+      _errorMessage = 'Lỗi tính Probability: ${e.toString()}';
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> loadAnalysis({bool useCache = true}) async {

@@ -1,6 +1,7 @@
 // lib/data/models/app_config.dart
 
 import 'api_account.dart';
+import 'probability_config.dart';
 
 class DurationConfig {
   // 🔵 Hiện tại: Duration cơ bản (Farming)
@@ -139,6 +140,7 @@ class AppConfig {
   final TelegramConfig telegram;
   final BudgetConfig budget;
   final DurationConfig duration; // ✅ THÊM
+  final ProbabilityConfig probability;
   final List<ApiAccount> apiAccounts;
   final BettingConfig betting;
 
@@ -147,9 +149,11 @@ class AppConfig {
     required this.telegram,
     required this.budget,
     DurationConfig? duration, // ✅ THÊM (optional)
+    ProbabilityConfig? probability,
     List<ApiAccount>? apiAccounts,
     BettingConfig? betting,
   })  : duration = duration ?? DurationConfig.defaults(), // ✅ THÊM
+        probability = probability ?? ProbabilityConfig.defaults(),
         apiAccounts = apiAccounts ?? [],
         betting = betting ?? BettingConfig.empty();
 
@@ -159,6 +163,7 @@ class AppConfig {
       'telegram': telegram.toJson(),
       'budget': budget.toJson(),
       'duration': duration.toJson(), // ✅ THÊM
+      'probability': probability.toJson(),
       'apiAccounts': apiAccounts.map((a) => a.toJson()).toList(),
       'betting': betting.toJson(),
     };
@@ -170,6 +175,7 @@ class AppConfig {
       telegram: TelegramConfig.fromJson(json['telegram'] ?? {}),
       budget: BudgetConfig.fromJson(json['budget'] ?? {}),
       duration: DurationConfig.fromJson(json['duration'] ?? {}), // ✅ THÊM
+      probability: ProbabilityConfig.fromJson(json['probability'] ?? {}),
       apiAccounts: (json['apiAccounts'] as List<dynamic>?)
               ?.map((item) => ApiAccount.fromJson(item))
               .toList() ??
@@ -186,6 +192,7 @@ class AppConfig {
       telegram: TelegramConfig.empty(),
       budget: BudgetConfig.defaultBudget(),
       duration: DurationConfig.defaults(), // ✅ Giữ nguyên, defaults() đã update
+      probability: ProbabilityConfig.defaults(),
       apiAccounts: [],
       betting: BettingConfig.empty(),
     );
@@ -196,6 +203,7 @@ class AppConfig {
     TelegramConfig? telegram,
     BudgetConfig? budget,
     DurationConfig? duration, // ✅ THÊM
+    ProbabilityConfig? probability,
     List<ApiAccount>? apiAccounts,
     BettingConfig? betting,
   }) {
@@ -204,6 +212,7 @@ class AppConfig {
       telegram: telegram ?? this.telegram,
       budget: budget ?? this.budget,
       duration: duration ?? this.duration, // ✅ THÊM
+      probability: probability ?? this.probability,
       apiAccounts: apiAccounts ?? this.apiAccounts,
       betting: betting ?? this.betting,
     );
