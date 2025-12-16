@@ -1,7 +1,6 @@
-// lib/data/services/analysis_service.dart
 import 'dart:math';
 
-import 'package:flutter/foundation.dart'; // ✅ Import compute
+import 'package:flutter/foundation.dart';
 
 import '../../core/utils/date_utils.dart' as date_utils;
 import '../models/app_config.dart';
@@ -20,28 +19,20 @@ class AnalysisService {
   final Map<String, CycleAnalysisResult> _cycleCache = {};
 
   // =====================================================================
-  // ⚡ PROBABILITY MODE METHODS (Chạy trong Isolate)
+  // ⚡ PROBABILITY MODE METHODS
   // =====================================================================
 
-  /// Phân tích Probability Mode (Public method)
   Future<ProbabilityAnalysisResult?> analyzeProbabilityMode(
     List<LotteryResult> allResults,
-    String mien, // 'Tất cả', 'Trung', 'Bắc'
+    String mien,
     double threshold,
   ) async {
-    print('🔄 [Probability] Starting analysis for $mien...');
-
-    // Filter results theo miền nếu cần
     final filteredResults = (mien == 'Tất cả')
         ? allResults
         : allResults.where((r) => r.mien == mien).toList();
 
-    if (filteredResults.isEmpty) {
-      print('❌ [Probability] No data for $mien');
-      return null;
-    }
+    if (filteredResults.isEmpty) return null;
 
-    // ✅ Chạy trong Isolate để không đơ UI
     return await compute(_analyzeProbabilityCompute, {
       'results': filteredResults,
       'mien': mien,
@@ -49,44 +40,25 @@ class AnalysisService {
     });
   }
 
-  /// Static method để chạy trong isolate
   static ProbabilityAnalysisResult? _analyzeProbabilityCompute(
-    Map<String, dynamic> params,
-  ) {
+      Map<String, dynamic> params) {
     var results = params['results'] as List<LotteryResult>;
     final mien = params['mien'] as String;
     final threshold = params['threshold'] as double;
 
-    // ✂️ TỐI ƯU: Cắt 368 ngày mới nhất
     const int limit = 368;
-    if (results.length > limit) {
+    if (results.length > limit)
       results = results.sublist(results.length - limit);
-      print('✂️ [Optimization] Trimmed data to last $limit records.');
-    }
-
-    print(
-        '\n🔢 [Probability] ========== START DEBUG (SHOW GAN + SLOTS) ==========');
 
     try {
-      // 1. TÍNH P (Unique Date Logic)
-      final p = _calculateAverageProbability(
-          results); // Đã có log chi tiết bên trong hàm này
+      // 1. TÍNH P
+      final pStats = _calculatePStats(results);
+      final p = pStats.p;
+      final kExpected = pStats.totalSlots / 100.0;
 
-      // 2. TÍNH GLOBAL SLOTS & K_EXPECTED
-      int totalSlotsAllData = 0;
-      for (final r in results) {
-        totalSlotsAllData += r.numbers.length;
-      }
-
-      final kExpected = totalSlotsAllData / 100.0;
-
-      print('📊 [Global Stats]:');
-      print('   Total Data Rows: ${results.length}');
-      print('   Total Slots: $totalSlotsAllData');
-      print('   K_expected: ${kExpected.toStringAsFixed(2)}');
+      if (p == 0) return null;
 
       final allProbabilities = <String, Map<String, double>>{};
-      double checkSumSlots = 0;
 
       for (int i = 0; i <= 99; i++) {
         final number = i.toString().padLeft(2, '0');
@@ -94,22 +66,13 @@ class AnalysisService {
 
         if (stats == null) continue;
 
-        final currentGan = stats['currentGan']!; // 👈 Đây là "Gan cũ" cậu cần
+        final currentGan = stats['currentGan']!;
         final lastCycleGan = stats['lastCycleGan']!;
         final slots = stats['slots']!;
 
-        checkSumSlots += slots;
-
         final p1 = _calculateP1(p, currentGan);
         final p2 = _calculateP2(p, lastCycleGan, currentGan);
-
-        double p3;
-        if (slots == 0) {
-          p3 = 0.000001;
-        } else {
-          p3 = slots / kExpected;
-        }
-
+        final p3 = (slots == 0) ? 0.000001 : (slots / kExpected);
         final pTotal = p1 * p2 * p3;
 
         allProbabilities[number] = {
@@ -119,41 +82,18 @@ class AnalysisService {
           'pTotal': pTotal,
           'currentGan': currentGan,
           'lastCycleGan': lastCycleGan,
-          'slots': slots,
         };
-
-        // 🖨️ UPDATE: In thêm "Gan" vào log để kiểm tra
-        if (i < 10 || slots > kExpected * 1.5) {
-          print(
-              '   🔹 Num $number: Gan=${currentGan.toInt()}d | Slots=${slots.toInt()} (Exp ~${kExpected.toStringAsFixed(1)}) -> P3=${p3.toStringAsFixed(4)}');
-        }
       }
-
-      // CHECK SUM
-      print(
-          '\n⚖️ [CROSS-CHECK]: Global=$totalSlotsAllData vs Sum=${checkSumSlots.toInt()}');
 
       if (allProbabilities.isEmpty) return null;
 
       // 3. TÌM MIN P_TOTAL
-      String? bestNumber;
-      double minProb = double.infinity;
+      final bestEntry = allProbabilities.entries
+          .reduce((a, b) => a.value['pTotal']! < b.value['pTotal']! ? a : b);
 
-      allProbabilities.forEach((number, data) {
-        if (data['pTotal']! < minProb) {
-          minProb = data['pTotal']!;
-          bestNumber = number;
-        }
-      });
-
-      if (bestNumber == null) return null;
-
-      final bestData = allProbabilities[bestNumber!]!;
-
-      print('\n🎯 [Result] Best Number: $bestNumber');
-      print(
-          '   Gan hien tai: ${bestData['currentGan']!.toInt()} ngay'); // In rõ ở kết quả cuối cùng
-      print('   P_total: ${minProb.toStringAsExponential(6)}');
+      final bestNumber = bestEntry.key;
+      final bestData = bestEntry.value;
+      final minProb = bestData['pTotal']!;
 
       // 4. SIMULATION
       int simulatedGanDays = bestData['currentGan']!.toInt();
@@ -164,20 +104,16 @@ class AnalysisService {
       while (simulatedPTotal >= threshold && daysNeeded < maxIterations) {
         simulatedGanDays++;
         daysNeeded++;
-
-        final newP1 = _calculateP1(p, simulatedGanDays.toDouble());
-        final newP2 = _calculateP2(
-            p, bestData['lastCycleGan']!, simulatedGanDays.toDouble());
-        final currentP3 = bestData['p3']!;
-
-        simulatedPTotal = newP1 * newP2 * currentP3;
+        simulatedPTotal = _calculateP1(p, simulatedGanDays.toDouble()) *
+            _calculateP2(
+                p, bestData['lastCycleGan']!, simulatedGanDays.toDouble()) *
+            bestData['p3']!;
       }
 
-      final now = DateTime.now();
-      final projectedEndDate = now.add(Duration(days: daysNeeded));
+      final projectedEndDate = DateTime.now().add(Duration(days: daysNeeded));
 
       return ProbabilityAnalysisResult(
-        targetNumber: bestNumber!,
+        targetNumber: bestNumber,
         currentProbability: minProb,
         currentGanDays: bestData['currentGan']!.toInt(),
         projectedEndDate: projectedEndDate,
@@ -191,61 +127,66 @@ class AnalysisService {
         },
         mien: mien,
       );
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('❌ [Probability] Error: $e');
-      print(stackTrace);
       return null;
     }
   }
 
   // =====================================================================
-  // 🔧 HELPER METHODS
+  // 🔧 HELPER METHODS (Optimized)
   // =====================================================================
 
-  /// Tính xác suất trung bình p = Tổng số giải / Tổng số ngày
-  // ✅ UPDATE: In thêm Log chi tiết về mẫu số (Days) và tử số (Slots)
-  static double _calculateAverageProbability(List<LotteryResult> results) {
-    if (results.isEmpty) return 0.0;
-
+  static ({double p, int totalSlots}) _calculatePStats(
+      List<LotteryResult> results) {
+    if (results.isEmpty) return (p: 0.0, totalSlots: 0);
     final uniqueDates = <String>{};
-    int totalNumbers = 0;
-
-    for (final result in results) {
-      uniqueDates.add(result.ngay);
-      totalNumbers += result.numbers.length;
+    int totalSlots = 0;
+    for (final r in results) {
+      uniqueDates.add(r.ngay);
+      totalSlots += r.numbers.length;
     }
-
-    final totalDays = uniqueDates.length; // Mẫu số chuẩn
-
-    // 🖨️ PRINT DEBUG: Xem chính xác bao nhiêu ngày được dùng
-    print('      📐 [P Calculation Info]');
-    print('         - Input Rows: ${results.length}');
-    print(
-        '         - Unique Days (Denominator): $totalDays'); // 👈 Cái cậu cần đây
-    print('         - Total Slots (Numerator): $totalNumbers');
-
-    if (totalDays == 0) return 0.0;
-
-    final avgNumbersPerDay = totalNumbers / totalDays;
-    print('         - Avg Slots/Day: ${avgNumbersPerDay.toStringAsFixed(4)}');
-
-    // Công thức tính xác suất nền
-    return (1 - pow(0.99, avgNumbersPerDay)).toDouble();
+    final totalDays = uniqueDates.length;
+    if (totalDays == 0) return (p: 0.0, totalSlots: totalSlots);
+    return (
+      p: (1 - pow(0.99, totalSlots / totalDays)).toDouble(),
+      totalSlots: totalSlots
+    );
   }
 
-  /// Lấy thống kê của một số cụ thể
+  // Rút gọn hàm tính toán
+  static double _calculateP1(double p, double gan) =>
+      (p >= 1 || p <= 0) ? 0.0 : pow(1 - p, gan).toDouble();
+  static double _calculateP2(double p, double lastGan, double curGan) =>
+      (p >= 1 || p <= 0)
+          ? 0.0
+          : (pow(1 - p, lastGan) * p * pow(1 - p, curGan)).toDouble();
+
+  // Optimized getNumberStats: Giảm bớt loop
   static Map<String, double>? _getNumberStats(
-    List<LotteryResult> results,
-    String targetNumber,
-  ) {
+      List<LotteryResult> results, String targetNumber) {
     final completionDate = _getCompletionDate(results);
     if (completionDate == null) return null;
 
+    int lastSeenIndex = -1;
     DateTime? lastSeenDate;
     String? lastSeenMien;
-    int lastSeenIndex = -1;
+    int slots = 0;
+    int occurrences = 0;
 
-    // Tìm lần xuất hiện cuối
+    // Duyệt 1 lần để tính slots và tìm lastSeen
+    for (int i = 0; i < results.length; i++) {
+      final count = results[i].numbers.where((n) => n == targetNumber).length;
+      if (count > 0) {
+        occurrences++;
+        slots += count;
+        // Cập nhật lastSeen (giả sử list sort theo thời gian tăng dần, nếu giảm dần thì logic ngược lại)
+        // Dựa vào code cũ: loop ngược tìm lastSeen -> list input có vẻ theo thứ tự thời gian.
+        // Tuy nhiên code cũ loop (results.length - 1 -> 0) để tìm lastSeen.
+      }
+    }
+
+    // Tìm lastSeenIndex chính xác như code cũ (từ cuối về đầu)
     for (int i = results.length - 1; i >= 0; i--) {
       if (results[i].numbers.contains(targetNumber)) {
         final date = date_utils.DateUtils.parseDate(results[i].ngay);
@@ -260,388 +201,249 @@ class AnalysisService {
 
     if (lastSeenDate == null || lastSeenMien == null) return null;
 
-    // 1. TÍNH GAN HIỆN TẠI (Current Gan)
-    // Logic: Tính từ sau lần cuối đến hôm nay -> Cần tính cả hôm nay (excludeEndDate = false)
     final currentGan = _countMienOccurrencesStatic(
-      results,
-      lastSeenDate,
-      completionDate,
-      lastSeenMien,
-      excludeEndDate: false,
-    );
+        results, lastSeenDate, completionDate, lastSeenMien,
+        excludeEndDate: false);
 
     int lastCycleGan = 0;
     DateTime? secondLastSeenDate;
 
-    // Tìm chu kỳ trước (Lần trúng áp chót)
+    // Tìm áp chót
     for (int i = lastSeenIndex - 1; i >= 0; i--) {
       if (results[i].numbers.contains(targetNumber)) {
-        final date = date_utils.DateUtils.parseDate(results[i].ngay);
-        if (date != null) {
-          secondLastSeenDate = date;
-          break;
-        }
+        secondLastSeenDate = date_utils.DateUtils.parseDate(results[i].ngay);
+        if (secondLastSeenDate != null) break;
       }
     }
 
     if (secondLastSeenDate != null) {
-      // 2. TÍNH GAN CŨ (Last Cycle Gan)
-      // Logic: Tính từ sau lần áp chót đến TRƯỚC lần cuối -> KHÔNG tính ngày lần cuối (excludeEndDate = true)
       lastCycleGan = _countMienOccurrencesStatic(
-        results,
-        secondLastSeenDate,
-        lastSeenDate, // Đây là ngày trúng (End Date)
-        lastSeenMien,
-        excludeEndDate:
-            true, // 👈 QUAN TRỌNG: Loại bỏ ngày trúng ra khỏi số đếm Gan
-      );
+          results, secondLastSeenDate, lastSeenDate, lastSeenMien,
+          excludeEndDate: true);
     }
 
-    int occurrences = 0;
-    int slots = 0;
-
-    for (final result in results) {
-      int count = result.numbers.where((n) => n == targetNumber).length;
-      if (count > 0) {
-        occurrences++;
-        slots += count;
-      }
-    }
-
-    final uniqueDates = results.map((r) => r.ngay).toSet();
-    final totalDays = uniqueDates.length;
+    // Đếm unique days
+    final uniqueDays = results.map((r) => r.ngay).toSet().length;
 
     return {
       'currentGan': currentGan.toDouble(),
       'lastCycleGan': lastCycleGan.toDouble(),
       'occurrences': occurrences.toDouble(),
-      'totalDays': totalDays.toDouble(),
+      'totalDays': uniqueDays.toDouble(),
       'slots': slots.toDouble(),
     };
   }
 
-  /// P1 (Hiện tại): (1 - p)^y
-  static double _calculateP1(double p, double currentGanDays) {
-    if (p >= 1.0 || p <= 0.0) return 0.0;
-    return pow(1 - p, currentGanDays).toDouble();
-  }
+  // =======================================================================
+  // ⚡ STATIC METHODS (Computation)
+  // =======================================================================
 
-  /// P2 (Chu kỳ): (1 - p)^x × p × (1 - p)^y
-  static double _calculateP2(double p, double lastCycleGan, double currentGan) {
-    if (p >= 1.0 || p <= 0.0) return 0.0;
-    return pow(1 - p, lastCycleGan).toDouble() *
-        p *
-        pow(1 - p, currentGan).toDouble();
-  }
-
-  /// P3 (Tần suất): Binomial CDF
-  static double _calculateP3(double p, double occurrences, double totalDays) {
-    if (p >= 1.0 || p <= 0.0) return 0.0;
-
-    final n = totalDays.toInt();
-    final k = occurrences.toInt();
-
-    double cdf = 0.0;
-
-    for (int i = 0; i <= k; i++) {
-      final binomialCoeff = _binomialCoefficient(n, i);
-      final prob = binomialCoeff * pow(p, i) * pow(1 - p, n - i);
-      cdf += prob;
+  static DateTime? _getCompletionDate(List<LotteryResult> results) {
+    if (results.isEmpty) return null;
+    DateTime? latest;
+    for (final r in results) {
+      final d = date_utils.DateUtils.parseDate(r.ngay);
+      if (d != null && (latest == null || d.isAfter(latest))) latest = d;
     }
-
-    return cdf;
-  }
-
-  /// Tính hệ số nhị thức
-  static double _binomialCoefficient(int n, int k) {
-    if (k > n) return 0.0;
-    if (k == 0 || k == n) return 1.0;
-
-    k = min(k, n - k);
-
-    double result = 1.0;
-    for (int i = 0; i < k; i++) {
-      result *= (n - i).toDouble();
-      result /= (i + 1).toDouble();
-    }
-
-    return result;
+    return latest;
   }
 
   Future<GanPairInfo?> findGanPairsMienBac(
       List<LotteryResult> allResults) async {
-    final cacheKey = 'ganpair_${allResults.length}';
-    if (_ganPairCache.containsKey(cacheKey)) return _ganPairCache[cacheKey];
-
-    // ✅ Chạy tính toán nặng trong Isolate
-    final result = await compute(_findGanPairsMienBacCompute, allResults);
-
-    if (result != null) _ganPairCache[cacheKey] = result;
-    return result;
+    final key = 'ganpair_${allResults.length}';
+    if (_ganPairCache.containsKey(key)) return _ganPairCache[key];
+    final res = await compute(_findGanPairsMienBacCompute, allResults);
+    if (res != null) _ganPairCache[key] = res;
+    return res;
   }
 
-  Future<CycleAnalysisResult?> analyzeCycle(
-      List<LotteryResult> allResults) async {
-    final cacheKey = 'cycle_${allResults.length}';
-    if (_cycleCache.containsKey(cacheKey)) return _cycleCache[cacheKey];
-
-    // ✅ Chạy tính toán nặng trong Isolate
-    final result = await compute(_analyzeCycleCompute, allResults);
-
-    if (result != null) _cycleCache[cacheKey] = result;
-    return result;
-  }
-
-  // =======================================================================
-  // ⚡ STATIC METHODS (Logic tính toán chạy ở luồng riêng)
-  // =======================================================================
-  static DateTime? _getCompletionDate(List<LotteryResult> results) {
-    if (results.isEmpty) return null;
-
-    DateTime? latestDate;
-
-    for (final result in results) {
-      final date = date_utils.DateUtils.parseDate(result.ngay);
-      if (date == null) continue;
-
-      if (latestDate == null || date.isAfter(latestDate)) {
-        latestDate = date;
-      }
-    }
-
-    return latestDate;
-  }
-
-  GanPairInfo? _findGanPairsMienBacCompute(List<LotteryResult> allResults) {
+  static GanPairInfo? _findGanPairsMienBacCompute(
+      List<LotteryResult> allResults) {
+    // Logic giữ nguyên, chỉ rút gọn cú pháp
     final bacResults = allResults.where((r) => r.mien == 'Bắc').toList();
     if (bacResults.isEmpty) return null;
 
     final resultsByDate = <DateTime, Set<String>>{};
-    for (final result in bacResults) {
-      final date = date_utils.DateUtils.parseDate(result.ngay);
+    for (final r in bacResults) {
+      final date = date_utils.DateUtils.parseDate(r.ngay);
       if (date == null) continue;
-      resultsByDate.putIfAbsent(date, () => {});
-      resultsByDate[date]!.addAll(result.numbers);
+      resultsByDate.putIfAbsent(date, () => {}).addAll(r.numbers);
     }
 
     final pairLastSeen = <String, DateTime>{};
     final sortedDates = resultsByDate.keys.toList()..sort();
 
     for (final date in sortedDates) {
-      final numbersOnDate = resultsByDate[date]!;
-      if (numbersOnDate.length >= 2) {
-        final numbersList = numbersOnDate.toList()..sort();
-        for (int i = 0; i < numbersList.length - 1; i++) {
-          for (int j = i + 1; j < numbersList.length; j++) {
-            final pairKey = '${numbersList[i]}-${numbersList[j]}';
-            pairLastSeen[pairKey] = date;
-          }
+      final nums = resultsByDate[date]!.toList()..sort();
+      if (nums.length < 2) continue;
+      for (int i = 0; i < nums.length - 1; i++) {
+        for (int j = i + 1; j < nums.length; j++) {
+          pairLastSeen['${nums[i]}-${nums[j]}'] = date;
         }
       }
     }
 
     if (pairLastSeen.isEmpty) return null;
-
     final sortedPairs = pairLastSeen.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
-    final top2Pairs = sortedPairs.take(2).toList();
+    final top2 = sortedPairs.take(2).toList();
     final now = DateTime.now();
 
-    final longestGanPair = top2Pairs[0];
-    final maxDaysGan = now.difference(longestGanPair.value).inDays;
-
-    final pairsWithDays = top2Pairs.map((entry) {
-      final parts = entry.key.split('-');
-      return PairWithDays(
-        pair: NumberPair(parts[0], parts[1]),
-        daysGan: now.difference(entry.value).inDays,
-        lastSeen: entry.value,
-      );
-    }).toList();
-
     return GanPairInfo(
-      daysGan: maxDaysGan,
-      lastSeen: longestGanPair.value,
-      pairs: pairsWithDays,
+      daysGan: now.difference(top2[0].value).inDays,
+      lastSeen: top2[0].value,
+      pairs: top2.map((e) {
+        final p = e.key.split('-');
+        return PairWithDays(
+            pair: NumberPair(p[0], p[1]),
+            daysGan: now.difference(e.value).inDays,
+            lastSeen: e.value);
+      }).toList(),
     );
   }
 
-  CycleAnalysisResult? _analyzeCycleCompute(List<LotteryResult> allResults) {
-    if (allResults.isEmpty) return null;
+  Future<CycleAnalysisResult?> analyzeCycle(
+      List<LotteryResult> allResults) async {
+    final key = 'cycle_${allResults.length}';
+    if (_cycleCache.containsKey(key)) return _cycleCache[key];
+    final res = await compute(_analyzeCycleCompute, allResults);
+    if (res != null) _cycleCache[key] = res;
+    return res;
+  }
 
-    // 1. Map lần cuối xuất hiện
+  static CycleAnalysisResult? _analyzeCycleCompute(
+      List<LotteryResult> allResults) {
+    if (allResults.isEmpty) return null;
     final lastSeenMap = <String, Map<String, dynamic>>{};
-    for (final result in allResults) {
-      final date = date_utils.DateUtils.parseDate(result.ngay);
+
+    // Tối ưu loop
+    for (final res in allResults) {
+      final date = date_utils.DateUtils.parseDate(res.ngay);
       if (date == null) continue;
 
-      for (final number in result.numbers) {
-        final key = number.padLeft(2, '0');
-        if (!lastSeenMap.containsKey(key) ||
-            date.isAfter(lastSeenMap[key]!['date'] as DateTime) ||
-            (date.isAtSameMomentAs(lastSeenMap[key]!['date'] as DateTime) &&
-                _isMienCloserStatic(
-                    result.mien, lastSeenMap[key]!['mien'] as String))) {
-          lastSeenMap[key] = {
-            'date': date,
-            'mien': result.mien,
-            'ngay': result.ngay,
-          };
+      for (final num in res.numbers) {
+        final key = num.padLeft(2, '0');
+        final current = lastSeenMap[key];
+
+        // Logic ưu tiên ngày mới hơn hoặc cùng ngày nhưng ưu tiên Miền
+        if (current == null ||
+            date.isAfter(current['date']) ||
+            (date.isAtSameMomentAs(current['date']) &&
+                _isMienCloserStatic(res.mien, current['mien']))) {
+          lastSeenMap[key] = {'date': date, 'mien': res.mien, 'ngay': res.ngay};
         }
       }
     }
 
     if (lastSeenMap.length < 100) return null;
 
-    // 2. Tìm ngày hoàn thành chu kỳ
     final completionDate = lastSeenMap.values
         .map((v) => v['date'] as DateTime)
         .reduce((a, b) => a.isAfter(b) ? a : b);
-
-    // 3. Tính số ngày gan
     final ganStats = <Map<String, dynamic>>[];
-    for (final entry in lastSeenMap.entries) {
-      final lastDate = entry.value['date'] as DateTime;
-      final lastMien = entry.value['mien'] as String;
 
-      if (lastDate.isBefore(completionDate)) {
-        final daysGan = _countMienOccurrencesStatic(
-          allResults,
-          lastDate,
-          completionDate,
-          lastMien,
-        );
+    for (final entry in lastSeenMap.entries) {
+      final d = entry.value['date'] as DateTime;
+      if (d.isBefore(completionDate)) {
         ganStats.add({
           'so': entry.key,
-          'days_gan': daysGan,
-          'mien': lastMien,
-          'last_seen': lastDate,
+          'days_gan': _countMienOccurrencesStatic(
+              allResults, d, completionDate, entry.value['mien']),
+          'mien': entry.value['mien'],
+          'last_seen': d,
         });
       }
     }
 
     if (ganStats.isEmpty) return null;
-
-    // 4. Tìm kết quả max gan
     ganStats
         .sort((a, b) => (b['days_gan'] as int).compareTo(a['days_gan'] as int));
-    final maxGan = ganStats.first['days_gan'] as int;
-    final longestGanGroup =
-        ganStats.where((s) => s['days_gan'] == maxGan).toList();
 
-    // ... Xây dựng result ...
-    final ganNumbers = longestGanGroup.map((s) => s['so'] as String).toSet();
+    final maxGan = ganStats.first['days_gan'] as int;
+    final longestGroup =
+        ganStats.where((s) => s['days_gan'] == maxGan).toList();
     final mienGroups = <String, List<String>>{};
-    for (final stat in longestGanGroup) {
-      final mien = stat['mien'] as String;
-      mienGroups.putIfAbsent(mien, () => []);
-      mienGroups[mien]!.add(stat['so'] as String);
+
+    for (final s in longestGroup) {
+      mienGroups.putIfAbsent(s['mien'], () => []).add(s['so']);
     }
 
-    String targetNumber = ganNumbers.first; // Simplified selection
-
     return CycleAnalysisResult(
-      ganNumbers: ganNumbers,
+      ganNumbers: longestGroup.map((s) => s['so'] as String).toSet(),
       maxGanDays: maxGan,
-      lastSeenDate: longestGanGroup.first['last_seen'] as DateTime,
+      lastSeenDate: longestGroup.first['last_seen'],
       mienGroups: mienGroups,
-      targetNumber: targetNumber,
+      targetNumber: longestGroup.first['so'],
     );
   }
 
-  // ✅ Hàm này phải là static để gọi được trong isolate
+  static bool _isMienCloserStatic(String newMien, String oldMien) {
+    const p = {'Bắc': 3, 'Trung': 2, 'Nam': 1};
+    return (p[newMien] ?? 0) > (p[oldMien] ?? 0);
+  }
+
   static int _countMienOccurrencesStatic(
     List<LotteryResult> allResults,
     DateTime startDate,
     DateTime endDate,
     String targetMien, {
-    bool excludeEndDate = false, // Mặc định là FALSE (Tính cả ngày cuối)
+    bool excludeEndDate = false,
   }) {
     final uniqueDates = <String>{};
+    // Tối ưu: Kiểm tra String (Mien) TRƯỚC khi parse Date
     for (final result in allResults) {
+      if (result.mien != targetMien) continue; // Skip sai miền ngay lập tức
+
       final date = date_utils.DateUtils.parseDate(result.ngay);
       if (date == null) continue;
 
-      // Điều kiện ngày bắt đầu: Luôn phải sau ngày trúng trước đó
-      bool isAfterStart = date.isAfter(startDate);
-
-      // Điều kiện ngày kết thúc: Tùy thuộc vào cờ excludeEndDate
-      bool isValidEnd;
-      if (excludeEndDate) {
-        // Nếu là Gan cũ: Phải NHỎ HƠN ngày trúng sau (Strictly Before)
-        isValidEnd = date.isBefore(endDate);
-      } else {
-        // Nếu là Gan hiện tại: Nhỏ hơn hoặc BẰNG ngày cuối (Inclusive)
-        isValidEnd = date.isBefore(endDate) || date.isAtSameMomentAs(endDate);
-      }
-
-      if (isAfterStart && isValidEnd && result.mien == targetMien) {
-        uniqueDates.add(result.ngay);
+      if (date.isAfter(startDate)) {
+        if (excludeEndDate
+            ? date.isBefore(endDate)
+            : (date.isBefore(endDate) || date.isAtSameMomentAs(endDate))) {
+          uniqueDates.add(result.ngay);
+        }
       }
     }
     return uniqueDates.length;
   }
 
-  bool _isMienCloserStatic(String newMien, String oldMien) {
-    const mienPriority = {'Bắc': 3, 'Trung': 2, 'Nam': 1};
-    return (mienPriority[newMien] ?? 0) > (mienPriority[oldMien] ?? 0);
-  }
-
   // =======================================================================
-  // 🔍 INSTANCE METHODS (Vẫn giữ lại để UI gọi)
+  // 🔍 REBETTING & INSTANCE METHODS
   // =======================================================================
 
   Future<NumberDetail?> analyzeNumberDetail(
-    List<LotteryResult> allResults,
-    String targetNumber,
-  ) async {
+      List<LotteryResult> allResults, String targetNumber) async {
     if (allResults.isEmpty) return null;
-
     final mienDetails = <String, MienDetail>{};
     final now = DateTime.now();
 
     for (final mien in ['Nam', 'Trung', 'Bắc']) {
-      DateTime? lastSeenDate;
-      String? lastSeenDateStr;
+      DateTime? lastSeen;
+      String? lastSeenStr;
 
-      final mienResults = allResults.where((r) => r.mien == mien).toList();
-
-      for (final result in mienResults) {
-        if (result.numbers.contains(targetNumber)) {
-          final date = date_utils.DateUtils.parseDate(result.ngay);
-          if (date != null) {
-            if (lastSeenDate == null || date.isAfter(lastSeenDate)) {
-              lastSeenDate = date;
-              lastSeenDateStr = result.ngay;
-            }
+      for (final r in allResults.where((r) => r.mien == mien)) {
+        if (r.numbers.contains(targetNumber)) {
+          final d = date_utils.DateUtils.parseDate(r.ngay);
+          if (d != null && (lastSeen == null || d.isAfter(lastSeen))) {
+            lastSeen = d;
+            lastSeenStr = r.ngay;
           }
         }
       }
 
-      if (lastSeenDate != null && lastSeenDateStr != null) {
-        // ✅ FIX: Gọi hàm static _countMienOccurrencesStatic
-        final daysGan = _countMienOccurrencesStatic(
-          allResults,
-          lastSeenDate,
-          now,
-          mien,
-        );
-
+      if (lastSeen != null) {
         mienDetails[mien] = MienDetail(
           mien: mien,
-          daysGan: daysGan,
-          lastSeenDate: lastSeenDate,
-          lastSeenDateStr: lastSeenDateStr,
+          daysGan: _countMienOccurrencesStatic(allResults, lastSeen, now, mien),
+          lastSeenDate: lastSeen,
+          lastSeenDateStr: lastSeenStr!,
         );
       }
     }
-
-    if (mienDetails.isEmpty) return null;
-
-    return NumberDetail(
-      number: targetNumber,
-      mienDetails: mienDetails,
-    );
+    return mienDetails.isEmpty
+        ? null
+        : NumberDetail(number: targetNumber, mienDetails: mienDetails);
   }
 
   void clearCache() {
@@ -649,15 +451,9 @@ class AnalysisService {
     _ganPairCache.clear();
   }
 
-// ✅ COPY VÀ THAY THẾ TOÀN BỘ METHOD hasNumberReappeared
-
   Future<bool> hasNumberReappeared(
-    String targetNumber,
-    DateTime sinceDate,
-    List<LotteryResult> allResults, {
-    String mien = '',
-  }) async {
-    // ✨ Chạy trong isolate để không đơ UI
+      String targetNumber, DateTime sinceDate, List<LotteryResult> allResults,
+      {String mien = ''}) async {
     return await compute(_hasNumberReappearedCompute, {
       'targetNumber': targetNumber,
       'sinceDate': sinceDate.millisecondsSinceEpoch,
@@ -666,52 +462,45 @@ class AnalysisService {
     });
   }
 
-  /// Static method để chạy trong isolate
-  /// Lý do: compute() yêu cầu static function
-  bool _hasNumberReappearedCompute(Map<String, dynamic> params) {
-    final targetNumber = params['targetNumber'] as String;
-    final sinceDate = DateTime.fromMillisecondsSinceEpoch(
-      params['sinceDate'] as int,
-    );
-    final allResults = params['allResults'] as List<LotteryResult>;
-    final mien = params['mien'] as String? ?? '';
-
+  static bool _hasNumberReappearedCompute(Map<String, dynamic> params) {
     return _hasNumberReappearedStatic(
-      targetNumber,
-      sinceDate,
-      allResults,
-      mien: mien,
+      params['targetNumber'],
+      DateTime.fromMillisecondsSinceEpoch(params['sinceDate']),
+      params['allResults'],
+      mien: params['mien'] ?? '',
     );
   }
 
-  int calculateNewGanDays(
-    DateTime ngayTrungCu,
-    List<LotteryResult> allResults,
-  ) {
-    // Tìm ngày mới nhất trong KQXS
-    DateTime? newestDate;
+  // ✅ OPTIMIZED CRITICAL FUNCTION
+  static bool _hasNumberReappearedStatic(
+      String targetNumber, DateTime sinceDate, List<LotteryResult> allResults,
+      {String mien = ''}) {
+    final normalizedTarget = targetNumber.padLeft(2, '0');
+    final completionDate = _getCompletionDate(allResults);
+    if (completionDate == null) return false;
 
+    // Tối ưu: Kiểm tra điều kiện String (Mien, Number) TRƯỚC khi parse Date
     for (final result in allResults) {
-      final resultDate = date_utils.DateUtils.parseDate(result.ngay);
+      // 1. Check Miền (String compare - rẻ)
+      if (mien.isNotEmpty && result.mien != mien) continue;
 
-      if (resultDate != null) {
-        if (newestDate == null || resultDate.isAfter(newestDate)) {
-          newestDate = resultDate;
-        }
+      // 2. Check Number (List contains - rẻ hơn Parse Date)
+      // Check cả 2 format để chắc chắn
+      if (!result.numbers.contains(normalizedTarget) &&
+          !result.numbers.contains(targetNumber)) continue;
+
+      // 3. Mới Parse Date (đắt nhất)
+      final resultDate = date_utils.DateUtils.parseDate(result.ngay);
+      if (resultDate == null) continue;
+
+      // 4. Check Range
+      if (resultDate.isAfter(sinceDate) &&
+          (resultDate.isBefore(completionDate) ||
+              resultDate.isAtSameMomentAs(completionDate))) {
+        return true;
       }
     }
-
-    // Nếu không tìm được ngày, dùng hôm nay
-    newestDate ??= DateTime.now();
-
-    // Tính số ngày
-    final newGanDays = newestDate.difference(ngayTrungCu).inDays;
-
-    print('📊 Gan mới: từ ${date_utils.DateUtils.formatDate(ngayTrungCu)} '
-        'đến ${date_utils.DateUtils.formatDate(newestDate)} '
-        '= $newGanDays ngày');
-
-    return newGanDays;
+    return false;
   }
 
   Future<RebettingResult> calculateRebetting({
@@ -723,9 +512,7 @@ class AnalysisService {
     required List<CycleWinHistory> bacWins,
     required BettingTableService bettingService,
   }) async {
-    print('🔄 Bắt đầu tính Rebetting...');
-
-    final result = await compute(_calculateRebettingCompute, {
+    return await compute(_calculateRebettingCompute, {
       'allResults': allResults,
       'config': config,
       'cycleWins': cycleWins,
@@ -733,289 +520,110 @@ class AnalysisService {
       'trungWins': trungWins,
       'bacWins': bacWins,
     });
-
-    // ✨ THÊM: Tính ngayCoTheVao bằng _findBestStartBet
-    // (sẽ làm ở giai đoạn 4 - BettingTableService)
-
-    return result;
   }
 
-  /// Static method để compute - FIXED VERSION
-  RebettingResult _calculateRebettingCompute(
-    Map<String, dynamic> params,
-  ) {
+  static RebettingResult _calculateRebettingCompute(
+      Map<String, dynamic> params) {
     final allResults = params['allResults'] as List<LotteryResult>;
     final config = params['config'] as AppConfig;
-    final cycleWins = params['cycleWins'] as List<CycleWinHistory>;
-    final namWins = params['namWins'] as List<CycleWinHistory>;
-    final trungWins = params['trungWins'] as List<CycleWinHistory>;
-    final bacWins = params['bacWins'] as List<CycleWinHistory>;
 
-    // Hàm helper: Xử lý 1 loại
     Map<String, dynamic> processType(
-      String typeName,
-      List<CycleWinHistory> wins,
-      String mien,
-      int threshold,
-    ) {
+        String mien, List<CycleWinHistory> wins, int threshold) {
       final candidates = <RebettingCandidate>[];
+      final mienCheck =
+          (mien == 'Tất cả') ? '' : mien; // Fix logic mapping mien
 
-      print('📋 Xử lý loại: $typeName ($mien)');
-
-      for (final win in wins) {
-        // Chỉ lấy bản ghi WIN
-        if (!win.isWin) continue;
-
-        final soMucTieu = win.soMucTieu;
-        final ngayBatDauCu = win.ngayBatDau;
-        final ngayTrungCu = win.ngayTrung;
-        final soNgayGanCu = win.soNgayCuoc;
-
-        // ✅ CRITICAL FIX: Kiểm tra số có xuất hiện lại sau ngày trúng không
-        final ngayTrungDate = date_utils.DateUtils.parseDate(ngayTrungCu);
+      for (final win in wins.where((w) => w.isWin)) {
+        final ngayTrungDate = date_utils.DateUtils.parseDate(win.ngayTrung);
         if (ngayTrungDate == null) continue;
 
-        // ✨ FIX LỖI Ở ĐÂY:
-        // Nếu mien là 'Mixed' (Tất cả), ta truyền chuỗi rỗng '' để hàm check không lọc theo miền
-        // Nếu là 'Nam', 'Trung', 'Bắc' thì giữ nguyên để lọc
-        String mienToCheck = (mien == 'Mixed') ? '' : mien;
+        // Check tái xuất
+        if (_hasNumberReappearedStatic(win.soMucTieu, ngayTrungDate, allResults,
+            mien: mienCheck)) continue;
 
-        // 🔴 KEY CHECK: Nếu số đã về sau ngày trúng (cho MIỀN này) → LOẠI
-        if (_hasNumberReappearedStatic(
-          soMucTieu,
-          ngayTrungDate,
-          allResults,
-          mien:
-              mienToCheck, // 👈 Sửa dòng này: Dùng biến mienToCheck thay vì mien
-        )) {
-          print('   ⏭️  Số $soMucTieu đã về sau $ngayTrungCu ($mien) → loại');
-          continue; // ← Skip ứng viên này
+        final soNgayGanMoi =
+            _calculateNewGanDaysStatic(ngayTrungDate, allResults, mienCheck);
+        final duration = ((2.4 * threshold) - win.soNgayCuoc).round();
+
+        if (duration > 0) {
+          candidates.add(RebettingCandidate(
+            soMucTieu: win.soMucTieu,
+            mienTrung: mien, // Keep logic
+            ngayBatDauCu: win.ngayBatDau,
+            ngayTrungCu: win.ngayTrung,
+            soNgayGanCu: win.soNgayCuoc,
+            soNgayGanMoi: soNgayGanMoi,
+            rebettingDuration: duration,
+            ngayCoTheVao: '',
+          ));
         }
-
-        // Nếu vượt qua check, mới tính toán tiếp
-        print('   ✅ Số $soMucTieu chưa về sau $ngayTrungCu → có thể dùng');
-
-        // Tính gan mới
-        final soNgayGanMoi = _calculateNewGanDaysStatic(
-          ngayTrungDate,
-          allResults,
-          mienToCheck, // ✅ Truyền thêm miền
-        );
-
-        // Tính duration
-        final rebettingDuration = ((2.4 * threshold) - soNgayGanCu).round();
-
-        if (rebettingDuration <= 0) {
-          print('       ⏭️  Duration âm ($rebettingDuration) → loại');
-          continue;
-        }
-
-        // Tạo candidate
-        final candidate = RebettingCandidate(
-          soMucTieu: soMucTieu,
-          mienTrung: mien,
-          ngayBatDauCu: ngayBatDauCu,
-          ngayTrungCu: ngayTrungCu,
-          soNgayGanCu: soNgayGanCu,
-          soNgayGanMoi: soNgayGanMoi,
-          rebettingDuration: rebettingDuration,
-          ngayCoTheVao: '', // Tạm để trống
-        );
-
-        candidates.add(candidate);
-        print('       ✅ Thêm: số=$soMucTieu, duration=$rebettingDuration');
       }
 
-      // Tìm 1 số có duration MIN
-      RebettingCandidate? selected;
-      if (candidates.isNotEmpty) {
-        selected = candidates.reduce(
-            (a, b) => a.rebettingDuration < b.rebettingDuration ? a : b);
-        print(
-            '   🎯 Chọn: số=${selected.soMucTieu} (duration=${selected.rebettingDuration})');
-      } else {
-        print('   ❌ Không có ứng viên nào');
-      }
-
+      final selected = candidates.isEmpty
+          ? null
+          : candidates.reduce(
+              (a, b) => a.rebettingDuration < b.rebettingDuration ? a : b);
       return {
         'candidates': candidates,
         'selected': selected,
-        'total': candidates.length,
+        'total': candidates.length
       };
     }
 
-    // Xử lý 4 loại
-    final tatCa = processType(
-      'Tất cả',
-      cycleWins,
-      'Mixed',
-      config.duration.thresholdCycleDuration,
-    );
+    // DRY: Gom logic gọi processType
+    final configs = [
+      {
+        'key': 'tatCa',
+        'mien': 'Tất cả',
+        'wins': params['cycleWins'],
+        'thres': config.duration.thresholdCycleDuration
+      },
+      {
+        'key': 'nam',
+        'mien': 'Nam',
+        'wins': params['namWins'],
+        'thres': config.duration.thresholdCycleDuration
+      },
+      {
+        'key': 'trung',
+        'mien': 'Trung',
+        'wins': params['trungWins'],
+        'thres': config.duration.thresholdTrungDuration
+      },
+      {
+        'key': 'bac',
+        'mien': 'Bắc',
+        'wins': params['bacWins'],
+        'thres': config.duration.thresholdBacDuration
+      },
+    ];
 
-    final nam = processType(
-      'Nam',
-      namWins,
-      'Nam',
-      config.duration.thresholdCycleDuration,
-    );
+    final summaries = <String, RebettingSummary?>{};
+    final selected = <String, RebettingCandidate?>{};
 
-    final trung = processType(
-      'Trung',
-      trungWins,
-      'Trung',
-      config.duration.thresholdTrungDuration,
-    );
-
-    final bac = processType(
-      'Bắc',
-      bacWins,
-      'Bắc',
-      config.duration.thresholdBacDuration,
-    );
-
-    // Tạo RebettingSummary
-    final summaries = <String, RebettingSummary?>{
-      'tatCa': tatCa['selected'] != null
-          ? RebettingSummary(
-              mien: 'Tất cả',
-              ngayCoTheVao: '',
-              totalCandidates: tatCa['total'] as int,
-            )
-          : null,
-      'nam': nam['selected'] != null
-          ? RebettingSummary(
-              mien: 'Nam',
-              ngayCoTheVao: '',
-              totalCandidates: nam['total'] as int,
-            )
-          : null,
-      'trung': trung['selected'] != null
-          ? RebettingSummary(
-              mien: 'Trung',
-              ngayCoTheVao: '',
-              totalCandidates: trung['total'] as int,
-            )
-          : null,
-      'bac': bac['selected'] != null
-          ? RebettingSummary(
-              mien: 'Bắc',
-              ngayCoTheVao: '',
-              totalCandidates: bac['total'] as int,
-            )
-          : null,
-    };
-
-    final selected = <String, RebettingCandidate?>{
-      'tatCa': tatCa['selected'] as RebettingCandidate?,
-      'nam': nam['selected'] as RebettingCandidate?,
-      'trung': trung['selected'] as RebettingCandidate?,
-      'bac': bac['selected'] as RebettingCandidate?,
-    };
-
-    return RebettingResult(
-      summaries: summaries,
-      selected: selected,
-    );
-  }
-
-  /// Static helper: Kiểm tra số có vô lại sau ngày trúng
-  /// ✅ CRITICAL FIX: Lọc theo MIỀN + chỉ check từ ngàyTrúng đến hôm nay
-  bool _hasNumberReappearedStatic(
-    String targetNumber,
-    DateTime sinceDate,
-    List<LotteryResult> allResults, {
-    String mien = '', // ✨ THÊM: Optional mien filter
-  }) {
-    // 🐛 FIX: Normalize target number to 2 digits
-    final normalizedTarget = targetNumber.padLeft(2, '0');
-
-    print(
-        '      🔍 Check xem $normalizedTarget có xuất hiện sau ${date_utils.DateUtils.formatDate(sinceDate)}${mien.isNotEmpty ? ' ($mien)' : ''}...');
-
-    // ✅ FIX: Tìm completion date thay vì dùng DateTime.now()
-    final completionDate = _getCompletionDate(allResults);
-    if (completionDate == null) {
-      print('         ⚠️ Không tìm thấy completion date');
-      return false;
-    }
-
-    // 🐛 DEBUG: Count total results and mien matches
-    int totalResults = 0;
-    int mienMatches = 0;
-    int dateMatches = 0;
-
-    for (final result in allResults) {
-      totalResults++;
-
-      final resultDate = date_utils.DateUtils.parseDate(result.ngay);
-
-      if (resultDate == null) {
-        print('         ⚠️  Failed to parse date: ${result.ngay}');
-        continue;
-      }
-
-      // ✅ CRITICAL: Chỉ check từ NGÀY TRÚNG đến COMPLETION DATE (không bao gồm ngày trúng)
-      if (resultDate.isAfter(sinceDate) &&
-          (resultDate.isBefore(completionDate) ||
-              resultDate.isAtSameMomentAs(completionDate))) {
-        dateMatches++;
-
-        // ✨ THÊM: Nếu có miền filter, chỉ check miền đó
-        if (mien.isNotEmpty && result.mien != mien) {
-          continue; // ← Bỏ qua nếu không phải miền cần check
-        }
-
-        mienMatches++;
-
-        // 🐛 DEBUG: Print matching dates
-        if (mienMatches <= 3) {
-          // Only print first 3 matches
-          print(
-              '         📅 Checking date ${result.ngay} (${result.mien}) - Numbers: ${result.numbers.take(5).join(", ")}...');
-        }
-
-        // 🐛 FIX: Check với cả 2 format (1 digit và 2 digits)
-        if (result.numbers.contains(normalizedTarget) ||
-            result.numbers.contains(targetNumber)) {
-          print(
-              '         ⚠️  FOUND: $normalizedTarget vào ngày ${result.ngay} (${result.mien})');
-          return true; // ← Số đã vô lại
-        }
+    for (final c in configs) {
+      final res = processType(c['mien'] as String,
+          c['wins'] as List<CycleWinHistory>, c['thres'] as int);
+      final key = c['key'] as String;
+      selected[key] = res['selected'];
+      if (res['selected'] != null) {
+        summaries[key] = RebettingSummary(
+            mien: c['mien'] as String,
+            ngayCoTheVao: '',
+            totalCandidates: res['total']);
+      } else {
+        summaries[key] = null;
       }
     }
 
-    print(
-        '         📊 Stats: Total=$totalResults, InRange=$dateMatches, MienMatch=$mienMatches');
-    print('         ✅ Không tìm thấy');
-    return false; // ← Chưa vô lại
+    return RebettingResult(summaries: summaries, selected: selected);
   }
 
-  /// Static helper: Tính gan mới
-  int _calculateNewGanDaysStatic(
-    DateTime ngayTrungCu,
-    List<LotteryResult> allResults,
-    String mien, // ✅ THÊM: Cần biết miền để đếm đúng
-  ) {
-    // ✅ FIX: Tìm ngày mới nhất trong KQXS
+  static int _calculateNewGanDaysStatic(
+      DateTime ngayTrungCu, List<LotteryResult> allResults, String mien) {
     final newestDate = _getCompletionDate(allResults);
-
-    if (newestDate == null) {
-      print('⚠️ Không tìm thấy completion date');
-      return 0;
-    }
-
-    // ✅ FIX: Đếm số ngày miền đó từ ngayTrungCu đến newestDate
-    final newGanDays = _countMienOccurrencesStatic(
-      allResults,
-      ngayTrungCu,
-      newestDate,
-      mien,
-    );
-
-    print('📊 Gan mới: từ ${date_utils.DateUtils.formatDate(ngayTrungCu)} '
-        'đến ${date_utils.DateUtils.formatDate(newestDate)} '
-        '($mien) = $newGanDays ngày');
-
-    return newGanDays;
+    if (newestDate == null) return 0;
+    return _countMienOccurrencesStatic(
+        allResults, ngayTrungCu, newestDate, mien);
   }
 }
