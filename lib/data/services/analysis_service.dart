@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import '../../core/utils/date_utils.dart' as date_utils;
 import '../models/app_config.dart';
 import '../models/cycle_analysis_result.dart';
-import '../models/cycle_win_history.dart';
 import '../models/gan_pair_info.dart';
 import '../models/lottery_result.dart';
 import '../models/number_detail.dart';
@@ -506,124 +505,146 @@ class AnalysisService {
   Future<RebettingResult> calculateRebetting({
     required List<LotteryResult> allResults,
     required AppConfig config,
-    required List<CycleWinHistory> cycleWins,
-    required List<CycleWinHistory> namWins,
-    required List<CycleWinHistory> trungWins,
-    required List<CycleWinHistory> bacWins,
     required BettingTableService bettingService,
+    // ❌ ĐÃ XÓA: Không cần truyền các list history cũ nữa
   }) async {
-    return await compute(_calculateRebettingCompute, {
+    print('🔄 Bắt đầu tính Rebetting (Quét 00-99 theo logic P2)...');
+
+    // Sử dụng compute để không chặn UI khi quét số liệu lớn
+    final result = await compute(_calculateRebettingCompute, {
       'allResults': allResults,
       'config': config,
-      'cycleWins': cycleWins,
-      'namWins': namWins,
-      'trungWins': trungWins,
-      'bacWins': bacWins,
     });
+
+    return result;
   }
 
+  /// Static method chạy trong Isolate
   static RebettingResult _calculateRebettingCompute(
       Map<String, dynamic> params) {
     final allResults = params['allResults'] as List<LotteryResult>;
     final config = params['config'] as AppConfig;
 
-    Map<String, dynamic> processType(
-        String mien, List<CycleWinHistory> wins, int threshold) {
+    // Helper function để xử lý từng miền
+    Map<String, dynamic> processMien(
+        String mienLabel, String mienFilter, int threshold) {
       final candidates = <RebettingCandidate>[];
-      final mienCheck =
-          (mien == 'Tất cả') ? '' : mien; // Fix logic mapping mien
 
-      for (final win in wins.where((w) => w.isWin)) {
-        final ngayTrungDate = date_utils.DateUtils.parseDate(win.ngayTrung);
-        if (ngayTrungDate == null) continue;
+      // Lọc dữ liệu theo miền (nếu không phải 'Tất cả')
+      final mienResults = (mienFilter == 'Mixed')
+          ? allResults
+          : allResults.where((r) => r.mien == mienFilter).toList();
 
-        // Check tái xuất
-        if (_hasNumberReappearedStatic(win.soMucTieu, ngayTrungDate, allResults,
-            mien: mienCheck)) continue;
-
-        final soNgayGanMoi =
-            _calculateNewGanDaysStatic(ngayTrungDate, allResults, mienCheck);
-        final duration = ((2.4 * threshold) - win.soNgayCuoc).round();
-
-        if (duration > 0) {
-          candidates.add(RebettingCandidate(
-            soMucTieu: win.soMucTieu,
-            mienTrung: mien, // Keep logic
-            ngayBatDauCu: win.ngayBatDau,
-            ngayTrungCu: win.ngayTrung,
-            soNgayGanCu: win.soNgayCuoc,
-            soNgayGanMoi: soNgayGanMoi,
-            rebettingDuration: duration,
-            ngayCoTheVao: '',
-          ));
-        }
+      if (mienResults.isEmpty) {
+        return {'candidates': [], 'selected': null, 'total': 0};
       }
 
-      final selected = candidates.isEmpty
-          ? null
-          : candidates.reduce(
-              (a, b) => a.rebettingDuration < b.rebettingDuration ? a : b);
+      // 🔄 VÒNG LẶP QUÉT 00-99
+      for (int i = 0; i < 100; i++) {
+        final number = i.toString().padLeft(2, '0');
+
+        // 1. Lấy thống kê (Logic P2: Current Gan & Last Cycle Gan)
+        // Lưu ý: Hàm _getNumberStats đã được tối ưu ở bước trước
+        final stats = _getNumberStats(mienResults, number);
+
+        if (stats == null) continue; // Số chưa từng xuất hiện -> Bỏ qua
+
+        final currentGan = stats['currentGan'] as double; // Gan hiện tại
+        final lastCycleGan =
+            stats['lastCycleGan'] as double; // Gan cũ (chu kỳ trước)
+
+        // Lấy ngày tháng để hiển thị (Cần cast về DateTime từ dynamic map nếu _getNumberStats trả về)
+        // Để tối ưu, tôi sẽ trích xuất ngày trực tiếp từ _getNumberStats logic bên dưới hoặc gọi lại nhẹ nhàng.
+        // Tuy nhiên, để clean, ta giả định _getNumberStats trả về đủ info.
+        // NẾU _getNumberStats chỉ trả về double, ta cần sửa lại nó một chút hoặc tìm lại ngày ở đây.
+        // 👇 ĐỂ GIỮ NGUYÊN STRUCUTRE CŨ, tôi sẽ tìm lại ngày nhanh nhất có thể:
+
+        // (Logic tìm ngày last seen - cực nhanh vì đã filter số)
+        DateTime? lastSeenDate;
+        // DateTime? prevLastSeenDate; // Nếu cần ngày bắt đầu của gan cũ
+
+        // Tìm lần xuất hiện cuối cùng
+        for (final res in mienResults.reversed) {
+          if (res.numbers.contains(number)) {
+            lastSeenDate = date_utils.DateUtils.parseDate(res.ngay);
+            break;
+          }
+        }
+
+        if (lastSeenDate == null) continue;
+
+        // 2. Tính toán Duration theo công thức cũ
+        // rebettingDuration = (2.4 * threshold) - Gan Cũ
+        final rebettingDuration = ((2.4 * threshold) - lastCycleGan).round();
+
+        // 3. Filter theo điều kiện Duration
+        if (rebettingDuration <= 0) continue;
+
+        // 4. Tạo ứng viên
+        candidates.add(RebettingCandidate(
+          soMucTieu: number,
+          mienTrung: mienLabel,
+          // Các trường ngày tháng này mang tính tham khảo hiển thị
+          ngayBatDauCu: '', // Không quan trọng với logic mới
+          ngayTrungCu: date_utils.DateUtils.formatDate(
+              lastSeenDate), // Ngày trúng cuối cùng
+          soNgayGanCu: lastCycleGan.toInt(), // Gan của chu kỳ trước
+          soNgayGanMoi: currentGan.toInt(), // Gan hiện tại
+          rebettingDuration: rebettingDuration,
+          ngayCoTheVao: '', // Sẽ tính sau
+        ));
+      }
+
+      // Chọn số có duration nhỏ nhất (Ưu tiên Gan Cũ Lớn)
+      RebettingCandidate? selected;
+      if (candidates.isNotEmpty) {
+        selected = candidates.reduce(
+            (a, b) => a.rebettingDuration < b.rebettingDuration ? a : b);
+      }
+
       return {
         'candidates': candidates,
         'selected': selected,
-        'total': candidates.length
+        'total': candidates.length,
       };
     }
 
-    // DRY: Gom logic gọi processType
-    final configs = [
-      {
-        'key': 'tatCa',
-        'mien': 'Tất cả',
-        'wins': params['cycleWins'],
-        'thres': config.duration.thresholdCycleDuration
-      },
-      {
-        'key': 'nam',
-        'mien': 'Nam',
-        'wins': params['namWins'],
-        'thres': config.duration.thresholdCycleDuration
-      },
-      {
-        'key': 'trung',
-        'mien': 'Trung',
-        'wins': params['trungWins'],
-        'thres': config.duration.thresholdTrungDuration
-      },
-      {
-        'key': 'bac',
-        'mien': 'Bắc',
-        'wins': params['bacWins'],
-        'thres': config.duration.thresholdBacDuration
-      },
-    ];
+    // Thực thi cho 4 loại cấu hình
+    final tatCa =
+        processMien('Tất cả', 'Mixed', config.duration.thresholdCycleDuration);
+    final nam =
+        processMien('Nam', 'Nam', config.duration.thresholdCycleDuration);
+    final trung =
+        processMien('Trung', 'Trung', config.duration.thresholdTrungDuration);
+    final bac = processMien('Bắc', 'Bắc', config.duration.thresholdBacDuration);
 
-    final summaries = <String, RebettingSummary?>{};
-    final selected = <String, RebettingCandidate?>{};
+    // Đóng gói kết quả
+    final summaries = <String, RebettingSummary?>{
+      'tatCa': tatCa['selected'] != null
+          ? RebettingSummary(
+              mien: 'Tất cả', ngayCoTheVao: '', totalCandidates: tatCa['total'])
+          : null,
+      'nam': nam['selected'] != null
+          ? RebettingSummary(
+              mien: 'Nam', ngayCoTheVao: '', totalCandidates: nam['total'])
+          : null,
+      'trung': trung['selected'] != null
+          ? RebettingSummary(
+              mien: 'Trung', ngayCoTheVao: '', totalCandidates: trung['total'])
+          : null,
+      'bac': bac['selected'] != null
+          ? RebettingSummary(
+              mien: 'Bắc', ngayCoTheVao: '', totalCandidates: bac['total'])
+          : null,
+    };
 
-    for (final c in configs) {
-      final res = processType(c['mien'] as String,
-          c['wins'] as List<CycleWinHistory>, c['thres'] as int);
-      final key = c['key'] as String;
-      selected[key] = res['selected'];
-      if (res['selected'] != null) {
-        summaries[key] = RebettingSummary(
-            mien: c['mien'] as String,
-            ngayCoTheVao: '',
-            totalCandidates: res['total']);
-      } else {
-        summaries[key] = null;
-      }
-    }
+    final selected = <String, RebettingCandidate?>{
+      'tatCa': tatCa['selected'],
+      'nam': nam['selected'],
+      'trung': trung['selected'],
+      'bac': bac['selected'],
+    };
 
     return RebettingResult(summaries: summaries, selected: selected);
-  }
-
-  static int _calculateNewGanDaysStatic(
-      DateTime ngayTrungCu, List<LotteryResult> allResults, String mien) {
-    final newestDate = _getCompletionDate(allResults);
-    if (newestDate == null) return 0;
-    return _countMienOccurrencesStatic(
-        allResults, ngayTrungCu, newestDate, mien);
   }
 }

@@ -97,8 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         config.duration.thresholdTrungDuration.toString();
     _thresholdBacDurationController.text =
         config.duration.thresholdBacDuration.toString();
-    _probabilityThresholdController.text =
-        config.probability.thresholdPercentageString;
+    _probabilityThresholdController.text = config.probability.thresholdString;
 
     for (int i = 0;
         i < _apiAccountControllers.length && i < config.apiAccounts.length;
@@ -188,10 +187,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextFormField(
                   controller: _probabilityThresholdController,
                   decoration: const InputDecoration(
-                    labelText: 'Ngưỡng xác suất (%)',
-                    prefixIcon: Icon(Icons.percent),
-                    hintText: '2.00e-14',
-                    helperText: 'Format: Scientific notation (ví dụ: 2.00e-14)',
+                    labelText: 'Ngưỡng xác suất',
+                    prefixIcon: Icon(Icons.functions),
+                    hintText: '2.00e-11',
+                    helperText: 'Format: Scientific notation (ví dụ: 2.00e-11)',
                     helperMaxLines: 2,
                   ),
                   keyboardType: const TextInputType.numberWithOptions(
@@ -204,15 +203,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
 
                     try {
-                      final threshold =
-                          ProbabilityConfig.parsePercentageString(value);
+                      final threshold = ProbabilityConfig.parseString(value);
 
                       // Validate range: 1e-18 đến 3e-16
-                      if (threshold < 1e-18) {
-                        return 'Phải >= 1.00e-16 %';
+                      if (threshold < 3e-14) {
+                        return 'Phải >= 3e-14';
                       }
-                      if (threshold > 3e-16) {
-                        return 'Phải <= 3.00e-14 %';
+                      if (threshold > 2e-11) {
+                        return 'Phải <= 2e-11';
                       }
                     } catch (e) {
                       return 'Format không hợp lệ';
@@ -247,8 +245,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Text(
                         '• Ngưỡng xác suất: Giá trị P_total mà tại đó hệ thống dừng mô phỏng\n'
                         '• Giá trị càng nhỏ → Dự đoán càng xa vào tương lai\n'
-                        '• Mặc định: 2.00e-14 % (0.00000000000002%)\n'
-                        '• Range cho phép: 1.00e-16% đến 3.00e-14%',
+                        '• Mặc định: 2.00e-11 % (0.00000000000002%)\n'
+                        '• Range cho phép: 2e-11% đến 3e-14%',
                         style: TextStyle(
                           color: Colors.grey,
                           fontSize: 12,
@@ -362,10 +360,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _thresholdTrungDurationController,
                   label: 'Miền Trung (ngày)',
                   icon: Icons.calendar_month,
-                  hint: '14',
-                  minValue: 13,
-                  maxValue: 15,
-                  helperText: 'Mặc định: 14. Min: 13',
+                  hint: '12',
+                  minValue: 12,
+                  maxValue: 14,
+                  helperText: 'Mặc định: 12. Min: 12',
                 ),
                 const SizedBox(height: 16),
 
@@ -373,10 +371,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _thresholdBacDurationController,
                   label: 'Miền Bắc (ngày)',
                   icon: Icons.calendar_month,
-                  hint: '18',
-                  minValue: 16,
-                  maxValue: 19,
-                  helperText: 'Mặc định: 18. Min: 16',
+                  hint: '16',
+                  minValue: 15,
+                  maxValue: 17,
+                  helperText: 'Mặc định: 15. Min: 17',
                 ),
 
                 const SizedBox(height: 16),
@@ -826,7 +824,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final xienBudget = _parseFromThousands(_xienBudgetController.text);
 
     final thresholdStr = _probabilityThresholdController.text.trim();
-    final threshold = ProbabilityConfig.parsePercentageString(thresholdStr);
+    final threshold = ProbabilityConfig.parseString(thresholdStr);
     final probabilityConfig = ProbabilityConfig(threshold: threshold);
 
     if (!probabilityConfig.isValid) {

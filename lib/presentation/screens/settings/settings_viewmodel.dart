@@ -39,8 +39,8 @@ class SettingsViewModel extends ChangeNotifier {
 
   // THÊM CONSTANT cho validation
   static const int _minCycleDuration = 4; // > 4
-  static const int _minTrungDuration = 14; // > 14
-  static const int _minBacDuration = 18; // > 18
+  static const int _minTrungDuration = 12; // > 12
+  static const int _minBacDuration = 15; // > 16
   static const int _minXienDuration = 156; // > 155
 
   // THÊM METHOD VALIDATION:

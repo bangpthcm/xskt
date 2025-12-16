@@ -1,28 +1,26 @@
 // lib/data/models/probability_config.dart
 
 class ProbabilityConfig {
-  final double threshold; // Giá trị raw (ví dụ: 2e-11)
+  final double threshold; // Giá trị raw (ví dụ: 5e-12)
 
   ProbabilityConfig({
-    this.threshold = 2e-11, // Default: 0.00000000000002%
+    this.threshold = 5e-12,
   });
 
-  // Validation
-  bool get isValid => threshold >= 1e-16 && threshold <= 3e-11;
+  // Validation: Range từ 1e-16 đến 3e-11
+  bool get isValid => threshold >= 3e-14 && threshold <= 2e-11;
 
-  // Convert raw value to percentage string for display
-  String get thresholdPercentageString {
-    final percentage = threshold * 100;
-    return percentage.toStringAsExponential(2); // Ví dụ: "2.00e-11"
+  // SỬA: Bỏ nhân 100, trả về giá trị raw dưới dạng string
+  String get thresholdString {
+    return threshold.toStringAsExponential(2); // Ví dụ: "2.00e-11"
   }
 
-  // Parse percentage string back to raw value
-  static double parsePercentageString(String str) {
+  // SỬA: Bỏ chia 100, parse trực tiếp giá trị raw
+  static double parseString(String str) {
     try {
-      final percentage = double.parse(str);
-      return percentage / 100;
+      return double.parse(str);
     } catch (e) {
-      return 2e-11; // Default
+      return 5e-12; // Default
     }
   }
 
@@ -30,12 +28,13 @@ class ProbabilityConfig {
 
   factory ProbabilityConfig.fromJson(Map<String, dynamic> json) {
     return ProbabilityConfig(
-      threshold: json['threshold'] ?? 2e-11,
+      threshold: json['threshold']?.toDouble() ?? 5e-12,
     );
   }
 
+  // ... (giữ nguyên phần còn lại)
   factory ProbabilityConfig.defaults() {
-    return ProbabilityConfig(threshold: 2e-11);
+    return ProbabilityConfig(threshold: 5e-12);
   }
 
   ProbabilityConfig copyWith({double? threshold}) {

@@ -5,7 +5,6 @@ import '../../../core/utils/number_utils.dart';
 import '../../../data/models/app_config.dart';
 import '../../../data/models/betting_row.dart';
 import '../../../data/models/cycle_analysis_result.dart';
-import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/gan_pair_info.dart';
 import '../../../data/models/lottery_result.dart';
 import '../../../data/models/number_detail.dart';
@@ -741,16 +740,11 @@ class AnalysisViewModel extends ChangeNotifier {
       final diffDays = startDate.difference(lastInfo.date).inDays;
 
       // Logic: Index mới = (Index cũ + số ngày trôi qua) % 3
-      // VD: Hôm qua (lastInfo) là Nam (0). Ngày mai (startDate = +2 ngày) sẽ là Bắc (2).
-      // (0 + 2) % 3 = 2.
-      // Lưu ý: diffDays có thể âm nếu startDate < lastInfo.date (ít xảy ra nhưng cứ tính)
-      // Nhưng thường startDate > lastInfo.date vì là ngày tương lai
       if (diffDays >= 0) {
         startMienIndex = (lastInfo.mienIndex + diffDays) % 3;
         print(
             '   Calculated startMienIdx: $startMienIndex (Last: ${lastInfo.mienIndex}, Diff: $diffDays)');
       } else {
-        // Fallback đơn giản nếu dữ liệu quá khứ, tạm để 0 hoặc tính lùi
         startMienIndex = 0;
       }
     }
@@ -779,7 +773,7 @@ class AnalysisViewModel extends ChangeNotifier {
       targetNumber: candidate.soMucTieu,
       startDate: startDate,
       endDate: endDate,
-      startMienIndex: startMienIndex, // ✅ Đã truyền giá trị tính toán đúng
+      startMienIndex: startMienIndex,
       durationLimit: candidate.rebettingDuration,
       soNgayGan: candidate.soNgayGanMoi,
       cycleResult: tempResult,
@@ -1135,27 +1129,7 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print('🔄 Loading Rebetting data...');
-
-      late Map<String, List<List<dynamic>>> sheetData;
-      try {
-        sheetData = await _sheetsService.batchGetValues([
-          'cycleWinHistory',
-          'namWinHistory',
-          'trungWinHistory',
-          'bacWinHistory'
-        ]);
-        print('✅ Sheet data loaded successfully');
-      } catch (e) {
-        print('❌ Sheet API error: $e');
-        _errorMessage = 'Lỗi lấy dữ liệu từ Google Sheets: $e';
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
-
-      final winHistories = _parseWinHistories(sheetData);
-      print('✅ Win histories parsed: ${winHistories.toString()}');
+      print('🔄 Loading Rebetting data (New Logic 00-99)...');
 
       final config =
           await _storageService.loadConfig() ?? AppConfig.defaultConfig();
@@ -1165,10 +1139,6 @@ class AnalysisViewModel extends ChangeNotifier {
       _rebettingResult = await _analysisService.calculateRebetting(
         allResults: _allResults,
         config: config,
-        cycleWins: winHistories['tatCa'] as List<CycleWinHistory>,
-        namWins: winHistories['nam'] as List<CycleWinHistory>,
-        trungWins: winHistories['trung'] as List<CycleWinHistory>,
-        bacWins: winHistories['bac'] as List<CycleWinHistory>,
         bettingService: _bettingService,
       );
       print('✅ Rebetting calculated: $_rebettingResult');
@@ -1186,87 +1156,6 @@ class AnalysisViewModel extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  Map<String, List<CycleWinHistory>> _parseWinHistories(
-    Map<String, List<List<dynamic>>> sheetData,
-  ) {
-    final result = <String, List<CycleWinHistory>>{
-      'tatCa': [],
-      'nam': [],
-      'trung': [],
-      'bac': [],
-    };
-
-    try {
-      final cycleData = sheetData['cycleWinHistory'];
-      if (cycleData != null && cycleData.isNotEmpty) {
-        result['tatCa'] = cycleData
-            .skip(1)
-            .map((row) {
-              try {
-                return CycleWinHistory.fromSheetRow(row);
-              } catch (e) {
-                print('⚠️ Error parsing cycle row: $e');
-                return null;
-              }
-            })
-            .whereType<CycleWinHistory>()
-            .toList();
-      }
-
-      final namData = sheetData['namWinHistory'];
-      if (namData != null && namData.isNotEmpty) {
-        result['nam'] = namData
-            .skip(1)
-            .map((row) {
-              try {
-                return CycleWinHistory.fromSheetRow(row);
-              } catch (e) {
-                print('⚠️ Error parsing nam row: $e');
-                return null;
-              }
-            })
-            .whereType<CycleWinHistory>()
-            .toList();
-      }
-
-      final trungData = sheetData['trungWinHistory'];
-      if (trungData != null && trungData.isNotEmpty) {
-        result['trung'] = trungData
-            .skip(1)
-            .map((row) {
-              try {
-                return CycleWinHistory.fromSheetRow(row);
-              } catch (e) {
-                print('⚠️ Error parsing trung row: $e');
-                return null;
-              }
-            })
-            .whereType<CycleWinHistory>()
-            .toList();
-      }
-
-      final bacData = sheetData['bacWinHistory'];
-      if (bacData != null && bacData.isNotEmpty) {
-        result['bac'] = bacData
-            .skip(1)
-            .map((row) {
-              try {
-                return CycleWinHistory.fromSheetRow(row);
-              } catch (e) {
-                print('⚠️ Error parsing bac row: $e');
-                return null;
-              }
-            })
-            .whereType<CycleWinHistory>()
-            .toList();
-      }
-    } catch (e) {
-      print('❌ Error parsing win histories: $e');
-    }
-
-    return result;
   }
 
   // ✅ [LOGIC ĐÃ SỬA] Có truyền context neo miền vào Service

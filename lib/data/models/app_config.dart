@@ -6,14 +6,14 @@ import 'probability_config.dart';
 class DurationConfig {
   // 🔵 Hiện tại: Duration cơ bản (Farming)
   final int cycleDuration; // Chu kỳ (default: 10, min: 5)
-  final int trungDuration; // Miền Trung (default: 26, min: 14)
-  final int bacDuration; // Miền Bắc (default: 43, min: 20)
+  final int trungDuration; // Miền Trung (default: 26, min: 12)
+  final int bacDuration; // Miền Bắc (default: 43, min: 16)
   final int xienDuration; // Xiên (default: 234, min: 156)
 
   // ✨ MỚI: Threshold Rebetting
   final int thresholdCycleDuration; // Default: 4
-  final int thresholdTrungDuration; // Default: 14
-  final int thresholdBacDuration; // Default: 18
+  final int thresholdTrungDuration; // Default: 12
+  final int thresholdBacDuration; // Default: 16
 
   DurationConfig({
     this.cycleDuration = 10,
@@ -22,7 +22,7 @@ class DurationConfig {
     this.xienDuration = 234,
     // ✨ THÊM
     this.thresholdCycleDuration = 5,
-    this.thresholdTrungDuration = 14,
+    this.thresholdTrungDuration = 12,
     this.thresholdBacDuration = 16,
   });
 
@@ -58,8 +58,8 @@ class DurationConfig {
       xienDuration: json['xienDuration'] ?? 234,
       // ✨ THÊM
       thresholdCycleDuration: json['thresholdCycleDuration'] ?? 4,
-      thresholdTrungDuration: json['thresholdTrungDuration'] ?? 14,
-      thresholdBacDuration: json['thresholdBacDuration'] ?? 18,
+      thresholdTrungDuration: json['thresholdTrungDuration'] ?? 12,
+      thresholdBacDuration: json['thresholdBacDuration'] ?? 16,
     );
   }
 
@@ -71,8 +71,8 @@ class DurationConfig {
       xienDuration: 234,
       // ✨ THÊM
       thresholdCycleDuration: 4,
-      thresholdTrungDuration: 14,
-      thresholdBacDuration: 18,
+      thresholdTrungDuration: 12,
+      thresholdBacDuration: 16,
     );
   }
 
