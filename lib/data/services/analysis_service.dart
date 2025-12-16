@@ -53,42 +53,63 @@ class AnalysisService {
   static ProbabilityAnalysisResult? _analyzeProbabilityCompute(
     Map<String, dynamic> params,
   ) {
-    final results = params['results'] as List<LotteryResult>;
+    var results = params['results'] as List<LotteryResult>;
     final mien = params['mien'] as String;
     final threshold = params['threshold'] as double;
 
-    print('\n🔢 [Probability] ========== START DEBUG ==========');
+    // ✂️ TỐI ƯU: Cắt 368 ngày mới nhất
+    const int limit = 368;
+    if (results.length > limit) {
+      results = results.sublist(results.length - limit);
+      print('✂️ [Optimization] Trimmed data to last $limit records.');
+    }
+
     print(
-        '🔢 [Probability] Computing with ${results.length} results for $mien');
+        '\n🔢 [Probability] ========== START DEBUG (SHOW GAN + SLOTS) ==========');
 
     try {
-      // BƯỚC 1: Tính p (xác suất trung bình)
-      final p = _calculateAverageProbability(results);
-      print(
-          '🔢 [Probability] Average p = $p (${(p * 100).toStringAsFixed(6)}%)');
+      // 1. TÍNH P (Unique Date Logic)
+      final p = _calculateAverageProbability(
+          results); // Đã có log chi tiết bên trong hàm này
 
-      // BƯỚC 2: Tính P_total cho tất cả số 00-99
+      // 2. TÍNH GLOBAL SLOTS & K_EXPECTED
+      int totalSlotsAllData = 0;
+      for (final r in results) {
+        totalSlotsAllData += r.numbers.length;
+      }
+
+      final kExpected = totalSlotsAllData / 100.0;
+
+      print('📊 [Global Stats]:');
+      print('   Total Data Rows: ${results.length}');
+      print('   Total Slots: $totalSlotsAllData');
+      print('   K_expected: ${kExpected.toStringAsFixed(2)}');
+
       final allProbabilities = <String, Map<String, double>>{};
-
-      print('\n📊 [Probability] Calculating P_total for all numbers...\n');
+      double checkSumSlots = 0;
 
       for (int i = 0; i <= 99; i++) {
         final number = i.toString().padLeft(2, '0');
         final stats = _getNumberStats(results, number);
 
-        if (stats == null) {
-          // Số chưa từng xuất hiện - bỏ qua
-          continue;
-        }
+        if (stats == null) continue;
 
-        final currentGan = stats['currentGan']!;
+        final currentGan = stats['currentGan']!; // 👈 Đây là "Gan cũ" cậu cần
         final lastCycleGan = stats['lastCycleGan']!;
-        final occurrences = stats['occurrences']!;
-        final totalDays = stats['totalDays']!;
+        final slots = stats['slots']!;
+
+        checkSumSlots += slots;
 
         final p1 = _calculateP1(p, currentGan);
         final p2 = _calculateP2(p, lastCycleGan, currentGan);
-        final p3 = _calculateP3(p, occurrences, totalDays);
+
+        double p3;
+        if (slots == 0) {
+          p3 = 0.000001;
+        } else {
+          p3 = slots / kExpected;
+        }
+
         final pTotal = p1 * p2 * p3;
 
         allProbabilities[number] = {
@@ -98,134 +119,66 @@ class AnalysisService {
           'pTotal': pTotal,
           'currentGan': currentGan,
           'lastCycleGan': lastCycleGan,
-          'occurrences': occurrences,
-          'totalDays': totalDays,
+          'slots': slots,
         };
 
-        // ✅ PRINT CHI TIẾT MỖI SỐ (chỉ print top 10 để không spam)
-        if (allProbabilities.length <= 10) {
-          print('   Number $number:');
-          print('      📍 Stats: currentGan=${currentGan.toInt()}d, '
-              'lastCycleGan=${lastCycleGan.toInt()}d, '
-              'occurrences=${occurrences.toInt()}, '
-              'totalDays=${totalDays.toInt()}');
+        // 🖨️ UPDATE: In thêm "Gan" vào log để kiểm tra
+        if (i < 10 || slots > kExpected * 1.5) {
           print(
-              '      📐 P1 = (1-$p)^${currentGan.toInt()} = ${p1.toStringAsExponential(4)}');
-          print(
-              '      📐 P2 = (1-$p)^${lastCycleGan.toInt()} × $p × (1-$p)^${currentGan.toInt()} = ${p2.toStringAsExponential(4)}');
-          print('      📐 P3 (Binomial CDF) = ${p3.toStringAsExponential(4)}');
-          print(
-              '      ✨ P_total = P1 × P2 × P3 = ${pTotal.toStringAsExponential(4)}\n');
+              '   🔹 Num $number: Gan=${currentGan.toInt()}d | Slots=${slots.toInt()} (Exp ~${kExpected.toStringAsFixed(1)}) -> P3=${p3.toStringAsFixed(4)}');
         }
       }
 
-      if (allProbabilities.isEmpty) {
-        print('❌ [Probability] No valid numbers found');
-        return null;
-      }
-
+      // CHECK SUM
       print(
-          '📊 [Probability] Total numbers analyzed: ${allProbabilities.length}\n');
+          '\n⚖️ [CROSS-CHECK]: Global=$totalSlotsAllData vs Sum=${checkSumSlots.toInt()}');
 
-      // BƯỚC 3: Chọn số có P_total CAO NHẤT
+      if (allProbabilities.isEmpty) return null;
+
+      // 3. TÌM MIN P_TOTAL
       String? bestNumber;
-      double maxProb = 0;
+      double minProb = double.infinity;
 
       allProbabilities.forEach((number, data) {
-        if (data['pTotal']! > maxProb) {
-          maxProb = data['pTotal']!;
+        if (data['pTotal']! < minProb) {
+          minProb = data['pTotal']!;
           bestNumber = number;
         }
       });
 
-      if (bestNumber == null) {
-        print('❌ [Probability] No best number found');
-        return null;
-      }
+      if (bestNumber == null) return null;
 
       final bestData = allProbabilities[bestNumber!]!;
 
-      print('🎯 [Probability] ========== BEST NUMBER ==========');
-      print('🎯 Number: $bestNumber');
-      print('🎯 Current P_total: ${maxProb.toStringAsExponential(6)}');
-      print('🎯 Stats:');
-      print('   - Current Gan: ${bestData['currentGan']!.toInt()} days');
-      print('   - Last Cycle Gan: ${bestData['lastCycleGan']!.toInt()} days');
-      print('   - Occurrences: ${bestData['occurrences']!.toInt()}');
-      print('   - Total Days: ${bestData['totalDays']!.toInt()}');
-      print('🎯 Probabilities:');
-      print('   - P1 = ${bestData['p1']!.toStringAsExponential(6)}');
-      print('   - P2 = ${bestData['p2']!.toStringAsExponential(6)}');
-      print('   - P3 = ${bestData['p3']!.toStringAsExponential(6)}');
-      print('   - P_total = ${maxProb.toStringAsExponential(6)}');
+      print('\n🎯 [Result] Best Number: $bestNumber');
+      print(
+          '   Gan hien tai: ${bestData['currentGan']!.toInt()} ngay'); // In rõ ở kết quả cuối cùng
+      print('   P_total: ${minProb.toStringAsExponential(6)}');
 
-      // ✅ PRINT TOP 5 SỐ CÓ P_TOTAL CAO NHẤT
-      print('\n📊 [Probability] Top 5 highest P_total:');
-      final sortedNumbers = allProbabilities.entries.toList()
-        ..sort((a, b) => b.value['pTotal']!.compareTo(a.value['pTotal']!));
-
-      for (int i = 0; i < 5 && i < sortedNumbers.length; i++) {
-        final entry = sortedNumbers[i];
-        print('   ${i + 1}. Number ${entry.key}: '
-            'P_total = ${entry.value['pTotal']!.toStringAsExponential(4)} '
-            '(gan=${entry.value['currentGan']!.toInt()}d)');
-      }
-
-      // BƯỚC 4: Mô phỏng trượt dài hạn
+      // 4. SIMULATION
       int simulatedGanDays = bestData['currentGan']!.toInt();
-      int simulatedTotalDays = bestData['totalDays']!.toInt();
-      double simulatedPTotal = maxProb;
-
+      double simulatedPTotal = minProb;
       int daysNeeded = 0;
       const maxIterations = 10000;
 
-      print('\n🔄 [Probability] ========== SIMULATION ==========');
-      print('🔄 Threshold: ${threshold.toStringAsExponential(4)}');
-      print('🔄 Starting simulation from day 0...\n');
-
       while (simulatedPTotal >= threshold && daysNeeded < maxIterations) {
         simulatedGanDays++;
-        simulatedTotalDays++;
         daysNeeded++;
 
         final newP1 = _calculateP1(p, simulatedGanDays.toDouble());
         final newP2 = _calculateP2(
             p, bestData['lastCycleGan']!, simulatedGanDays.toDouble());
-        final newP3 = _calculateP3(
-            p, bestData['occurrences']!, simulatedTotalDays.toDouble());
+        final currentP3 = bestData['p3']!;
 
-        simulatedPTotal = newP1 * newP2 * newP3;
-
-        // Log chi tiết mỗi 10 ngày đầu, sau đó mỗi 100 ngày
-        if (daysNeeded <= 10 || daysNeeded % 100 == 0) {
-          print('   Day +$daysNeeded: '
-              'gan=$simulatedGanDays, '
-              'P1=${newP1.toStringAsExponential(4)}, '
-              'P2=${newP2.toStringAsExponential(4)}, '
-              'P3=${newP3.toStringAsExponential(4)}, '
-              'P_total=${simulatedPTotal.toStringAsExponential(6)}');
-        }
+        simulatedPTotal = newP1 * newP2 * currentP3;
       }
-
-      print('\n✅ [Probability] Simulation completed!');
-      print('✅ Days needed: $daysNeeded');
-      print('✅ Final P_total: ${simulatedPTotal.toStringAsExponential(6)}');
-      print('✅ Threshold reached: ${simulatedPTotal < threshold}');
 
       final now = DateTime.now();
       final projectedEndDate = now.add(Duration(days: daysNeeded));
 
-      print('\n🎯 [Probability] ========== RESULT ==========');
-      print('🎯 Target Number: $bestNumber');
-      print('🎯 Current P_total: ${maxProb.toStringAsExponential(6)}');
-      print('🎯 Days to wait: $daysNeeded');
-      print(
-          '🎯 Entry Date: ${date_utils.DateUtils.formatDate(projectedEndDate)}');
-      print('🔢 [Probability] ========== END DEBUG ==========\n');
-
       return ProbabilityAnalysisResult(
         targetNumber: bestNumber!,
-        currentProbability: maxProb,
+        currentProbability: minProb,
         currentGanDays: bestData['currentGan']!.toInt(),
         projectedEndDate: projectedEndDate,
         entryDate: projectedEndDate,
@@ -234,13 +187,13 @@ class AnalysisService {
           'P1': bestData['p1']!,
           'P2': bestData['p2']!,
           'P3': bestData['p3']!,
-          'P_total': maxProb,
+          'P_total': minProb,
         },
         mien: mien,
       );
     } catch (e, stackTrace) {
       print('❌ [Probability] Error: $e');
-      print('❌ StackTrace: $stackTrace');
+      print(stackTrace);
       return null;
     }
   }
@@ -250,6 +203,7 @@ class AnalysisService {
   // =====================================================================
 
   /// Tính xác suất trung bình p = Tổng số giải / Tổng số ngày
+  // ✅ UPDATE: In thêm Log chi tiết về mẫu số (Days) và tử số (Slots)
   static double _calculateAverageProbability(List<LotteryResult> results) {
     if (results.isEmpty) return 0.0;
 
@@ -261,20 +215,22 @@ class AnalysisService {
       totalNumbers += result.numbers.length;
     }
 
-    final totalDays = uniqueDates.length;
+    final totalDays = uniqueDates.length; // Mẫu số chuẩn
+
+    // 🖨️ PRINT DEBUG: Xem chính xác bao nhiêu ngày được dùng
+    print('      📐 [P Calculation Info]');
+    print('         - Input Rows: ${results.length}');
+    print(
+        '         - Unique Days (Denominator): $totalDays'); // 👈 Cái cậu cần đây
+    print('         - Total Slots (Numerator): $totalNumbers');
+
     if (totalDays == 0) return 0.0;
 
-    // p = Trung bình số giải mỗi ngày / 100 (vì có 100 số từ 00-99)
     final avgNumbersPerDay = totalNumbers / totalDays;
-    final p = avgNumbersPerDay / 100.0;
+    print('         - Avg Slots/Day: ${avgNumbersPerDay.toStringAsFixed(4)}');
 
-    print('📐 [p calculation]:');
-    print('   Total numbers: $totalNumbers');
-    print('   Total days: $totalDays');
-    print('   Avg numbers/day: ${avgNumbersPerDay.toStringAsFixed(2)}');
-    print('   p = $avgNumbersPerDay / 100 = $p');
-
-    return p;
+    // Công thức tính xác suất nền
+    return (1 - pow(0.99, avgNumbersPerDay)).toDouble();
   }
 
   /// Lấy thống kê của một số cụ thể
@@ -282,15 +238,14 @@ class AnalysisService {
     List<LotteryResult> results,
     String targetNumber,
   ) {
-    // ✅ FIX: Tìm ngày cuối cùng trong KQXS (Completion Date)
     final completionDate = _getCompletionDate(results);
     if (completionDate == null) return null;
 
-    // 1. Tìm lần xuất hiện cuối cùng
     DateTime? lastSeenDate;
     String? lastSeenMien;
     int lastSeenIndex = -1;
 
+    // Tìm lần xuất hiện cuối
     for (int i = results.length - 1; i >= 0; i--) {
       if (results[i].numbers.contains(targetNumber)) {
         final date = date_utils.DateUtils.parseDate(results[i].ngay);
@@ -303,52 +258,53 @@ class AnalysisService {
       }
     }
 
-    if (lastSeenDate == null || lastSeenMien == null) {
-      return null; // Số chưa từng xuất hiện
-    }
+    if (lastSeenDate == null || lastSeenMien == null) return null;
 
-    // 2. ✅ FIX: Tính số ngày gan hiện tại (đếm số ngày miền đó từ lastSeen đến completion)
+    // 1. TÍNH GAN HIỆN TẠI (Current Gan)
+    // Logic: Tính từ sau lần cuối đến hôm nay -> Cần tính cả hôm nay (excludeEndDate = false)
     final currentGan = _countMienOccurrencesStatic(
       results,
       lastSeenDate,
       completionDate,
       lastSeenMien,
+      excludeEndDate: false,
     );
 
-    // 3. Tìm lần xuất hiện trước đó (để tính gan của chu kỳ trước)
     int lastCycleGan = 0;
     DateTime? secondLastSeenDate;
-    String? secondLastSeenMien;
 
+    // Tìm chu kỳ trước (Lần trúng áp chót)
     for (int i = lastSeenIndex - 1; i >= 0; i--) {
       if (results[i].numbers.contains(targetNumber)) {
         final date = date_utils.DateUtils.parseDate(results[i].ngay);
         if (date != null) {
           secondLastSeenDate = date;
-          secondLastSeenMien = results[i].mien;
           break;
         }
       }
     }
 
-    if (secondLastSeenDate != null && secondLastSeenMien != null) {
-      // ✅ FIX: Tính gan chu kỳ trước (đếm số ngày miền đó từ secondLast đến last)
+    if (secondLastSeenDate != null) {
+      // 2. TÍNH GAN CŨ (Last Cycle Gan)
+      // Logic: Tính từ sau lần áp chót đến TRƯỚC lần cuối -> KHÔNG tính ngày lần cuối (excludeEndDate = true)
       lastCycleGan = _countMienOccurrencesStatic(
         results,
         secondLastSeenDate,
-        lastSeenDate,
+        lastSeenDate, // Đây là ngày trúng (End Date)
         lastSeenMien,
+        excludeEndDate:
+            true, // 👈 QUAN TRỌNG: Loại bỏ ngày trúng ra khỏi số đếm Gan
       );
-    } else {
-      // Nếu không tìm thấy lần trước, dùng currentGan làm ước lượng
-      lastCycleGan = currentGan;
     }
 
-    // 4. Đếm số lần xuất hiện và tổng số ngày
     int occurrences = 0;
+    int slots = 0;
+
     for (final result in results) {
-      if (result.numbers.contains(targetNumber)) {
+      int count = result.numbers.where((n) => n == targetNumber).length;
+      if (count > 0) {
         occurrences++;
+        slots += count;
       }
     }
 
@@ -360,6 +316,7 @@ class AnalysisService {
       'lastCycleGan': lastCycleGan.toDouble(),
       'occurrences': occurrences.toDouble(),
       'totalDays': totalDays.toDouble(),
+      'slots': slots.toDouble(),
     };
   }
 
@@ -378,41 +335,28 @@ class AnalysisService {
   }
 
   /// P3 (Tần suất): Binomial CDF
-  /// P(X <= k) trong phân phối nhị thức (n trials, probability p)
   static double _calculateP3(double p, double occurrences, double totalDays) {
     if (p >= 1.0 || p <= 0.0) return 0.0;
 
     final n = totalDays.toInt();
     final k = occurrences.toInt();
 
-    print('      🔬 [P3 Debug]: n=$n, k=$k, p=$p');
-
-    // Tính Binomial CDF: P(X <= k)
     double cdf = 0.0;
 
     for (int i = 0; i <= k; i++) {
       final binomialCoeff = _binomialCoefficient(n, i);
       final prob = binomialCoeff * pow(p, i) * pow(1 - p, n - i);
       cdf += prob;
-
-      // Print chi tiết 3 term đầu
-      if (i < 3) {
-        print(
-            '         Term $i: C($n,$i) × p^$i × (1-p)^${n - i} = ${prob.toStringAsExponential(4)}');
-      }
     }
-
-    print('      🔬 [P3 Result]: CDF = $cdf');
 
     return cdf;
   }
 
-  /// Tính hệ số nhị thức C(n, k) = n! / (k! * (n-k)!)
+  /// Tính hệ số nhị thức
   static double _binomialCoefficient(int n, int k) {
     if (k > n) return 0.0;
     if (k == 0 || k == n) return 1.0;
 
-    // Tối ưu: C(n, k) = C(n, n-k), chọn k nhỏ hơn
     k = min(k, n - k);
 
     double result = 1.0;
@@ -468,8 +412,7 @@ class AnalysisService {
     return latestDate;
   }
 
-  static GanPairInfo? _findGanPairsMienBacCompute(
-      List<LotteryResult> allResults) {
+  GanPairInfo? _findGanPairsMienBacCompute(List<LotteryResult> allResults) {
     final bacResults = allResults.where((r) => r.mien == 'Bắc').toList();
     if (bacResults.isEmpty) return null;
 
@@ -523,8 +466,7 @@ class AnalysisService {
     );
   }
 
-  static CycleAnalysisResult? _analyzeCycleCompute(
-      List<LotteryResult> allResults) {
+  CycleAnalysisResult? _analyzeCycleCompute(List<LotteryResult> allResults) {
     if (allResults.isEmpty) return null;
 
     // 1. Map lần cuối xuất hiện
@@ -612,23 +554,35 @@ class AnalysisService {
     List<LotteryResult> allResults,
     DateTime startDate,
     DateTime endDate,
-    String targetMien,
-  ) {
+    String targetMien, {
+    bool excludeEndDate = false, // Mặc định là FALSE (Tính cả ngày cuối)
+  }) {
     final uniqueDates = <String>{};
     for (final result in allResults) {
       final date = date_utils.DateUtils.parseDate(result.ngay);
       if (date == null) continue;
-      // Logic đếm ngày
-      if (date.isAfter(startDate) &&
-          (date.isBefore(endDate) || date.isAtSameMomentAs(endDate)) &&
-          result.mien == targetMien) {
+
+      // Điều kiện ngày bắt đầu: Luôn phải sau ngày trúng trước đó
+      bool isAfterStart = date.isAfter(startDate);
+
+      // Điều kiện ngày kết thúc: Tùy thuộc vào cờ excludeEndDate
+      bool isValidEnd;
+      if (excludeEndDate) {
+        // Nếu là Gan cũ: Phải NHỎ HƠN ngày trúng sau (Strictly Before)
+        isValidEnd = date.isBefore(endDate);
+      } else {
+        // Nếu là Gan hiện tại: Nhỏ hơn hoặc BẰNG ngày cuối (Inclusive)
+        isValidEnd = date.isBefore(endDate) || date.isAtSameMomentAs(endDate);
+      }
+
+      if (isAfterStart && isValidEnd && result.mien == targetMien) {
         uniqueDates.add(result.ngay);
       }
     }
     return uniqueDates.length;
   }
 
-  static bool _isMienCloserStatic(String newMien, String oldMien) {
+  bool _isMienCloserStatic(String newMien, String oldMien) {
     const mienPriority = {'Bắc': 3, 'Trung': 2, 'Nam': 1};
     return (mienPriority[newMien] ?? 0) > (mienPriority[oldMien] ?? 0);
   }
@@ -714,7 +668,7 @@ class AnalysisService {
 
   /// Static method để chạy trong isolate
   /// Lý do: compute() yêu cầu static function
-  static bool _hasNumberReappearedCompute(Map<String, dynamic> params) {
+  bool _hasNumberReappearedCompute(Map<String, dynamic> params) {
     final targetNumber = params['targetNumber'] as String;
     final sinceDate = DateTime.fromMillisecondsSinceEpoch(
       params['sinceDate'] as int,
@@ -787,7 +741,7 @@ class AnalysisService {
   }
 
   /// Static method để compute - FIXED VERSION
-  static RebettingResult _calculateRebettingCompute(
+  RebettingResult _calculateRebettingCompute(
     Map<String, dynamic> params,
   ) {
     final allResults = params['allResults'] as List<LotteryResult>;
@@ -966,7 +920,7 @@ class AnalysisService {
 
   /// Static helper: Kiểm tra số có vô lại sau ngày trúng
   /// ✅ CRITICAL FIX: Lọc theo MIỀN + chỉ check từ ngàyTrúng đến hôm nay
-  static bool _hasNumberReappearedStatic(
+  bool _hasNumberReappearedStatic(
     String targetNumber,
     DateTime sinceDate,
     List<LotteryResult> allResults, {
@@ -1037,7 +991,7 @@ class AnalysisService {
   }
 
   /// Static helper: Tính gan mới
-  static int _calculateNewGanDaysStatic(
+  int _calculateNewGanDaysStatic(
     DateTime ngayTrungCu,
     List<LotteryResult> allResults,
     String mien, // ✅ THÊM: Cần biết miền để đếm đúng
