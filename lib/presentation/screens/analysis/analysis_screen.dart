@@ -7,8 +7,6 @@ import '../../../app.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../data/models/number_detail.dart';
-import '../../../data/models/probability_config.dart';
-import '../../../data/models/rebetting_summary.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../betting/betting_viewmodel.dart';
 import '../settings/settings_viewmodel.dart';
@@ -1025,10 +1023,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   }
 
   Widget _buildProbabilitySummaryCards(AnalysisViewModel viewModel) {
-    final tatCa = viewModel.probabilityResultTatCa;
-    final trung = viewModel.probabilityResultTrung;
-    final bac = viewModel.probabilityResultBac;
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1038,46 +1032,22 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Ngày hôm nay:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                Text(
+                  'Ngày có thể bắt đầu',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
                 Text(
                   date_utils.DateUtils.formatDate(DateTime.now()),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
               ],
             ),
-            const Divider(),
-            _buildProbabilitySummaryRow('Tất cả', tatCa),
-            _buildProbabilitySummaryRow('Trung', trung),
-            _buildProbabilitySummaryRow('Bắc', bac),
+            const Divider(color: Colors.grey),
+            _buildSummaryRow('Tất cả', viewModel.optimalProbabilityTatCa),
+            _buildSummaryRow('Trung', viewModel.optimalProbabilityTrung),
+            _buildSummaryRow('Bắc', viewModel.optimalProbabilityBac),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildProbabilitySummaryRow(
-    String mien,
-    ProbabilityAnalysisResult? result,
-  ) {
-    final text = result == null
-        ? 'Không có'
-        : date_utils.DateUtils.formatDate(result.entryDate);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(mien),
-          Text(
-            text,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
       ),
     );
   }
@@ -1187,42 +1157,32 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
   /// Build Rebetting summary cards
   Widget _buildRebettingSummaryCards(AnalysisViewModel viewModel) {
-    final result = viewModel.rebettingResult;
-    if (result == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Ngày hôm nay: ${date_utils.DateUtils.formatDate(DateTime.now())}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Ngày có thể bắt đầu',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Text(
+                  date_utils.DateUtils.formatDate(DateTime.now()),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ],
             ),
-            const Divider(),
-            _buildRebettingSummaryRow('Tất cả', result.summaries['tatCa']),
-            _buildRebettingSummaryRow('Nam', result.summaries['nam']),
-            _buildRebettingSummaryRow('Trung', result.summaries['trung']),
-            _buildRebettingSummaryRow('Bắc', result.summaries['bac']),
+            const Divider(color: Colors.grey),
+            _buildSummaryRow('Tất cả', viewModel.optimalRebettingTatCa),
+            _buildSummaryRow('Nam', viewModel.optimalRebettingNam),
+            _buildSummaryRow('Trung', viewModel.optimalRebettingTrung),
+            _buildSummaryRow('Bắc', viewModel.optimalRebettingBac),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildRebettingSummaryRow(String mien, RebettingSummary? summary) {
-    final text = summary == null ? 'Không có' : summary.ngayCoTheVao;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(mien),
-          Text(text, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ],
       ),
     );
   }

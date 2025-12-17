@@ -168,6 +168,16 @@ class AnalysisViewModel extends ChangeNotifier {
   String _optimalTrung = "Đang tính...";
   String _optimalBac = "Đang tính...";
   String _optimalXien = "Đang tính...";
+  // ✅ THÊM: State cho REBETTING mode
+  String _optimalRebettingTatCa = "Đang tính...";
+  String _optimalRebettingNam = "Đang tính...";
+  String _optimalRebettingTrung = "Đang tính...";
+  String _optimalRebettingBac = "Đang tính...";
+
+  // ✅ THÊM: State cho PROBABILITY mode
+  String _optimalProbabilityTatCa = "Đang tính...";
+  String _optimalProbabilityTrung = "Đang tính...";
+  String _optimalProbabilityBac = "Đang tính...";
 
   DateTime? _dateTatCa;
   DateTime? _dateTrung;
@@ -203,6 +213,15 @@ class AnalysisViewModel extends ChangeNotifier {
   ProbabilityAnalysisResult? get probabilityResultTrung =>
       _probabilityResultTrung;
   ProbabilityAnalysisResult? get probabilityResultBac => _probabilityResultBac;
+  String get optimalRebettingTatCa => _optimalRebettingTatCa;
+  String get optimalRebettingNam => _optimalRebettingNam;
+  String get optimalRebettingTrung => _optimalRebettingTrung;
+  String get optimalRebettingBac => _optimalRebettingBac;
+
+  // ✅ THÊM: Getters cho PROBABILITY
+  String get optimalProbabilityTatCa => _optimalProbabilityTatCa;
+  String get optimalProbabilityTrung => _optimalProbabilityTrung;
+  String get optimalProbabilityBac => _optimalProbabilityBac;
 
   String get latestDataInfo {
     if (_allResults.isEmpty) return "Miền ... ngày ...";
@@ -293,6 +312,10 @@ class AnalysisViewModel extends ChangeNotifier {
       print('   Trung: $_probabilityResultTrung');
       print('   Bắc: $_probabilityResultBac');
 
+      // ✨ THÊM: Tính ngày có thể vào dựa trên budget
+      await _calculateOptimalProbabilityDates();
+      print('✅ Optimal probability dates calculated');
+
       _isLoading = false;
       notifyListeners();
     } catch (e, stackTrace) {
@@ -301,6 +324,159 @@ class AnalysisViewModel extends ChangeNotifier {
       _errorMessage = 'Lỗi tính Probability: ${e.toString()}';
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _calculateOptimalProbabilityDates() async {
+    _optimalProbabilityTatCa = "Đang tính...";
+    _optimalProbabilityTrung = "Đang tính...";
+    _optimalProbabilityBac = "Đang tính...";
+
+    final config =
+        await _storageService.loadConfig() ?? AppConfig.defaultConfig();
+
+    // Tất cả
+    if (_probabilityResultTatCa != null) {
+      final dateStr = await _findOptimalDateForTarget(
+        mien: 'Tất cả',
+        targetNumber: _probabilityResultTatCa!.targetNumber,
+        config: config,
+      );
+      _optimalProbabilityTatCa = dateStr ?? "Lỗi";
+    }
+
+    // Trung
+    if (_probabilityResultTrung != null) {
+      final dateStr = await _findOptimalDateForTarget(
+        mien: 'Trung',
+        targetNumber: _probabilityResultTrung!.targetNumber,
+        config: config,
+      );
+      _optimalProbabilityTrung = dateStr ?? "Lỗi";
+    }
+
+    // Bắc
+    if (_probabilityResultBac != null) {
+      final dateStr = await _findOptimalDateForTarget(
+        mien: 'Bắc',
+        targetNumber: _probabilityResultBac!.targetNumber,
+        config: config,
+      );
+      _optimalProbabilityBac = dateStr ?? "Lỗi";
+    }
+
+    notifyListeners();
+  }
+
+  // ✅ THÊM: Helper function tìm ngày tối ưu cho một số cụ thể
+  Future<String?> _findOptimalDateForTarget({
+    required String mien,
+    required String targetNumber,
+    required AppConfig config,
+  }) async {
+    try {
+      final type = _mapMienToEnum(mien);
+      final duration = _getDurationForType(type, config);
+
+      // Tính CycleAnalysisResult cho số này
+      List<LotteryResult> tempResultsList;
+      CycleAnalysisResult? tempResult;
+
+      if (type == BettingTableTypeEnum.tatca) {
+        tempResultsList = _allResults;
+        tempResult = await _analysisService.analyzeCycle(_allResults);
+      } else {
+        final mienFilter = type == BettingTableTypeEnum.trung ? 'Trung' : 'Bắc';
+        tempResultsList =
+            _allResults.where((r) => r.mien == mienFilter).toList();
+        tempResult = await _analysisService.analyzeCycle(tempResultsList);
+      }
+
+      if (tempResult == null) {
+        return "Không đủ dữ liệu";
+      }
+
+      // Tính endDate
+      final fixedEndDate =
+          tempResult.lastSeenDate.add(Duration(days: duration));
+
+      // Tính budget
+      final budgetService =
+          BudgetCalculationService(sheetsService: _sheetsService);
+      final budgetResult =
+          await budgetService.calculateAvailableBudgetByEndDate(
+        totalCapital: config.budget.totalCapital,
+        targetTable: type.budgetTableName,
+        configBudget: type.getBudgetConfig(config),
+        endDate: fixedEndDate,
+      );
+
+      if (budgetResult.available < 50000) {
+        return "Thiếu vốn (${NumberUtils.formatCurrency(budgetResult.available)})";
+      }
+
+      // Tìm ngày bắt đầu tối ưu (logic giống _calculateAllOptimalEntries)
+      final lastInfo = _getLastResultInfo();
+      DateTime startDateCursor;
+      int startMienIdx;
+
+      if (lastInfo.isLastBac) {
+        startDateCursor = lastInfo.date.add(const Duration(days: 1));
+        startMienIdx = 0;
+      } else {
+        startDateCursor = lastInfo.date;
+        startMienIdx = lastInfo.mienIndex + 1;
+      }
+
+      bool found = false;
+      const mienOrder = ['Nam', 'Trung', 'Bắc'];
+
+      for (int i = 0; i < 15; i++) {
+        if (startDateCursor.isAfter(fixedEndDate)) break;
+
+        try {
+          await type.generateTable(
+            service: _bettingService,
+            result: tempResult,
+            start: startDateCursor,
+            end: fixedEndDate,
+            startIdx: startMienIdx,
+            min: budgetResult.budgetMax * 0.9,
+            max: budgetResult.budgetMax,
+            results: tempResultsList,
+            maxCount: duration,
+            durationLimit: duration,
+          );
+
+          found = true;
+
+          // Format kết quả
+          if (type == BettingTableTypeEnum.tatca) {
+            final mienName = mienOrder[startMienIdx];
+            return "$mienName ${date_utils.DateUtils.formatDate(startDateCursor)}";
+          } else {
+            return date_utils.DateUtils.formatDate(startDateCursor);
+          }
+        } catch (_) {}
+
+        // Tăng cursor
+        if (type == BettingTableTypeEnum.tatca) {
+          startMienIdx++;
+          if (startMienIdx > 2) {
+            startMienIdx = 0;
+            startDateCursor = startDateCursor.add(const Duration(days: 1));
+          }
+        } else {
+          startDateCursor = startDateCursor.add(const Duration(days: 1));
+        }
+      }
+
+      if (!found) return "Quá hạn/Thiếu vốn";
+
+      return null;
+    } catch (e) {
+      print('❌ Error in _findOptimalDateForTarget: $e');
+      return "Lỗi";
     }
   }
 
@@ -1146,6 +1322,10 @@ class AnalysisViewModel extends ChangeNotifier {
       await _calculateNgayCoTheVao();
       print('✅ ngayCoTheVao calculated');
 
+      // ✨ THÊM: Tính ngày có thể vào dựa trên budget
+      await _calculateOptimalRebettingDates();
+      print('✅ Optimal rebetting dates calculated');
+
       _isLoading = false;
       notifyListeners();
       print('✅ Rebetting loading completed successfully!');
@@ -1155,6 +1335,53 @@ class AnalysisViewModel extends ChangeNotifier {
       _errorMessage = 'Lỗi tính Rebetting: ${e.toString()}';
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+// ✅ THÊM: Hàm tính ngày cho REBETTING
+  Future<void> _calculateOptimalRebettingDates() async {
+    _optimalRebettingTatCa = "Đang tính...";
+    _optimalRebettingNam = "Đang tính...";
+    _optimalRebettingTrung = "Đang tính...";
+    _optimalRebettingBac = "Đang tính...";
+
+    if (_rebettingResult == null) return;
+
+    // Lấy ngày từ candidate đã tính
+    for (final entry in _rebettingResult!.selected.entries) {
+      final mienKey = entry.key;
+      final candidate = entry.value;
+
+      if (candidate == null) {
+        _updateOptimalRebetting(mienKey, "Không có");
+        continue;
+      }
+
+      final ngayCoTheVao = candidate.ngayCoTheVao;
+      if (ngayCoTheVao.isEmpty) {
+        _updateOptimalRebetting(mienKey, "Lỗi");
+      } else {
+        _updateOptimalRebetting(mienKey, ngayCoTheVao);
+      }
+    }
+
+    notifyListeners();
+  }
+
+  void _updateOptimalRebetting(String mienKey, String value) {
+    switch (mienKey) {
+      case 'tatCa':
+        _optimalRebettingTatCa = value;
+        break;
+      case 'nam':
+        _optimalRebettingNam = value;
+        break;
+      case 'trung':
+        _optimalRebettingTrung = value;
+        break;
+      case 'bac':
+        _optimalRebettingBac = value;
+        break;
     }
   }
 
