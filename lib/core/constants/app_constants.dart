@@ -1,5 +1,4 @@
 class AppConstants {
-
   static const List<String> mienOrder = ["Nam", "Trung", "Bắc"];
 
   // Budget defaults
@@ -14,11 +13,11 @@ class AppConstants {
   static const double finalProfit = 800.0;
 
   // ✅ MIỀN BẮC & MIỀN TRUNG GAN
-  static const int durationBaseBac = 43;     // ✅ Miền Bắc: 45 ngày
-  static const int durationBaseTrung = 26;   // ✅ Miền Trung: 31 ngày
+  static const int durationBaseBac = 43; // ✅ Miền Bắc: 45 ngày
+  static const int durationBaseTrung = 26; // ✅ Miền Trung: 31 ngày
   static const int bacGanWinMultiplier = 99;
   static const int trungGanWinMultiplier = 98;
-  static const int durationBaseCycle = 10;   // ✅ Miền Trung: 31 ngày
+  static const int durationBaseCycle = 10; // ✅ Miền Trung: 31 ngày
   static const int cycleGanWinMultiplier = 98;
 
   // Win multipliers
@@ -26,7 +25,8 @@ class AppConstants {
 
   // WebView URLs
   static const String homeUrlNam = 'https://xsmn.mobi/';
-  static const String homeUrlTrung = 'https://xsmn.mobi/xsmt-xo-so-mien-trung.html';
+  static const String homeUrlTrung =
+      'https://xsmn.mobi/xsmt-xo-so-mien-trung.html';
   static const String homeUrlBac = 'https://xsmn.mobi/xsmb-xo-so-mien-bac.html';
 
   // Time thresholds (in minutes from midnight)

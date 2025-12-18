@@ -9,8 +9,6 @@ import '../../../data/models/gan_pair_info.dart';
 import '../../../data/models/lottery_result.dart';
 import '../../../data/models/number_detail.dart';
 import '../../../data/models/probability_config.dart';
-import '../../../data/models/rebetting_candidate.dart';
-import '../../../data/models/rebetting_summary.dart';
 import '../../../data/services/analysis_service.dart';
 import '../../../data/services/betting_table_service.dart';
 import '../../../data/services/budget_calculation_service.dart';
@@ -152,9 +150,6 @@ class AnalysisViewModel extends ChangeNotifier {
   // State Chung
   bool _isLoading = false;
   String? _errorMessage;
-  bool _isRebettingMode = false;
-  RebettingResult? _rebettingResult;
-  String _selectedRebettingMien = 'Tất cả';
 
   // Dữ liệu phân tích
   GanPairInfo? _ganPairInfo;
@@ -168,11 +163,6 @@ class AnalysisViewModel extends ChangeNotifier {
   String _optimalTrung = "Đang tính...";
   String _optimalBac = "Đang tính...";
   String _optimalXien = "Đang tính...";
-  // ✅ THÊM: State cho REBETTING mode
-  String _optimalRebettingTatCa = "Đang tính...";
-  String _optimalRebettingNam = "Đang tính...";
-  String _optimalRebettingTrung = "Đang tính...";
-  String _optimalRebettingBac = "Đang tính...";
 
   // ✅ THÊM: State cho PROBABILITY mode
   String _optimalProbabilityTatCa = "Đang tính...";
@@ -204,19 +194,12 @@ class AnalysisViewModel extends ChangeNotifier {
   DateTime? get dateTrung => _dateTrung;
   DateTime? get dateBac => _dateBac;
   DateTime? get dateXien => _dateXien;
-  bool get isRebettingMode => _isRebettingMode;
-  RebettingResult? get rebettingResult => _rebettingResult;
-  String get selectedRebettingMien => _selectedRebettingMien;
   bool get isProbabilityMode => _isProbabilityMode;
   ProbabilityAnalysisResult? get probabilityResultTatCa =>
       _probabilityResultTatCa;
   ProbabilityAnalysisResult? get probabilityResultTrung =>
       _probabilityResultTrung;
   ProbabilityAnalysisResult? get probabilityResultBac => _probabilityResultBac;
-  String get optimalRebettingTatCa => _optimalRebettingTatCa;
-  String get optimalRebettingNam => _optimalRebettingNam;
-  String get optimalRebettingTrung => _optimalRebettingTrung;
-  String get optimalRebettingBac => _optimalRebettingBac;
 
   // ✅ THÊM: Getters cho PROBABILITY
   String get optimalProbabilityTatCa => _optimalProbabilityTatCa;
@@ -797,24 +780,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> createRebettingBettingTable(
-    RebettingCandidate candidate,
-    AppConfig config,
-  ) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final params = await _prepareRebettingParams(candidate);
-      await _createBettingTableGeneric(params, config);
-    } catch (e) {
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
   Future<BettingTableParams> _prepareFarmingParams({
     required String mien,
     required AppConfig config,
@@ -877,82 +842,6 @@ class AnalysisViewModel extends ChangeNotifier {
       durationLimit: duration,
       soNgayGan: _cycleResult!.maxGanDays,
       cycleResult: _cycleResult!,
-      allResults: _allResults,
-    );
-  }
-
-  // ✅ [LOGIC ĐÃ SỬA] Tính toán params cho Rebetting có context
-  Future<BettingTableParams> _prepareRebettingParams(
-    RebettingCandidate candidate,
-  ) async {
-    print('🔄 [Rebetting] Preparing params for ${candidate.soMucTieu}...');
-
-    // 1. Xác định enum type
-    final type = _mapMienToEnum(candidate.mienTrung);
-
-    // 2. Parse dates từ candidate
-    final ngayTrungCu = date_utils.DateUtils.parseDate(candidate.ngayTrungCu);
-    if (ngayTrungCu == null) {
-      throw Exception('Ngày trúng cũ không hợp lệ: ${candidate.ngayTrungCu}');
-    }
-
-    final startDate = date_utils.DateUtils.parseDate(candidate.ngayCoTheVao);
-    if (startDate == null) {
-      throw Exception('Ngày bắt đầu không hợp lệ: ${candidate.ngayCoTheVao}');
-    }
-
-    // 3. Tính end date từ duration
-    final endDate =
-        ngayTrungCu.add(Duration(days: candidate.rebettingDuration));
-
-    // ✅ FIX QUAN TRỌNG: Tính startMienIndex
-    int startMienIndex = 0; // Mặc định là 0 (Nam)
-
-    if (type == BettingTableTypeEnum.tatca) {
-      // Với 'Tất cả', phải tính index dựa trên độ lệch ngày so với kết quả mới nhất
-      final lastInfo = _getLastResultInfo();
-
-      // Tính số ngày chênh lệch
-      final diffDays = startDate.difference(lastInfo.date).inDays;
-
-      // Logic: Index mới = (Index cũ + số ngày trôi qua) % 3
-      if (diffDays >= 0) {
-        startMienIndex = (lastInfo.mienIndex + diffDays) % 3;
-        print(
-            '   Calculated startMienIdx: $startMienIndex (Last: ${lastInfo.mienIndex}, Diff: $diffDays)');
-      } else {
-        startMienIndex = 0;
-      }
-    }
-
-    // 4. Tạo fake CycleAnalysisResult từ candidate data
-    final tempResult = CycleAnalysisResult(
-      ganNumbers: {candidate.soMucTieu},
-      maxGanDays: candidate.soNgayGanMoi,
-      lastSeenDate: ngayTrungCu,
-      mienGroups: {
-        candidate.mienTrung: [candidate.soMucTieu]
-      },
-      targetNumber: candidate.soMucTieu,
-    );
-
-    print('✅ [Rebetting] Prepared:');
-    print('   Type: ${type.displayName}');
-    print('   Number: ${candidate.soMucTieu}');
-    print('   Start: ${date_utils.DateUtils.formatDate(startDate)}');
-    print('   Start Index: $startMienIndex');
-    print('   End: ${date_utils.DateUtils.formatDate(endDate)}');
-    print('   Duration: ${candidate.rebettingDuration} days');
-
-    return BettingTableParams(
-      type: type,
-      targetNumber: candidate.soMucTieu,
-      startDate: startDate,
-      endDate: endDate,
-      startMienIndex: startMienIndex,
-      durationLimit: candidate.rebettingDuration,
-      soNgayGan: candidate.soNgayGanMoi,
-      cycleResult: tempResult,
       allResults: _allResults,
     );
   }
@@ -1283,271 +1172,5 @@ class AnalysisViewModel extends ChangeNotifier {
 
   Future<NumberDetail?> analyzeNumberDetail(String number) async {
     return await _analysisService.analyzeNumberDetail(_allResults, number);
-  }
-
-  void toggleRebettingMode(bool value) {
-    _isRebettingMode = value;
-    if (value) {
-      loadRebetting();
-    }
-    notifyListeners();
-  }
-
-  Future<void> loadRebetting() async {
-    if (_allResults.isEmpty) {
-      _errorMessage = 'Chưa có dữ liệu KQXS';
-      notifyListeners();
-      return;
-    }
-
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      print('🔄 Loading Rebetting data (New Logic 00-99)...');
-
-      final config =
-          await _storageService.loadConfig() ?? AppConfig.defaultConfig();
-      print('✅ Config loaded');
-
-      print('🔄 Calculating rebetting...');
-      _rebettingResult = await _analysisService.calculateRebetting(
-        allResults: _allResults,
-        config: config,
-        bettingService: _bettingService,
-      );
-      print('✅ Rebetting calculated: $_rebettingResult');
-
-      await _calculateNgayCoTheVao();
-      print('✅ ngayCoTheVao calculated');
-
-      // ✨ THÊM: Tính ngày có thể vào dựa trên budget
-      await _calculateOptimalRebettingDates();
-      print('✅ Optimal rebetting dates calculated');
-
-      _isLoading = false;
-      notifyListeners();
-      print('✅ Rebetting loading completed successfully!');
-    } catch (e, stackTrace) {
-      print('❌ ERROR in loadRebetting: $e');
-      print('   StackTrace: $stackTrace');
-      _errorMessage = 'Lỗi tính Rebetting: ${e.toString()}';
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-// ✅ THÊM: Hàm tính ngày cho REBETTING
-  Future<void> _calculateOptimalRebettingDates() async {
-    _optimalRebettingTatCa = "Đang tính...";
-    _optimalRebettingNam = "Đang tính...";
-    _optimalRebettingTrung = "Đang tính...";
-    _optimalRebettingBac = "Đang tính...";
-
-    if (_rebettingResult == null) return;
-
-    // Lấy ngày từ candidate đã tính
-    for (final entry in _rebettingResult!.selected.entries) {
-      final mienKey = entry.key;
-      final candidate = entry.value;
-
-      if (candidate == null) {
-        _updateOptimalRebetting(mienKey, "Không có");
-        continue;
-      }
-
-      final ngayCoTheVao = candidate.ngayCoTheVao;
-      if (ngayCoTheVao.isEmpty) {
-        _updateOptimalRebetting(mienKey, "Lỗi");
-      } else {
-        _updateOptimalRebetting(mienKey, ngayCoTheVao);
-      }
-    }
-
-    notifyListeners();
-  }
-
-  void _updateOptimalRebetting(String mienKey, String value) {
-    switch (mienKey) {
-      case 'tatCa':
-        _optimalRebettingTatCa = value;
-        break;
-      case 'nam':
-        _optimalRebettingNam = value;
-        break;
-      case 'trung':
-        _optimalRebettingTrung = value;
-        break;
-      case 'bac':
-        _optimalRebettingBac = value;
-        break;
-    }
-  }
-
-  // ✅ [LOGIC ĐÃ SỬA] Có truyền context neo miền vào Service
-  Future<void> _calculateNgayCoTheVao() async {
-    if (_rebettingResult == null) return;
-
-    final config =
-        await _storageService.loadConfig() ?? AppConfig.defaultConfig();
-    final summaries = <String, RebettingSummary?>{};
-    final selected = <String, RebettingCandidate?>{};
-
-    // ✅ BƯỚC 1: Lấy thông tin KQXS mới nhất để làm mốc (anchor)
-    final lastInfo = _getLastResultInfo();
-
-    for (final entry in _rebettingResult!.selected.entries) {
-      final mienKey = entry.key;
-      final candidate = entry.value;
-
-      if (candidate == null) {
-        summaries[mienKey] = null;
-        selected[mienKey] = null;
-        continue;
-      }
-
-      final ngayTrungCu = date_utils.DateUtils.parseDate(candidate.ngayTrungCu);
-      if (ngayTrungCu == null) {
-        summaries[mienKey] = null;
-        selected[mienKey] = null;
-        continue;
-      }
-
-      final endDate =
-          ngayTrungCu.add(Duration(days: candidate.rebettingDuration));
-
-      double budgetMin = 100000;
-      double budgetMax = 500000;
-
-      if (mienKey == 'tatCa') {
-        budgetMax = config.budget.totalCapital;
-      } else if (mienKey == 'nam') {
-        budgetMax = config.budget.totalCapital;
-      } else if (mienKey == 'trung') {
-        budgetMax = config.budget.trungBudget;
-      } else if (mienKey == 'bac') {
-        budgetMax = config.budget.bacBudget;
-      }
-
-      // ✅ BƯỚC 2: Chuẩn bị context neo (chỉ cần cho loại Tất cả)
-      DateTime? anchorDate;
-      int? anchorMienIndex;
-
-      if (mienKey == 'tatCa') {
-        anchorDate = lastInfo.date;
-        anchorMienIndex = lastInfo.mienIndex;
-      }
-
-      // ✅ BƯỚC 3: Truyền context vào Service
-      final ngayCoTheVao =
-          await _bettingService.findOptimalStartDateForRebetting(
-        endDate: endDate,
-        budgetMin: budgetMin,
-        budgetMax: budgetMax,
-        mien: candidate.mienTrung,
-        soMucTieu: candidate.soMucTieu,
-        // NOTE: BettingService phải được cập nhật để dùng 2 tham số này tính startIdx
-        anchorDate: anchorDate,
-        anchorMienIndex: anchorMienIndex,
-      );
-
-      if (ngayCoTheVao != null) {
-        final updatedCandidate = RebettingCandidate(
-          soMucTieu: candidate.soMucTieu,
-          mienTrung: candidate.mienTrung,
-          ngayBatDauCu: candidate.ngayBatDauCu,
-          ngayTrungCu: candidate.ngayTrungCu,
-          soNgayGanCu: candidate.soNgayGanCu,
-          soNgayGanMoi: candidate.soNgayGanMoi,
-          rebettingDuration: candidate.rebettingDuration,
-          ngayCoTheVao: ngayCoTheVao,
-        );
-
-        summaries[mienKey] = RebettingSummary(
-          mien: _getMienDisplayName(mienKey),
-          ngayCoTheVao: ngayCoTheVao,
-          totalCandidates: _rebettingResult!.selected.values
-              .where((c) =>
-                  c != null && c.mienTrung == _getMienDisplayName(mienKey))
-              .length,
-        );
-
-        selected[mienKey] = updatedCandidate;
-      } else {
-        summaries[mienKey] = null;
-        selected[mienKey] = null;
-      }
-    }
-
-    _rebettingResult = RebettingResult(
-      summaries: summaries,
-      selected: selected,
-    );
-  }
-
-  void setSelectedRebettingMien(String mien) {
-    _selectedRebettingMien = mien;
-    notifyListeners();
-  }
-
-  String _getMienDisplayName(String key) {
-    switch (key) {
-      case 'tatCa':
-        return 'Tất cả';
-      case 'nam':
-        return 'Nam';
-      case 'trung':
-        return 'Trung';
-      case 'bac':
-        return 'Bắc';
-      default:
-        return 'Unknown';
-    }
-  }
-
-  Future<void> sendRebettingToTelegram(RebettingCandidate candidate) async {
-    print('📤 Sending rebetting to Telegram: ${candidate.soMucTieu}');
-
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final message = _buildRebettingMessage(candidate);
-      await _telegramService.sendMessage(message);
-
-      print('✅ Rebetting message sent to Telegram');
-
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      print('❌ Error sending rebetting to Telegram: $e');
-      _errorMessage = 'Lỗi gửi Telegram: $e';
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  String _buildRebettingMessage(RebettingCandidate candidate) {
-    final buffer = StringBuffer();
-
-    buffer.writeln('<b>💎 BẢNG CƯỢC REBETTING 💎</b>\n');
-
-    buffer.writeln('<b>📋 Thông tin cổ:</b>');
-    buffer.writeln('• Số mục tiêu: <b>${candidate.soMucTieu}</b>');
-    buffer.writeln('• Miền: <b>${candidate.mienTrung}</b>');
-    buffer.writeln('• Ngày trúng cũ: ${candidate.ngayTrungCu}');
-    buffer.writeln('• Gan cũ: ${candidate.soNgayGanCu} ngày\n');
-
-    buffer.writeln('<b>📊 Thông tin cược lại:</b>');
-    buffer.writeln('• Gan mới: ${candidate.soNgayGanMoi} ngày');
-    buffer.writeln('• Duration: <b>${candidate.rebettingDuration} ngày</b>');
-    buffer.writeln('• Ngày bắt đầu: <b>${candidate.ngayCoTheVao}</b>\n');
-
-    buffer.writeln('<b>💡 Ghi chú:</b>');
-    buffer.writeln('Bảng cược đã được tạo và sẵn sàng sử dụng.');
-
-    return buffer.toString();
   }
 }

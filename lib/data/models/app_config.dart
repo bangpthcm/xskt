@@ -10,31 +10,18 @@ class DurationConfig {
   final int bacDuration; // Miền Bắc (default: 43, min: 16)
   final int xienDuration; // Xiên (default: 234, min: 156)
 
-  // ✨ MỚI: Threshold Rebetting
-  final int thresholdCycleDuration; // Default: 4
-  final int thresholdTrungDuration; // Default: 12
-  final int thresholdBacDuration; // Default: 16
-
   DurationConfig({
     this.cycleDuration = 10,
     this.trungDuration = 26,
     this.bacDuration = 43,
     this.xienDuration = 234,
-    // ✨ THÊM
-    this.thresholdCycleDuration = 5,
-    this.thresholdTrungDuration = 12,
-    this.thresholdBacDuration = 16,
   });
 
   bool get isValid {
     return cycleDuration > 4 &&
         trungDuration > 13 &&
         bacDuration > 19 &&
-        xienDuration > 155 &&
-        // ✨ THÊM validation cho Threshold
-        thresholdCycleDuration > 5 &&
-        thresholdTrungDuration > 5 &&
-        thresholdBacDuration > 5;
+        xienDuration > 155;
   }
 
   Map<String, dynamic> toJson() {
@@ -43,10 +30,6 @@ class DurationConfig {
       'trungDuration': trungDuration,
       'bacDuration': bacDuration,
       'xienDuration': xienDuration,
-      // ✨ THÊM
-      'thresholdCycleDuration': thresholdCycleDuration,
-      'thresholdTrungDuration': thresholdTrungDuration,
-      'thresholdBacDuration': thresholdBacDuration,
     };
   }
 
@@ -56,10 +39,6 @@ class DurationConfig {
       trungDuration: json['trungDuration'] ?? 26,
       bacDuration: json['bacDuration'] ?? 43,
       xienDuration: json['xienDuration'] ?? 234,
-      // ✨ THÊM
-      thresholdCycleDuration: json['thresholdCycleDuration'] ?? 4,
-      thresholdTrungDuration: json['thresholdTrungDuration'] ?? 12,
-      thresholdBacDuration: json['thresholdBacDuration'] ?? 16,
     );
   }
 
@@ -69,10 +48,6 @@ class DurationConfig {
       trungDuration: 26,
       bacDuration: 43,
       xienDuration: 234,
-      // ✨ THÊM
-      thresholdCycleDuration: 4,
-      thresholdTrungDuration: 12,
-      thresholdBacDuration: 16,
     );
   }
 
@@ -81,22 +56,12 @@ class DurationConfig {
     int? trungDuration,
     int? bacDuration,
     int? xienDuration,
-    // ✨ THÊM
-    int? thresholdCycleDuration,
-    int? thresholdTrungDuration,
-    int? thresholdBacDuration,
   }) {
     return DurationConfig(
       cycleDuration: cycleDuration ?? this.cycleDuration,
       trungDuration: trungDuration ?? this.trungDuration,
       bacDuration: bacDuration ?? this.bacDuration,
       xienDuration: xienDuration ?? this.xienDuration,
-      // ✨ THÊM
-      thresholdCycleDuration:
-          thresholdCycleDuration ?? this.thresholdCycleDuration,
-      thresholdTrungDuration:
-          thresholdTrungDuration ?? this.thresholdTrungDuration,
-      thresholdBacDuration: thresholdBacDuration ?? this.thresholdBacDuration,
     );
   }
 }

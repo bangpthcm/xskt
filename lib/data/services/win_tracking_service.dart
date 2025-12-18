@@ -62,8 +62,6 @@ class WinTrackingService {
     return histories;
   }
 
-  // ✨ NEW METHODS FOR REBETTING
-
   /// Lấy lịch sử Win của loại Tất cả (Cycle)
   Future<List<CycleWinHistory>> getAllWinHistoryCycle() async {
     return getAllCycleWinHistory();
