@@ -121,20 +121,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
-                // ✨ THÊM: Toggle buttons
-                _buildToggleButtons(viewModel),
+                _buildOptimalSummaryCard(viewModel),
                 const SizedBox(height: 16),
-                if (viewModel.isProbabilityMode) ...[
-                  _buildProbabilitySummaryCards(viewModel),
-                  const SizedBox(height: 16),
-                  _buildProbabilityDetailSection(viewModel),
-                ] else ...[
-                  _buildOptimalSummaryCard(viewModel),
-                  const SizedBox(height: 16),
-                  _buildCycleSection(viewModel),
-                  const SizedBox(height: 16),
-                  _buildGanPairSection(viewModel),
-                ],
+                _buildCycleSection(viewModel),
+                const SizedBox(height: 16),
+                _buildGanPairSection(viewModel),
               ],
             ),
           );
@@ -230,13 +221,23 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   Widget _buildCycleSection(AnalysisViewModel viewModel) {
     final cycleResult = viewModel.cycleResult;
 
+    // Logic chọn ngày kết thúc tương ứng với miền đang xem
+    DateTime? currentEndDate;
+    if (viewModel.selectedMien == 'Tất cả') {
+      currentEndDate = viewModel.endDateTatCa;
+    } else if (viewModel.selectedMien == 'Trung') {
+      currentEndDate = viewModel.endDateTrung;
+    } else if (viewModel.selectedMien == 'Bắc') {
+      currentEndDate = viewModel.endDateBac;
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- HEADER (Đã xóa chấm đỏ alert) ---
+            // ... (Phần Header giữ nguyên) ...
             Row(
               children: [
                 Expanded(
@@ -250,6 +251,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ],
                   ),
                 ),
+                // ... (Các nút bấm giữ nguyên) ...
                 if (viewModel.selectedMien != 'Nam')
                   IconButton(
                     icon: Icon(Icons.table_chart,
@@ -282,7 +284,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             ),
             const Divider(color: Colors.grey),
 
-            // --- FILTER ---
+            // ... (Filter giữ nguyên) ...
             _buildMienFilter(viewModel),
             const SizedBox(height: 16),
 
@@ -290,13 +292,39 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               const Text('Chưa có dữ liệu phân tích')
             else ...[
               // --- THÔNG TIN CHUNG ---
-              // 2. Hiển thị số ngày gan (Thuần túy)
               _buildInfoRow('Số ngày gan:', '${cycleResult.maxGanDays} ngày'),
 
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
               ),
+
+              // ✅ THÊM: Ngày kết thúc ngay dưới Lần cuối về
+              if (currentEndDate != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Kết thúc (dự kiến):',
+                        style: TextStyle(
+                            color: Colors.grey, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          date_utils.DateUtils.formatDate(currentEndDate),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Color(0xFFFF5252), // Màu đỏ nhạt để nổi bật
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               if (viewModel.selectedMien != 'Nam')
                 _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber),
 
@@ -495,6 +523,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ... (Header giữ nguyên) ...
             Row(
               children: [
                 Expanded(
@@ -508,6 +537,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ],
                   ),
                 ),
+                // ... (Buttons giữ nguyên) ...
                 IconButton(
                   icon: Icon(Icons.table_chart,
                       color: Theme.of(context).primaryColor.withOpacity(0.9)),
@@ -533,6 +563,34 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
               ),
+
+              // ✅ THÊM: Ngày kết thúc ngay dưới Lần cuối về
+              if (viewModel.endDateXien != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Kết thúc (dự kiến):',
+                        style: TextStyle(
+                            color: Colors.grey, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          date_utils.DateUtils.formatDate(
+                              viewModel.endDateXien!),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Color(0xFFFF5252), // Màu đỏ nhạt
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               const SizedBox(height: 8),
               const Text(
                 'Các cặp gan nhất:',
@@ -961,168 +1019,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildToggleButtons(AnalysisViewModel viewModel) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildToggleButton(
-              label: '🌾 FARMING',
-              isSelected: !viewModel.isProbabilityMode,
-              onPressed: () {
-                viewModel.toggleProbabilityMode(false);
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _buildToggleButton(
-              label: '📊 PROBABILITY',
-              isSelected: viewModel.isProbabilityMode,
-              onPressed: () {
-                viewModel.toggleProbabilityMode(true);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProbabilitySummaryCards(AnalysisViewModel viewModel) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Ngày có thể bắt đầu',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                Text(
-                  date_utils.DateUtils.formatDate(DateTime.now()),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
-            ),
-            const Divider(color: Colors.grey),
-            _buildSummaryRow('Tất cả', viewModel.optimalProbabilityTatCa),
-            _buildSummaryRow('Trung', viewModel.optimalProbabilityTrung),
-            _buildSummaryRow('Bắc', viewModel.optimalProbabilityBac),
-          ],
-        ),
-      ),
-    );
-  }
-
-// ✅ Widget Chi tiết
-  Widget _buildProbabilityDetailSection(AnalysisViewModel viewModel) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Chi tiết Probability',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const Divider(color: Colors.grey),
-            const SizedBox(height: 16),
-
-            // Filter miền
-            _buildMienFilter(viewModel),
-            const SizedBox(height: 16),
-
-            // Chi tiết kết quả
-            _buildProbabilityDetail(viewModel),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProbabilityDetail(AnalysisViewModel viewModel) {
-    final result = viewModel.getProbabilityResultForSelectedMien();
-
-    if (result == null) {
-      return const Center(child: Text('Không có dữ liệu'));
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildDetailSection('🎯 Số mục tiêu:', [
-          result.targetNumber,
-        ]),
-        const SizedBox(height: 12),
-        _buildDetailSection('📊 Xác suất hiện tại:', [
-          'P_total: ${result.currentProbability.toStringAsExponential(4)}',
-          'P1: ${result.probabilities['P1']!.toStringAsExponential(4)}',
-          'P2: ${result.probabilities['P2']!.toStringAsExponential(4)}',
-          'P3: ${result.probabilities['P3']!.toStringAsExponential(4)}',
-        ]),
-        const SizedBox(height: 12),
-        _buildDetailSection('📅 Dự báo:', [
-          'Gan hiện tại: ${result.currentGanDays} ngày',
-          'Cần nuôi thêm: ${result.additionalDaysNeeded} ngày',
-          'Ngày đạt ngưỡng: ${date_utils.DateUtils.formatDate(result.projectedEndDate)}',
-        ]),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            const Text('Ngày vào cược: '),
-            Chip(
-              label: Text(date_utils.DateUtils.formatDate(result.entryDate)),
-              backgroundColor: Colors.green.withOpacity(0.3),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailSection(String title, List<String> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ...items.map((item) => Text(
-              '• $item',
-              style: const TextStyle(fontSize: 14),
-            )),
-      ],
-    );
-  }
-
-  Widget _buildToggleButton({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onPressed,
-  }) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected
-            ? Theme.of(context).primaryColor.withOpacity(0.3)
-            : Colors.grey.withOpacity(0.2),
-        foregroundColor:
-            isSelected ? Theme.of(context).primaryColor : Colors.grey,
-        side: BorderSide(
-          color: isSelected
-              ? Theme.of(context).primaryColor
-              : Colors.grey.withOpacity(0.5),
-        ),
-      ),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
     );
   }
 }

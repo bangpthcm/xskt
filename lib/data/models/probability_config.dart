@@ -1,50 +1,132 @@
 // lib/data/models/probability_config.dart
 
+// ✅ THAY THẾ: Từ threshold duy nhất → ngưỡng riêng từng loại
 class ProbabilityConfig {
-  final double threshold; // Giá trị raw (ví dụ: 5e-12)
+  final double thresholdTatCa; // Tất cả (3 miền)
+  final double thresholdTrung; // Miền Trung
+  final double thresholdBac; // Miền Bắc
+  final double thresholdXien; // Xiên Bắc
 
   ProbabilityConfig({
-    this.threshold = 5e-12,
+    this.thresholdTatCa = 1.46e-6,
+    this.thresholdTrung = 1.22e-7,
+    this.thresholdBac = 5.63e-7,
+    this.thresholdXien = 1.97e-6, // Xiên có ngưỡng khác (cao hơn)
   });
 
-  // Validation: Range từ 1e-16 đến 3e-11
-  bool get isValid => threshold >= 3e-14 && threshold <= 2e-11;
-
-  // SỬA: Bỏ nhân 100, trả về giá trị raw dưới dạng string
-  String get thresholdString {
-    return threshold.toStringAsExponential(2); // Ví dụ: "2.00e-11"
+  // ✅ Validation: tất cả ngưỡng phải trong range
+  bool get isValid {
+    return _isValidThreshold(thresholdTatCa) &&
+        _isValidThreshold(thresholdTrung) &&
+        _isValidThreshold(thresholdBac) &&
+        _isValidThreshold(thresholdXien);
   }
 
-  // SỬA: Bỏ chia 100, parse trực tiếp giá trị raw
-  static double parseString(String str) {
-    try {
-      return double.parse(str);
-    } catch (e) {
-      return 5e-12; // Default
+  // ✅ Helper: Validate individual threshold
+  static bool _isValidThreshold(double threshold) {
+    return threshold >= 3e-8 && threshold <= 2e-6;
+  }
+
+  // ✅ Helper: Lấy ngưỡng theo loại cược
+  double getThreshold(String mien) {
+    switch (mien.toLowerCase()) {
+      case 'tatca':
+      case 'tất cả':
+      case 'all':
+        return thresholdTatCa;
+      case 'trung':
+      case 'miền trung':
+        return thresholdTrung;
+      case 'bac':
+      case 'bắc':
+      case 'miền bắc':
+        return thresholdBac;
+      case 'xien':
+      case 'xiên':
+      case 'xiên bắc':
+        return thresholdXien;
+      default:
+        return thresholdTatCa; // Default
     }
   }
 
-  Map<String, dynamic> toJson() => {'threshold': threshold};
+  // ✅ Helper: Convert sang Scientific notation string
+  String get thresholdTatCaString => thresholdTatCa.toStringAsExponential(2);
+  String get thresholdTrungString => thresholdTrung.toStringAsExponential(2);
+  String get thresholdBacString => thresholdBac.toStringAsExponential(2);
+  String get thresholdXienString => thresholdXien.toStringAsExponential(2);
 
+  // ✅ Helper: Parse string (scientific notation) thành double
+  static double parseString(String str) {
+    try {
+      final trimmed = str.trim();
+      if (trimmed.isEmpty) return 5.63e-7; // Default
+      return double.parse(trimmed);
+    } catch (e) {
+      print('⚠️ Error parsing threshold string "$str": $e');
+      return 5.63e-7; // Default fallback
+    }
+  }
+
+  // ✅ Convert to JSON (lưu vào SharedPreferences)
+  Map<String, dynamic> toJson() {
+    return {
+      'thresholdTatCa': thresholdTatCa,
+      'thresholdTrung': thresholdTrung,
+      'thresholdBac': thresholdBac,
+      'thresholdXien': thresholdXien,
+    };
+  }
+
+  // ✅ Parse từ JSON (load từ SharedPreferences)
   factory ProbabilityConfig.fromJson(Map<String, dynamic> json) {
     return ProbabilityConfig(
-      threshold: json['threshold']?.toDouble() ?? 5e-12,
+      thresholdTatCa: (json['thresholdTatCa'] as num?)?.toDouble() ?? 1.46e-6,
+      thresholdTrung: (json['thresholdTrung'] as num?)?.toDouble() ?? 1.22e-7,
+      thresholdBac: (json['thresholdBac'] as num?)?.toDouble() ?? 5.63e-7,
+      thresholdXien: (json['thresholdXien'] as num?)?.toDouble() ?? 1.97e-6,
     );
   }
 
-  // ... (giữ nguyên phần còn lại)
+  // ✅ Default config
   factory ProbabilityConfig.defaults() {
-    return ProbabilityConfig(threshold: 5e-12);
+    return ProbabilityConfig(
+      thresholdTatCa: 1.46e-6,
+      thresholdTrung: 1.22e-7,
+      thresholdBac: 5.63e-7,
+      thresholdXien: 1.97e-6,
+    );
   }
 
-  ProbabilityConfig copyWith({double? threshold}) {
+  // ✅ Copy with: Tạo bản sao với một số fields thay đổi
+  ProbabilityConfig copyWith({
+    double? thresholdTatCa,
+    double? thresholdTrung,
+    double? thresholdBac,
+    double? thresholdXien,
+  }) {
     return ProbabilityConfig(
-      threshold: threshold ?? this.threshold,
+      thresholdTatCa: thresholdTatCa ?? this.thresholdTatCa,
+      thresholdTrung: thresholdTrung ?? this.thresholdTrung,
+      thresholdBac: thresholdBac ?? this.thresholdBac,
+      thresholdXien: thresholdXien ?? this.thresholdXien,
     );
+  }
+
+  @override
+  String toString() {
+    return 'ProbabilityConfig('
+        'tatCa: $thresholdTatCaString, '
+        'trung: $thresholdTrungString, '
+        'bac: $thresholdBacString, '
+        'xien: $thresholdXienString)';
   }
 }
 
-// Model kết quả phân tích Probability
+// ============================================================================
+// Model kết quả phân tích Probability (GIỮ NGUYÊN)
+// ============================================================================
+
 class ProbabilityAnalysisResult {
   final String targetNumber;
   final double currentProbability; // P_total hiện tại

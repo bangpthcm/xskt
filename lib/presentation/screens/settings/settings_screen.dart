@@ -32,6 +32,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _bacDurationController;
   late TextEditingController _xienDurationController;
   late TextEditingController _probabilityThresholdController;
+  late TextEditingController _probabilityThresholdTatCaController;
+  late TextEditingController _probabilityThresholdTrungController;
+  late TextEditingController _probabilityThresholdBacController;
+  late TextEditingController _probabilityThresholdXienController;
 
   final List<Map<String, TextEditingController>> _apiAccountControllers = [];
 
@@ -60,6 +64,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _bacDurationController = TextEditingController();
     _xienDurationController = TextEditingController();
     _probabilityThresholdController = TextEditingController();
+    _probabilityThresholdTatCaController = TextEditingController();
+    _probabilityThresholdTrungController = TextEditingController();
+    _probabilityThresholdBacController = TextEditingController();
+    _probabilityThresholdXienController = TextEditingController();
 
     for (int i = 0; i < 3; i++) {
       _apiAccountControllers.add({
@@ -85,6 +93,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungDurationController.text = config.duration.trungDuration.toString();
     _bacDurationController.text = config.duration.bacDuration.toString();
     _xienDurationController.text = config.duration.xienDuration.toString();
+    _probabilityThresholdTatCaController.text =
+        config.probability.thresholdTatCaString;
+    _probabilityThresholdTrungController.text =
+        config.probability.thresholdTrungString;
+    _probabilityThresholdBacController.text =
+        config.probability.thresholdBacString;
+    _probabilityThresholdXienController.text =
+        config.probability.thresholdXienString;
 
     for (int i = 0;
         i < _apiAccountControllers.length && i < config.apiAccounts.length;
@@ -110,6 +126,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _bacDurationController.dispose();
     _xienDurationController.dispose();
     _probabilityThresholdController.dispose();
+    _probabilityThresholdTatCaController.dispose();
+    _probabilityThresholdTrungController.dispose();
+    _probabilityThresholdBacController.dispose();
+    _probabilityThresholdXienController.dispose();
 
     for (var controllers in _apiAccountControllers) {
       controllers['username']?.dispose();
@@ -156,10 +176,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Card(
       child: ExpansionTile(
         leading: Icon(Icons.insights, color: Theme.of(context).primaryColor),
-        title: const Text('Probability Mode (Độ hiếm)',
-            style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('Cấu hình ngưỡng xác suất',
-            style: TextStyle(fontSize: 12, color: Colors.grey)),
+        title: const Text(
+          'Ngưỡng P_total (Độ hiếm)',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text(
+          'Cấu hình P_total cho từng loại cược',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
         initiallyExpanded: false,
         children: [
           Padding(
@@ -167,52 +191,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Input field với format scientific notation
-                TextFormField(
-                  controller: _probabilityThresholdController,
-                  decoration: const InputDecoration(
-                    labelText: 'Ngưỡng xác suất',
-                    prefixIcon: Icon(Icons.functions),
-                    hintText: '2.00e-11',
-                    helperText: 'Format: Scientific notation (ví dụ: 2.00e-11)',
-                    helperMaxLines: 2,
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                    signed: true,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập giá trị';
-                    }
-
-                    try {
-                      final threshold = ProbabilityConfig.parseString(value);
-
-                      // Validate range: 1e-18 đến 3e-16
-                      if (threshold < 3e-14) {
-                        return 'Phải >= 3e-14';
-                      }
-                      if (threshold > 2e-11) {
-                        return 'Phải <= 2e-11';
-                      }
-                    } catch (e) {
-                      return 'Format không hợp lệ';
-                    }
-
-                    return null;
-                  },
+                // ✅ THÊM: 4 input fields
+                _buildProbabilityThresholdField(
+                  controller: _probabilityThresholdTatCaController,
+                  label: 'Tất cả (3 miền)',
+                  hint: '1.46e-6',
+                  helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
                 ),
-
                 const SizedBox(height: 16),
 
-                // Helper info
+                _buildProbabilityThresholdField(
+                  controller: _probabilityThresholdTrungController,
+                  label: 'Miền Trung',
+                  hint: '1.22e-7',
+                  helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
+                ),
+                const SizedBox(height: 16),
+
+                _buildProbabilityThresholdField(
+                  controller: _probabilityThresholdBacController,
+                  label: 'Miền Bắc',
+                  hint: '5.63e-7',
+                  helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
+                ),
+                const SizedBox(height: 16),
+
+                _buildProbabilityThresholdField(
+                  controller: _probabilityThresholdXienController,
+                  label: 'Xiên Bắc',
+                  hint: ' 1.97e-6',
+                  helperText: 'P1_pair nhỏ hơn ngưỡng này thì có thể vào cược',
+                ),
+
+                const SizedBox(height: 24),
+
+                // ✅ THÊM: Giải thích
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Theme.of(context).canvasColor,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    border: Border.all(
+                      color: Colors.blue.withOpacity(0.3),
+                    ),
                   ),
                   child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,14 +248,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        '• Ngưỡng xác suất: Giá trị P_total mà tại đó hệ thống dừng mô phỏng\n'
-                        '• Giá trị càng nhỏ → Dự đoán càng xa vào tương lai\n'
-                        '• Mặc định: 2.00e-11 % (0.00000000000002%)\n'
-                        '• Range cho phép: 2e-11% đến 3e-14%',
+                        '• P_total: Xác suất xuất hiện số/cặp mục tiêu\n'
+                        '• Chu kỳ: P_total = P2 × P3\n'
+                        '• Xiên: P_total = P1 (cặp gan)\n'
+                        '• Giá trị càng nhỏ → Ngày vào cược càng gần\n'
+                        '• Giá trị càng lớn → Có thể chờ lâu hơn\n\n'
+                        '• Mặc định:\n'
+                        '  - Tất cả/Trung/Bắc: 5.63e-7 (0.000000000005%)\n'
+                        '  - Xiên: 1.00e-10 (cao hơn vì ít cặp)\n\n'
+                        '• Range cho phép: 3e-14 đến 2e-11',
                         style: TextStyle(
                           color: Colors.grey,
                           fontSize: 12,
-                          height: 1.5,
+                          height: 1.6,
                         ),
                       ),
                     ],
@@ -245,6 +271,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // ✅ THÊM: Helper - Build field input
+  Widget _buildProbabilityThresholdField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required String helperText,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: const Icon(Icons.functions),
+        helperText: helperText,
+        helperMaxLines: 3,
+      ),
+      keyboardType: const TextInputType.numberWithOptions(
+        decimal: true,
+        signed: true,
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Vui lòng nhập giá trị';
+        }
+
+        try {
+          final threshold = ProbabilityConfig.parseString(value);
+
+          // Validate range: 3e-14 đến 2e-11
+          if (threshold < 3e-14) {
+            return 'Phải >= 3e-14';
+          }
+          if (threshold > 2e-11) {
+            return 'Phải <= 2e-11';
+          }
+        } catch (e) {
+          return 'Format không hợp lệ (ví dụ: 5.63e-7)';
+        }
+
+        return null;
+      },
     );
   }
 
@@ -734,23 +804,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveConfigAndTest() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Validate Budget
-    final totalCapital = _parseFromThousands(_totalCapitalController.text);
-    final trungBudget = _parseFromThousands(_trungBudgetController.text);
-    final bacBudget = _parseFromThousands(_bacBudgetController.text);
-    final xienBudget = _parseFromThousands(_xienBudgetController.text);
+    // ✅ CẬP NHẬT: Validate & parse P_total thresholds
+    double thresholdTatCa;
+    double thresholdTrung;
+    double thresholdBac;
+    double thresholdXien;
 
-    final thresholdStr = _probabilityThresholdController.text.trim();
-    final threshold = ProbabilityConfig.parseString(thresholdStr);
-    final probabilityConfig = ProbabilityConfig(threshold: threshold);
+    try {
+      final tatCaStr = _probabilityThresholdTatCaController.text.trim();
+      final trungStr = _probabilityThresholdTrungController.text.trim();
+      final bacStr = _probabilityThresholdBacController.text.trim();
+      final xienStr = _probabilityThresholdXienController.text.trim();
 
-    if (!probabilityConfig.isValid) {
+      thresholdTatCa = ProbabilityConfig.parseString(tatCaStr);
+      thresholdTrung = ProbabilityConfig.parseString(trungStr);
+      thresholdBac = ProbabilityConfig.parseString(bacStr);
+      thresholdXien = ProbabilityConfig.parseString(xienStr);
+
+      // Validate từng cái
+      if (!_isValidProbabilityThreshold(thresholdTatCa)) {
+        throw Exception('Tất cả: Range 3e-14 đến 2e-11');
+      }
+      if (!_isValidProbabilityThreshold(thresholdTrung)) {
+        throw Exception('Trung: Range 3e-14 đến 2e-11');
+      }
+      if (!_isValidProbabilityThreshold(thresholdBac)) {
+        throw Exception('Bắc: Range 3e-14 đến 2e-11');
+      }
+      if (!_isValidProbabilityThreshold(thresholdXien)) {
+        throw Exception('Xiên: Range 3e-14 đến 2e-11');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi P_total: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // ✅ THÊM: Duration validation (nếu chưa có)
+    int cycleDuration = int.tryParse(_cycleDurationController.text) ?? 10;
+    int trungDuration = int.tryParse(_trungDurationController.text) ?? 26;
+    int bacDuration = int.tryParse(_bacDurationController.text) ?? 43;
+    int xienDuration = int.tryParse(_xienDurationController.text) ?? 234;
+
+    if (cycleDuration <= 4) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Ngưỡng xác suất không hợp lệ'),
+        content: Text('Chu kỳ phải > 4 ngày'),
         backgroundColor: Colors.red,
       ));
       return;
     }
+    if (trungDuration <= 13) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Trung phải > 13 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    if (bacDuration <= 19) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Bắc phải > 19 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    if (xienDuration <= 155) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Xiên phải > 155 ngày'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    // Build Duration Config
+    final durationConfig = DurationConfig(
+      cycleDuration: cycleDuration,
+      trungDuration: trungDuration,
+      bacDuration: bacDuration,
+      xienDuration: xienDuration,
+    );
+
+    // Build Probability Config (✅ MỚI)
+    final probabilityConfig = ProbabilityConfig(
+      thresholdTatCa: thresholdTatCa,
+      thresholdTrung: thresholdTrung,
+      thresholdBac: thresholdBac,
+      thresholdXien: thresholdXien,
+    );
+
+    // Build full config
+    final totalCapital = _parseFromThousands(_totalCapitalController.text);
+    final trungBudget = _parseFromThousands(_trungBudgetController.text);
+    final bacBudget = _parseFromThousands(_bacBudgetController.text);
+    final xienBudget = _parseFromThousands(_xienBudgetController.text);
 
     if (trungBudget + bacBudget + xienBudget > totalCapital) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -760,64 +909,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    // ✅ VALIDATE Duration
-    int cycleDuration = int.tryParse(_cycleDurationController.text) ?? 10;
-    int trungDuration = int.tryParse(_trungDurationController.text) ?? 26;
-    int bacDuration = int.tryParse(_bacDurationController.text) ?? 43;
-    int xienDuration = int.tryParse(_xienDurationController.text) ?? 234;
-
-    // Kiểm tra các validation
-    if (cycleDuration <= 4) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Chu kỳ phải > 4 ngày'),
-        backgroundColor: Colors.red,
-      ));
-      return;
-    }
-
-    if (trungDuration <= 13) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Miền Trung phải > 13 ngày'),
-        backgroundColor: Colors.red,
-      ));
-      return;
-    }
-
-    if (bacDuration <= 19) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Miền Bắc phải > 19 ngày'),
-        backgroundColor: Colors.red,
-      ));
-      return;
-    }
-
-    if (xienDuration <= 155) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Xiên phải > 155 ngày'),
-        backgroundColor: Colors.red,
-      ));
-      return;
-    }
-
-    // Build API Accounts
-    final apiAccounts = <ApiAccount>[];
-    for (int i = 0; i < _apiAccountControllers.length; i++) {
-      final u = _apiAccountControllers[i]['username']!.text.trim();
-      final p = _apiAccountControllers[i]['password']!.text.trim();
-      if (u.isNotEmpty && p.isNotEmpty) {
-        apiAccounts.add(ApiAccount(username: u, password: p));
-      }
-    }
-
-    // ✅ BUILD DURATION CONFIG
-    final durationConfig = DurationConfig(
-      cycleDuration: cycleDuration,
-      trungDuration: trungDuration,
-      bacDuration: bacDuration,
-      xienDuration: xienDuration,
-    );
-
-    // Build full config
     final config = AppConfig(
       googleSheets: GoogleSheetsConfig.withHardcodedCredentials(
         sheetName: _sheetNameController.text.trim(),
@@ -836,9 +927,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         bacBudget: bacBudget,
         xienBudget: xienBudget,
       ),
-      duration: durationConfig, // ✅ THÊM
-      probability: probabilityConfig, // ✅ THÊM
-      apiAccounts: apiAccounts,
+      duration: durationConfig,
+      probability: probabilityConfig, // ✅ MỚI
+      apiAccounts: <ApiAccount>[
+        for (int i = 0; i < _apiAccountControllers.length; i++)
+          if (_apiAccountControllers[i]['username']!.text.isNotEmpty &&
+              _apiAccountControllers[i]['password']!.text.isNotEmpty)
+            ApiAccount(
+              username: _apiAccountControllers[i]['username']!.text.trim(),
+              password: _apiAccountControllers[i]['password']!.text.trim(),
+            ),
+      ],
       betting: BettingConfig(
         domain: _bettingDomainController.text.trim().isEmpty
             ? 'sin88.pro'
@@ -850,16 +949,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final saved = await viewModel.saveConfig(config);
     if (!saved) return;
 
+    // Test connections
     await viewModel.testGoogleSheetsConnection();
     await viewModel.testTelegramConnection();
-    await viewModel.testAllApiAccounts(apiAccounts, config.betting.domain);
+    await viewModel.testAllApiAccounts(
+        config.apiAccounts, config.betting.domain);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Đã lưu và kiểm tra'),
+        content: Text('✅ Đã lưu và kiểm tra'),
         backgroundColor: ThemeProvider.profit,
       ));
     }
+  }
+
+  // ✅ THÊM: Helper validate
+  bool _isValidProbabilityThreshold(double value) {
+    return value >= 3e-14 && value <= 2e-11;
   }
 
   String _formatToThousands(double value) => (value / 1000).toStringAsFixed(0);
