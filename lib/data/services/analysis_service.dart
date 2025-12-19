@@ -123,7 +123,7 @@ class AnalysisService {
         if (results.isEmpty) return null;
       }
 
-      final pStats = calculatePStats(results);
+      final pStats = calculatePStats(results, fixedMien: mien);
       final p = pStats.p;
       if (p == 0) return null;
 
@@ -502,20 +502,52 @@ class AnalysisService {
 
   // Public để ViewModel gọi được
   static ({double p, int totalSlots}) calculatePStats(
-      List<LotteryResult> results) {
-    if (results.isEmpty) return (p: 0.0, totalSlots: 0);
-    final uniqueDates = <String>{};
+      List<LotteryResult> results,
+      {String? fixedMien}) {
+    // 1. Tính tổng slots thực tế từ dữ liệu (để dùng cho việc tính kExpected sau này)
     int totalSlots = 0;
-    for (final r in results) {
-      uniqueDates.add(r.ngay);
-      totalSlots += r.numbers.length;
+    if (results.isNotEmpty) {
+      for (final r in results) {
+        totalSlots += r.numbers.length;
+      }
     }
-    final totalDays = uniqueDates.length;
-    if (totalDays == 0) return (p: 0.0, totalSlots: totalSlots);
-    return (
-      p: (1 - pow(0.99, totalSlots / totalDays)).toDouble(),
-      totalSlots: totalSlots
-    );
+
+    // 2. Tính P (Xác suất xuất hiện trong 1 ngày)
+    double pValue = 0.0;
+
+    if (fixedMien != null) {
+      // 👉 HARDCODE THEO YÊU CẦU
+      switch (fixedMien.toLowerCase()) {
+        case 'tatca':
+        case 'tất cả':
+          // p tất cả là 1 - pow(0.99, 891/7)
+          pValue = 1 - pow(0.99, 891.0 / 7.0).toDouble();
+          break;
+        case 'trung':
+          // p trung là 1 - pow(0.99, 306/7)
+          pValue = 1 - pow(0.99, 306.0 / 7.0).toDouble();
+          break;
+        case 'bắc':
+        case 'bac':
+          // p bắc là 1 - pow(0.99, 27)
+          pValue = 1 - pow(0.99, 27).toDouble();
+          break;
+        default:
+          // Fallback nếu không khớp key (tính toán động)
+          final uniqueDates = results.map((r) => r.ngay).toSet().length;
+          if (uniqueDates > 0) {
+            pValue = (1 - pow(0.99, totalSlots / uniqueDates)).toDouble();
+          }
+      }
+    } else {
+      // Tính toán động như cũ nếu không có fixedMien
+      final uniqueDates = results.map((r) => r.ngay).toSet().length;
+      if (uniqueDates > 0) {
+        pValue = (1 - pow(0.99, totalSlots / uniqueDates)).toDouble();
+      }
+    }
+
+    return (p: pValue, totalSlots: totalSlots);
   }
 
   static double _calculateP1(double p, double gan) =>

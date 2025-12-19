@@ -448,14 +448,33 @@ class AnalysisViewModel extends ChangeNotifier {
     Map<String, List<List<dynamic>>> allSheetsData,
   ) async {
     try {
-      print('🔍 Calculating optimal for ${type.displayName}...');
-
-      // Step 1: Tìm số mục tiêu với P_total nhỏ nhất
       final mien = _getMienFromType(type);
-      final pThreshold = config.probability.getThreshold(mien);
+      print('🔍 Calculating optimal for ${type.displayName} ($mien)...');
 
+      // 1. Lọc dữ liệu chuẩn theo miền để tính P chính xác
+      final resultsForP = type == BettingTableTypeEnum.tatca
+          ? _allResults
+          : _allResults.where((r) => r.mien == mien).toList();
+
+      if (resultsForP.isEmpty) {
+        _updateOptimalState(type, "Không đủ dữ liệu");
+        return;
+      }
+
+      // 2. Tính P và Print Log kiểm tra
+      final pStats =
+          AnalysisService.calculatePStats(resultsForP, fixedMien: mien);
+
+      print('--------------------------------------------------');
+      print('👉 [DEBUG CHECK P] Loại: ${type.displayName}');
+      print('   Cách tính: ${"CỐ ĐỊNH (Hardcoded)"}');
+      print('   Giá trị P đang dùng: ${pStats.p}');
+      print('--------------------------------------------------');
+
+      // Step 1: Tìm số mục tiêu
+      final pThreshold = config.probability.getThreshold(mien);
       final targetNumberData = await AnalysisService.findNumberWithMinPTotal(
-        _allResults,
+        _allResults, // Vẫn dùng _allResults để tìm gan (logic tìm số min P_total đã có lọc bên trong service)
         mien,
         pThreshold,
       );
@@ -469,8 +488,7 @@ class AnalysisViewModel extends ChangeNotifier {
       print(
           '      P_total: ${targetNumberData.pTotal.toStringAsExponential(6)}');
 
-      // Step 2: Tính end date
-      final pStats = AnalysisService.calculatePStats(_allResults);
+      // Step 2: Tính end date (Dùng pStats vừa tính chuẩn ở trên)
       final endDateResult = await AnalysisService.findEndDateForCycleThreshold(
         targetNumberData,
         pStats.p,
@@ -483,7 +501,6 @@ class AnalysisViewModel extends ChangeNotifier {
         return;
       }
 
-      // ✅ CODE ĐÃ SẠCH: Không cần kiểm tra quá khứ nữa vì Service luôn trả về Tương lai
       final endDate = endDateResult.endDate;
       print('   ✅ Final End date: ${date_utils.DateUtils.formatDate(endDate)}');
 
@@ -504,22 +521,15 @@ class AnalysisViewModel extends ChangeNotifier {
         return;
       }
 
-      // Step 4: Tìm start date sao cho budget đủ
+      // Step 4: Tìm start date
       final lastInfo = _getLastResultInfo();
       DateTime baseStart;
-      int startMienIdx;
 
       if (lastInfo.isLastBac) {
         baseStart = lastInfo.date.add(const Duration(days: 1));
-        startMienIdx = 0;
       } else {
         baseStart = lastInfo.date;
-        startMienIdx = lastInfo.mienIndex + 1;
       }
-
-      final filteredResults = type == BettingTableTypeEnum.tatca
-          ? _allResults
-          : _allResults.where((r) => r.mien == mien).toList();
 
       final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
         baseStartDate: baseStart,
@@ -528,7 +538,7 @@ class AnalysisViewModel extends ChangeNotifier {
         mien: mien,
         targetNumber: targetNumberData.number,
         cycleResult: _cycleResult!,
-        allResults: filteredResults,
+        allResults: resultsForP, // Dùng list đã lọc
         bettingService: _bettingService,
         maxMienCount: _getDurationForType(type, config),
       );
@@ -538,20 +548,19 @@ class AnalysisViewModel extends ChangeNotifier {
         return;
       }
 
-      // ✅ Lưu result
       final startDateStr = date_utils.DateUtils.formatDate(optimalStart);
 
       if (type == BettingTableTypeEnum.tatca) {
         _dateTatCa = optimalStart;
-        _endDateTatCa = endDate; // ✅ THÊM DÒNG NÀY
+        _endDateTatCa = endDate;
         _optimalTatCa = startDateStr;
       } else if (type == BettingTableTypeEnum.trung) {
         _dateTrung = optimalStart;
-        _endDateTrung = endDate; // ✅ THÊM DÒNG NÀY
+        _endDateTrung = endDate;
         _optimalTrung = startDateStr;
       } else {
         _dateBac = optimalStart;
-        _endDateBac = endDate; // ✅ THÊM DÒNG NÀY
+        _endDateBac = endDate;
         _optimalBac = startDateStr;
       }
 
@@ -754,11 +763,11 @@ class AnalysisViewModel extends ChangeNotifier {
     print('🔄 [Farming] Preparing params for $mien...');
 
     final type = _mapMienToEnum(mien);
-    final duration = _getDurationForType(type, config);
 
+    // 1. Xác định Start Date và End Date từ kết quả phân tích
     DateTime startDate;
-    int startMienIndex;
     DateTime endDate;
+    int startMienIndex;
 
     if (type == BettingTableTypeEnum.tatca) {
       if (_dateTatCa == null) {
@@ -767,37 +776,67 @@ class AnalysisViewModel extends ChangeNotifier {
       }
       startDate = _dateTatCa!;
 
+      // ✅ SỬA: Ưu tiên dùng EndDate đã tính toán (25/12), nếu không có mới dùng config
+      if (_endDateTatCa != null && _endDateTatCa!.isAfter(startDate)) {
+        endDate = _endDateTatCa!;
+      } else {
+        final durationConfig = config.duration.cycleDuration;
+        endDate = startDate.add(Duration(days: durationConfig));
+      }
+
       startMienIndex = _startMienTatCa != null
           ? ['Nam', 'Trung', 'Bắc'].indexOf(_startMienTatCa!)
           : 0;
-      endDate = startDate.add(Duration(days: duration));
     } else if (type == BettingTableTypeEnum.trung) {
       if (_dateTrung == null) {
         throw Exception(
             'Chưa tính ngày tối ưu cho Miền Trung. Hãy quay lại tab Phân tích.');
       }
       startDate = _dateTrung!;
+
+      // ✅ SỬA: Ưu tiên dùng EndDate Trung
+      if (_endDateTrung != null && _endDateTrung!.isAfter(startDate)) {
+        endDate = _endDateTrung!;
+      } else {
+        final durationConfig = config.duration.trungDuration;
+        endDate = startDate.add(Duration(days: durationConfig));
+      }
+
       startMienIndex = 0;
-      endDate = startDate.add(Duration(days: duration));
     } else {
+      // Bắc
       if (_dateBac == null) {
         throw Exception(
             'Chưa tính ngày tối ưu cho Miền Bắc. Hãy quay lại tab Phân tích.');
       }
       startDate = _dateBac!;
+
+      // ✅ SỬA: Ưu tiên dùng EndDate Bắc
+      if (_endDateBac != null && _endDateBac!.isAfter(startDate)) {
+        endDate = _endDateBac!;
+      } else {
+        final durationConfig = config.duration.bacDuration;
+        endDate = startDate.add(Duration(days: durationConfig));
+      }
+
       startMienIndex = 0;
-      endDate = startDate.add(Duration(days: duration));
     }
 
     if (_cycleResult == null) {
       throw Exception('Chưa có kết quả phân tích Chu kỳ.');
     }
 
-    print('✅ [Farming] Prepared:');
+    // 2. Tính lại duration thực tế (Số ngày giữa Start và End)
+    // Để đảm bảo generator chạy đúng đến ngày EndDate
+    final actualDuration = endDate.difference(startDate).inDays;
+    final durationLimit = actualDuration > 0 ? actualDuration : 1;
+
+    print('✅ [Farming] Prepared (Corrected):');
     print('   Type: ${type.displayName}');
     print('   Start: ${date_utils.DateUtils.formatDate(startDate)}');
-    print('   End: ${date_utils.DateUtils.formatDate(endDate)}');
-    print('   Duration: $duration days');
+    print(
+        '   End: ${date_utils.DateUtils.formatDate(endDate)}'); // Phải là 25/12
+    print('   Duration: $durationLimit days');
 
     return BettingTableParams(
       type: type,
@@ -805,7 +844,7 @@ class AnalysisViewModel extends ChangeNotifier {
       startDate: startDate,
       endDate: endDate,
       startMienIndex: startMienIndex,
-      durationLimit: duration,
+      durationLimit: durationLimit, // Truyền duration đã tính lại
       soNgayGan: _cycleResult!.maxGanDays,
       cycleResult: _cycleResult!,
       allResults: _allResults,
