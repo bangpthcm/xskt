@@ -441,7 +441,7 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ THÊM: Helper - Tính optimal cho 1 type (Chu kỳ)
+  // ✅ CẬP NHẬT: Hàm tính toán optimal cho từng loại (Sửa logic bất nhất dữ liệu)
   Future<void> _calculateOptimalForType(
     BettingTableTypeEnum type,
     AppConfig config,
@@ -451,7 +451,7 @@ class AnalysisViewModel extends ChangeNotifier {
       final mien = _getMienFromType(type);
       print('🔍 Calculating optimal for ${type.displayName} ($mien)...');
 
-      // 1. Lọc dữ liệu chuẩn theo miền để tính P chính xác
+      // 1. Lọc dữ liệu chuẩn theo miền
       final resultsForP = type == BettingTableTypeEnum.tatca
           ? _allResults
           : _allResults.where((r) => r.mien == mien).toList();
@@ -461,20 +461,14 @@ class AnalysisViewModel extends ChangeNotifier {
         return;
       }
 
-      // 2. Tính P và Print Log kiểm tra
+      // 2. Tính P Stats
       final pStats =
           AnalysisService.calculatePStats(resultsForP, fixedMien: mien);
 
-      print('--------------------------------------------------');
-      print('👉 [DEBUG CHECK P] Loại: ${type.displayName}');
-      print('   Cách tính: ${"CỐ ĐỊNH (Hardcoded)"}');
-      print('   Giá trị P đang dùng: ${pStats.p}');
-      print('--------------------------------------------------');
-
-      // Step 1: Tìm số mục tiêu
+      // Step 1: Tìm số mục tiêu (Dựa trên P_total)
       final pThreshold = config.probability.getThreshold(mien);
       final targetNumberData = await AnalysisService.findNumberWithMinPTotal(
-        _allResults, // Vẫn dùng _allResults để tìm gan (logic tìm số min P_total đã có lọc bên trong service)
+        _allResults,
         mien,
         pThreshold,
       );
@@ -484,11 +478,26 @@ class AnalysisViewModel extends ChangeNotifier {
         return;
       }
 
-      print('   ✅ Found target: ${targetNumberData.number}');
       print(
-          '      P_total: ${targetNumberData.pTotal.toStringAsExponential(6)}');
+          '   ✅ Found target: ${targetNumberData.number} (Gan: ${targetNumberData.currentGan})');
 
-      // Step 2: Tính end date (Dùng pStats vừa tính chuẩn ở trên)
+      // 🔥 BƯỚC KHẮC PHỤC: Tạo CycleResult giả lập khớp với số mục tiêu
+      // Không gọi analyzeCycle() nữa vì nó sẽ trả về số Max Gan (sai mục đích)
+      final specificCycleResult = CycleAnalysisResult(
+        targetNumber: targetNumberData.number,
+        ganNumbers: {targetNumberData.number},
+        maxGanDays: targetNumberData.currentGan
+            .toInt(), // Quan trọng: Phải dùng gan của chính nó
+        lastSeenDate: targetNumberData.lastSeenDate,
+        mienGroups: {}, // Không quan trọng khi tính optimal
+        // Các chỉ số phụ (để 0 hoặc tính nếu cần thiết, tạm thời để 0 để code chạy)
+        historicalGan: 0,
+        occurrenceCount: 0,
+        expectedCount: 0.0,
+        analysisDays: 0,
+      );
+
+      // Step 2: Tính end date
       final endDateResult = await AnalysisService.findEndDateForCycleThreshold(
         targetNumberData,
         pStats.p,
@@ -502,7 +511,6 @@ class AnalysisViewModel extends ChangeNotifier {
       }
 
       final endDate = endDateResult.endDate;
-      print('   ✅ Final End date: ${date_utils.DateUtils.formatDate(endDate)}');
 
       // Step 3: Tính budget khả dụng
       final budgetService =
@@ -525,6 +533,7 @@ class AnalysisViewModel extends ChangeNotifier {
       final lastInfo = _getLastResultInfo();
       DateTime baseStart;
 
+      // Logic xác định ngày bắt đầu quét
       if (lastInfo.isLastBac) {
         baseStart = lastInfo.date.add(const Duration(days: 1));
       } else {
@@ -537,8 +546,9 @@ class AnalysisViewModel extends ChangeNotifier {
         availableBudget: budgetResult.budgetMax,
         mien: mien,
         targetNumber: targetNumberData.number,
-        cycleResult: _cycleResult!,
-        allResults: resultsForP, // Dùng list đã lọc
+        cycleResult:
+            specificCycleResult, // 👈 SỬA: Dùng object khớp hoàn toàn với targetNumber
+        allResults: resultsForP,
         bettingService: _bettingService,
         maxMienCount: _getDurationForType(type, config),
       );
@@ -554,6 +564,8 @@ class AnalysisViewModel extends ChangeNotifier {
         _dateTatCa = optimalStart;
         _endDateTatCa = endDate;
         _optimalTatCa = startDateStr;
+        // Lưu lại Mien bắt đầu cho Tất cả (logic cũ của anh có vẻ chưa set cái này trong flow tự động)
+        // Tạm thời mặc định là logic xoay vòng
       } else if (type == BettingTableTypeEnum.trung) {
         _dateTrung = optimalStart;
         _endDateTrung = endDate;
@@ -668,13 +680,40 @@ class AnalysisViewModel extends ChangeNotifier {
 
   Future<void> _reloadCycleOnly() async {
     try {
+      final config = await _storageService.loadConfig();
+      if (config == null) return;
+
+      List<LotteryResult> filteredResults;
+      String mienForCalc;
+
+      // 1. Chuẩn bị dữ liệu theo filter
       if (_selectedMien == 'Tất cả') {
-        _cycleResult = await _analysisService.analyzeCycle(_allResults);
+        filteredResults = _allResults;
+        mienForCalc = 'tatca';
       } else {
-        final filtered =
+        filteredResults =
             _allResults.where((r) => r.mien == _selectedMien).toList();
-        _cycleResult = await _analysisService.analyzeCycle(filtered);
+        mienForCalc = _selectedMien;
       }
+
+      // 2. Tìm số Tốt Nhất (Min P_total) - Giống hệt logic tính Optimal
+      final pThreshold = config.probability.getThreshold(mienForCalc);
+      final bestNode = await AnalysisService.findNumberWithMinPTotal(
+        _allResults,
+        mienForCalc,
+        pThreshold,
+      );
+
+      if (bestNode != null) {
+        print('🎯 [UI] Hiển thị số tối ưu: ${bestNode.number}');
+        // 3. Nếu tìm thấy, lấy thống kê chi tiết cho số này để hiển thị lên UI
+        _cycleResult = await _analysisService.analyzeSpecificNumber(
+            filteredResults, bestNode.number);
+      } else {
+        // 4. Nếu không tìm thấy (hiếm), fallback về logic cũ (hiển thị số Gan nhất)
+        _cycleResult = await _analysisService.analyzeCycle(filteredResults);
+      }
+
       notifyListeners();
     } catch (e) {
       print('Reload cycle error: $e');
@@ -834,8 +873,7 @@ class AnalysisViewModel extends ChangeNotifier {
     print('✅ [Farming] Prepared (Corrected):');
     print('   Type: ${type.displayName}');
     print('   Start: ${date_utils.DateUtils.formatDate(startDate)}');
-    print(
-        '   End: ${date_utils.DateUtils.formatDate(endDate)}'); // Phải là 25/12
+    print('   End: ${date_utils.DateUtils.formatDate(endDate)}');
     print('   Duration: $durationLimit days');
 
     return BettingTableParams(

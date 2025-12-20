@@ -256,7 +256,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         '• Mặc định:\n'
                         '  - Tất cả/Trung/Bắc: 5.63e-7 (0.000000000005%)\n'
                         '  - Xiên: 1.00e-10 (cao hơn vì ít cặp)\n\n'
-                        '• Range cho phép: 3e-14 đến 2e-11',
+                        '• Range cho phép: 8e-8 đến 6e-6',
                         style: TextStyle(
                           color: Colors.grey,
                           fontSize: 12,
@@ -302,12 +302,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         try {
           final threshold = ProbabilityConfig.parseString(value);
 
-          // Validate range: 3e-14 đến 2e-11
-          if (threshold < 3e-14) {
-            return 'Phải >= 3e-14';
+          // Validate range: 8e-8 đến 6e-6
+          if (threshold < 8e-8) {
+            return 'Phải >= 8e-8';
           }
-          if (threshold > 2e-11) {
-            return 'Phải <= 2e-11';
+          if (threshold > 8e-6) {
+            return 'Phải <= 6e-6';
           }
         } catch (e) {
           return 'Format không hợp lệ (ví dụ: 5.63e-7)';
@@ -823,16 +823,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // Validate từng cái
       if (!_isValidProbabilityThreshold(thresholdTatCa)) {
-        throw Exception('Tất cả: Range 3e-14 đến 2e-11');
+        throw Exception('Tất cả: Range 6e-6 đến 8e-8');
       }
       if (!_isValidProbabilityThreshold(thresholdTrung)) {
-        throw Exception('Trung: Range 3e-14 đến 2e-11');
+        throw Exception('Trung: Range 6e-6 đến 8e-8');
       }
       if (!_isValidProbabilityThreshold(thresholdBac)) {
-        throw Exception('Bắc: Range 3e-14 đến 2e-11');
+        throw Exception('Bắc: Range 6e-6 đến 8e-8');
       }
       if (!_isValidProbabilityThreshold(thresholdXien)) {
-        throw Exception('Xiên: Range 3e-14 đến 2e-11');
+        throw Exception('Xiên: Range 6e-6 đến 8e-8');
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -965,7 +965,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ✅ THÊM: Helper validate
   bool _isValidProbabilityThreshold(double value) {
-    return value >= 3e-14 && value <= 2e-11;
+    return value >= 8e-8 && value <= 6e-6;
   }
 
   String _formatToThousands(double value) => (value / 1000).toStringAsFixed(0);

@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../app.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
-import '../../../data/models/number_detail.dart';
+// Đã xóa import number_detail.dart vì không còn dùng tới
 import '../../widgets/shimmer_loading.dart';
 import '../betting/betting_viewmodel.dart';
 import '../settings/settings_viewmodel.dart';
@@ -21,9 +21,7 @@ class AnalysisScreen extends StatefulWidget {
 
 class _AnalysisScreenState extends State<AnalysisScreen>
     with SingleTickerProviderStateMixin {
-  String? _selectedNumber;
-  NumberDetail? _currentNumberDetail;
-  bool _isLoadingDetail = false;
+  // Đã xóa các biến state _selectedNumber, _currentNumberDetail, _isLoadingDetail thừa thãi
 
   @override
   void initState() {
@@ -39,37 +37,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     });
   }
 
-  Future<void> _onNumberSelected(String number) async {
-    final viewModel = context.read<AnalysisViewModel>();
-
-    // Nếu bấm lại số đang chọn -> đóng
-    if (_selectedNumber == number) {
-      setState(() {
-        _selectedNumber = null;
-        _currentNumberDetail = null;
-      });
-      return;
-    }
-
-    // Reset và bắt đầu load số mới
-    setState(() {
-      _selectedNumber = number;
-      _isLoadingDetail = true;
-      _currentNumberDetail = null;
-    });
-
-    viewModel.setTargetNumber(number);
-
-    // Load chi tiết số
-    final detail = await viewModel.analyzeNumberDetail(number);
-
-    if (mounted) {
-      setState(() {
-        _currentNumberDetail = detail;
-        _isLoadingDetail = false;
-      });
-    }
-  }
+  // Đã xóa hàm _onNumberSelected
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +102,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
+  // ... (Giữ nguyên _buildOptimalSummaryCard và _buildSummaryRow)
   Widget _buildOptimalSummaryCard(AnalysisViewModel viewModel) {
     return Card(
       child: Padding(
@@ -141,11 +110,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ HEADER: Tiêu đề + Ngày hôm nay
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween, // Đẩy 2 đầu
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Bên trái: Icon + Label
                 Row(
                   children: [
                     Text(
@@ -154,7 +121,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ),
                   ],
                 ),
-                // Bên phải: Ngày hôm nay
                 Text(
                   date_utils.DateUtils.formatDate(DateTime.now()),
                   style: Theme.of(context).textTheme.titleLarge,
@@ -162,8 +128,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               ],
             ),
             const Divider(color: Colors.grey),
-
-            // Nội dung
             _buildSummaryRow('Tất cả', viewModel.optimalTatCa,
                 date: viewModel.dateTatCa),
             _buildSummaryRow('Trung', viewModel.optimalTrung,
@@ -179,27 +143,20 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   }
 
   Widget _buildSummaryRow(String label, String value, {DateTime? date}) {
-    // Logic check highlight: Ngày >= Hôm nay
     bool isHighlight = false;
     if (date != null) {
       final now = DateTime.now();
-      // Reset về 00:00:00 để so sánh chính xác theo ngày
       final today = DateTime(now.year, now.month, now.day);
       final targetDate = DateTime(date.year, date.month, date.day);
-
-      // Nếu ngày dự kiến >= ngày hiện tại thì highlight
       if (targetDate.compareTo(today) >= 0) {
         isHighlight = true;
       }
     }
-
-    // Nếu giá trị là "Đang tính..." hoặc Lỗi/Thiếu vốn thì không highlight
     if (value.contains("Đang tính") ||
         value.contains("Thiếu vốn") ||
         value.contains("Lỗi")) {
       isHighlight = false;
     }
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -209,7 +166,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               style: const TextStyle(color: Colors.grey, fontSize: 16)),
           Text(value,
               style: TextStyle(
-                  // ✅ Đổi màu xanh (hoặc màu nổi bật) nếu thỏa điều kiện
                   color: isHighlight ? Colors.grey : Colors.white,
                   fontWeight: isHighlight ? FontWeight.normal : FontWeight.bold,
                   fontSize: 16)),
@@ -221,7 +177,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   Widget _buildCycleSection(AnalysisViewModel viewModel) {
     final cycleResult = viewModel.cycleResult;
 
-    // Logic chọn ngày kết thúc tương ứng với miền đang xem
     DateTime? currentEndDate;
     if (viewModel.selectedMien == 'Tất cả') {
       currentEndDate = viewModel.endDateTatCa;
@@ -237,7 +192,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ... (Phần Header giữ nguyên) ...
             Row(
               children: [
                 Expanded(
@@ -251,7 +205,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ],
                   ),
                 ),
-                // ... (Các nút bấm giữ nguyên) ...
                 if (viewModel.selectedMien != 'Nam')
                   IconButton(
                     icon: Icon(Icons.table_chart,
@@ -283,53 +236,65 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               ],
             ),
             const Divider(color: Colors.grey),
-
-            // ... (Filter giữ nguyên) ...
             _buildMienFilter(viewModel),
             const SizedBox(height: 16),
-
             if (cycleResult == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              // --- THÔNG TIN CHUNG ---
-              _buildInfoRow('Số ngày gan:', '${cycleResult.maxGanDays} ngày'),
+              // --- CÁC CHỈ SỐ QUAN TRỌNG (ĐÃ SỬA LẠI THEO YÊU CẦU) ---
 
+              if (viewModel.selectedMien != 'Nam')
+                _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber,
+                    isHighlight: true),
+
+              // Kết thúc dự kiến
+              if (currentEndDate != null)
+                _buildInfoRow(
+                  'Kết thúc (dự kiến):',
+                  date_utils.DateUtils.formatDate(currentEndDate),
+                  textColor: const Color(0xFFFF5252),
+                ),
+
+              // Lần cuối về
               _buildInfoRow(
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
               ),
 
-              // ✅ THÊM: Ngày kết thúc ngay dưới Lần cuối về
-              if (currentEndDate != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      const Text(
-                        'Kết thúc (dự kiến):',
+              // Ngày gan hiện tại
+              _buildInfoRow(
+                  'Ngày gan hiện tại:', '${cycleResult.maxGanDays} ngày'),
+
+              // Ngày gan quá khứ (Mới)
+              _buildInfoRow(
+                  'Ngày gan quá khứ:', '${cycleResult.historicalGan} ngày'),
+
+              // Số lần xuất hiện (Mới)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(
+                      width: 140, // Căn chỉnh width cho label
+                      child: Text(
+                        'Số lần xuất hiện:',
                         style: TextStyle(
                             color: Colors.grey, fontWeight: FontWeight.w600),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          date_utils.DateUtils.formatDate(currentEndDate),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFFFF5252), // Màu đỏ nhạt để nổi bật
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '${cycleResult.occurrenceCount} / ${cycleResult.expectedCount} (trong ${cycleResult.analysisDays} ngày)',
+                        style: const TextStyle(fontSize: 16),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-
-              if (viewModel.selectedMien != 'Nam')
-                _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber),
+              ),
 
               // --- NHÓM SỐ GAN NHẤT ---
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               const Text(
                 'Nhóm số gan nhất:',
                 style:
@@ -342,40 +307,27 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 runSpacing: 8,
                 children: cycleResult.ganNumbers.map((number) {
                   final isTarget = number == cycleResult.targetNumber;
-                  final isSelected = number == _selectedNumber;
 
-                  if (viewModel.selectedMien == 'Nam') {
-                    return Chip(
-                      label: Text(number,
-                          style: TextStyle(color: Colors.grey.shade400)),
-                      backgroundColor: Colors.grey.shade100,
-                      side: BorderSide(color: Colors.grey.shade300),
-                    );
-                  }
-
-                  return ActionChip(
+                  // Chỉ hiển thị Chip tĩnh, không còn bấm được (ActionChip)
+                  return Chip(
                     label: Text(
                       number,
                       style: TextStyle(
-                        fontWeight: isTarget || isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: isTarget || isSelected
+                        fontWeight:
+                            isTarget ? FontWeight.bold : FontWeight.normal,
+                        color: isTarget
                             ? Theme.of(context).primaryColor.withOpacity(0.9)
-                            : Colors.grey.shade500,
+                            : Colors.grey.shade400,
                       ),
                     ),
-                    backgroundColor: isSelected
-                        ? Theme.of(context).primaryColor.withOpacity(0.5)
-                        : (isTarget
-                            ? Theme.of(context).primaryColor.withOpacity(0.3)
-                            : const Color(0xFF2C2C2C)),
+                    backgroundColor: isTarget
+                        ? Theme.of(context).primaryColor.withOpacity(0.2)
+                        : const Color(0xFF2C2C2C),
                     side: BorderSide(
-                      color: isTarget || isSelected
+                      color: isTarget
                           ? Theme.of(context).primaryColor.withOpacity(0.8)
                           : Colors.grey.shade600,
                     ),
-                    onPressed: () => _onNumberSelected(number),
                   );
                 }).toList(),
               ),
@@ -423,13 +375,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 }),
               ],
 
-              // ✅ HIỂN THỊ CHI TIẾT SỐ (Đã bỏ các nút bấm)
-              if (_selectedNumber != null) ...[
-                const SizedBox(height: 20),
-                const Divider(color: Colors.grey),
-                const SizedBox(height: 8),
-                _buildInlineNumberDetail(viewModel),
-              ],
+              // Đã xóa phần hiển thị chi tiết số (if _selectedNumber != null ...)
             ],
           ],
         ),
@@ -437,83 +383,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  Widget _buildInlineNumberDetail(AnalysisViewModel viewModel) {
-    if (_isLoadingDetail) {
-      return const Center(
-          child: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: CircularProgressIndicator(),
-      ));
-    }
+  // Đã xóa widget _buildInlineNumberDetail và _buildInlineMienRow
 
-    if (_currentNumberDetail == null) return const SizedBox.shrink();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF252525),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade800),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Chi tiết số $_selectedNumber:',
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Hiển thị thông tin từng miền
-          if (_currentNumberDetail!.mienDetails.containsKey('Nam'))
-            _buildInlineMienRow('Miền Nam',
-                _currentNumberDetail!.mienDetails['Nam']!, Colors.orange),
-
-          if (_currentNumberDetail!.mienDetails.containsKey('Trung'))
-            _buildInlineMienRow('Miền Trung',
-                _currentNumberDetail!.mienDetails['Trung']!, Colors.purple),
-
-          if (_currentNumberDetail!.mienDetails.containsKey('Bắc'))
-            _buildInlineMienRow('Miền Bắc',
-                _currentNumberDetail!.mienDetails['Bắc']!, Colors.blue),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInlineMienRow(String title, dynamic detail, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              title,
-              style: TextStyle(
-                  color: color, fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              '${detail.daysGan} ngày, từ ${detail.lastSeenDateStr}',
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // ... (Giữ nguyên _buildGanPairSection)
   Widget _buildGanPairSection(AnalysisViewModel viewModel) {
     final ganInfo = viewModel.ganPairInfo;
 
@@ -523,7 +395,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ... (Header giữ nguyên) ...
             Row(
               children: [
                 Expanded(
@@ -537,7 +408,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ],
                   ),
                 ),
-                // ... (Buttons giữ nguyên) ...
                 IconButton(
                   icon: Icon(Icons.table_chart,
                       color: Theme.of(context).primaryColor.withOpacity(0.9)),
@@ -563,34 +433,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
               ),
-
-              // ✅ THÊM: Ngày kết thúc ngay dưới Lần cuối về
               if (viewModel.endDateXien != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      const Text(
-                        'Kết thúc (dự kiến):',
-                        style: TextStyle(
-                            color: Colors.grey, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          date_utils.DateUtils.formatDate(
-                              viewModel.endDateXien!),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFFFF5252), // Màu đỏ nhạt
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                _buildInfoRow(
+                  'Kết thúc (dự kiến):',
+                  date_utils.DateUtils.formatDate(viewModel.endDateXien!),
+                  textColor: const Color(0xFFFF5252),
                 ),
-
               const SizedBox(height: 8),
               const Text(
                 'Các cặp gan nhất:',
@@ -616,6 +464,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
+  // ... (Giữ nguyên _buildMienFilter)
   Widget _buildMienFilter(AnalysisViewModel viewModel) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -653,10 +502,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               showCheckmark: false,
               onSelected: (selected) {
                 if (selected) {
-                  setState(() {
-                    _selectedNumber = null;
-                    _currentNumberDetail = null;
-                  });
+                  // Đã xóa reset state _selectedNumber
                   viewModel.setSelectedMien(mien);
                 }
               },
@@ -671,24 +517,29 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  Widget _buildInfoRow(String label, String value, {bool isHighlight = false}) {
+  // Cập nhật helper _buildInfoRow để hỗ trợ custom màu text
+  Widget _buildInfoRow(String label, String value,
+      {bool isHighlight = false, Color? textColor}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-                color: Colors.grey, fontWeight: FontWeight.w600),
+          SizedBox(
+            width: 140, // Cố định độ rộng label cho thẳng hàng
+            child: Text(
+              label,
+              style: const TextStyle(
+                  color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
           ),
-          const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal,
-                color: isHighlight ? Colors.white : null,
+                color: textColor ?? (isHighlight ? Colors.white : null),
               ),
             ),
           ),

@@ -687,11 +687,48 @@ class AnalysisService {
     );
   }
 
+  Future<CycleAnalysisResult?> analyzeSpecificNumber(
+      List<LotteryResult> allResults, String targetNumber) async {
+    return await compute(_analyzeSpecificNumberCompute, {
+      'results': allResults,
+      'number': targetNumber,
+    });
+  }
+
+  static CycleAnalysisResult? _analyzeSpecificNumberCompute(
+      Map<String, dynamic> params) {
+    final results = params['results'] as List<LotteryResult>;
+    final targetNumber = params['number'] as String;
+
+    // Tái sử dụng logic lấy thống kê chi tiết (Gan, Slots, History...)
+    final stats = _getNumberStats(results, targetNumber);
+    if (stats == null) return null;
+
+    // Tính kExpected toàn cục
+    final pStats = calculatePStats(results);
+    final double kExpected = pStats.totalSlots / 100.0;
+
+    return CycleAnalysisResult(
+      targetNumber: targetNumber,
+      ganNumbers: {targetNumber}, // Chỉ hiển thị số này
+      maxGanDays: (stats['currentGan'] as double).toInt(),
+      lastSeenDate: stats['lastDate'] as DateTime,
+      mienGroups: {}, // Không cần thiết cho view chi tiết 1 số
+      // Mapping đầy đủ chỉ số thống kê
+      historicalGan: (stats['lastCycleGan'] as double).toInt(),
+      occurrenceCount: (stats['slots'] as double).toInt(),
+      expectedCount: kExpected,
+      analysisDays: (stats['totalDays'] as double).toInt(),
+    );
+  }
+
   Future<CycleAnalysisResult?> analyzeCycle(
       List<LotteryResult> allResults) async {
     final key = 'cycle_${allResults.length}';
     if (_cycleCache.containsKey(key)) return _cycleCache[key];
+
     final res = await compute(_analyzeCycleCompute, allResults);
+
     if (res != null) _cycleCache[key] = res;
     return res;
   }
@@ -701,6 +738,7 @@ class AnalysisService {
     if (allResults.isEmpty) return null;
     final lastSeenMap = <String, Map<String, dynamic>>{};
 
+    // 1. Logic tìm số có ngày gan hiện tại lớn nhất (Giữ nguyên)
     for (final res in allResults) {
       final date = date_utils.DateUtils.parseDate(res.ngay);
       if (date == null) continue;
@@ -751,12 +789,45 @@ class AnalysisService {
       mienGroups.putIfAbsent(s['mien'], () => []).add(s['so']);
     }
 
+    final targetNumber = longestGroup.first['so'] as String;
+
+    // -------------------------------------------------------------------------
+    // 🔥 SỬA ĐỔI QUAN TRỌNG: Dùng chính logic tính P để lấy chỉ số thống kê
+    // -------------------------------------------------------------------------
+
+    // 1. Tính toán P Stats toàn cục để lấy tổng Slots thực tế
+    // (Giống hệt cách calculatePStats đang làm)
+    final pStats = calculatePStats(allResults);
+    final double kExpected = pStats.totalSlots / 100.0;
+
+    // 2. Gọi hàm _getNumberStats để lấy dữ liệu chi tiết của số mục tiêu
+    // Hàm này chính là hàm cung cấp tham số cho việc tính P1, P2, P3
+    final stats = _getNumberStats(allResults, targetNumber);
+
+    int historicalGan = 0; // Đây sẽ là lastCycleGan (Gan của chu kỳ trước)
+    int occurrenceCount = 0; // slots
+    int analysisDays = 0;
+
+    if (stats != null) {
+      // Mapping dữ liệu từ stats sang model
+      historicalGan = (stats['lastCycleGan'] as double).toInt();
+      occurrenceCount = (stats['slots'] as double).toInt();
+      analysisDays = (stats['totalDays'] as double).toInt();
+    }
+
+    // -------------------------------------------------------------------------
+
     return CycleAnalysisResult(
       ganNumbers: longestGroup.map((s) => s['so'] as String).toSet(),
       maxGanDays: maxGan,
       lastSeenDate: longestGroup.first['last_seen'],
       mienGroups: mienGroups,
-      targetNumber: longestGroup.first['so'],
+      targetNumber: targetNumber,
+      // Pass các giá trị đã đồng bộ vào
+      historicalGan: historicalGan,
+      occurrenceCount: occurrenceCount,
+      expectedCount: kExpected,
+      analysisDays: analysisDays,
     );
   }
 
@@ -859,7 +930,9 @@ class AnalysisService {
     for (final result in allResults) {
       if (mien.isNotEmpty && result.mien != mien) continue;
       if (!result.numbers.contains(normalizedTarget) &&
-          !result.numbers.contains(targetNumber)) continue;
+          !result.numbers.contains(targetNumber)) {
+        continue;
+      }
       final resultDate = date_utils.DateUtils.parseDate(result.ngay);
       if (resultDate == null) continue;
       if (resultDate.isAfter(sinceDate) &&
