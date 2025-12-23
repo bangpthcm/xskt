@@ -8,9 +8,9 @@ class ProbabilityConfig {
   final double thresholdXien; // Xiên Bắc
 
   ProbabilityConfig({
-    this.thresholdTatCa = 1.46e-6,
-    this.thresholdTrung = 1.22e-7,
-    this.thresholdBac = 5.63e-7,
+    this.thresholdTatCa = 1.18604e-75,
+    this.thresholdTrung = 5.56464e-49,
+    this.thresholdBac = 7.74656e-53,
     this.thresholdXien = 1.97e-6, // Xiên có ngưỡng khác (cao hơn)
   });
 
@@ -60,11 +60,11 @@ class ProbabilityConfig {
   static double parseString(String str) {
     try {
       final trimmed = str.trim();
-      if (trimmed.isEmpty) return 5.63e-7; // Default
+      if (trimmed.isEmpty) return 7.74656e-53; // Default
       return double.parse(trimmed);
     } catch (e) {
       print('⚠️ Error parsing threshold string "$str": $e');
-      return 5.63e-7; // Default fallback
+      return 7.74656e-53; // Default fallback
     }
   }
 
@@ -81,9 +81,11 @@ class ProbabilityConfig {
   // ✅ Parse từ JSON (load từ SharedPreferences)
   factory ProbabilityConfig.fromJson(Map<String, dynamic> json) {
     return ProbabilityConfig(
-      thresholdTatCa: (json['thresholdTatCa'] as num?)?.toDouble() ?? 1.46e-6,
-      thresholdTrung: (json['thresholdTrung'] as num?)?.toDouble() ?? 1.22e-7,
-      thresholdBac: (json['thresholdBac'] as num?)?.toDouble() ?? 5.63e-7,
+      thresholdTatCa:
+          (json['thresholdTatCa'] as num?)?.toDouble() ?? 1.18604E-75,
+      thresholdTrung:
+          (json['thresholdTrung'] as num?)?.toDouble() ?? 5.56464e-49,
+      thresholdBac: (json['thresholdBac'] as num?)?.toDouble() ?? 7.74656e-53,
       thresholdXien: (json['thresholdXien'] as num?)?.toDouble() ?? 1.97e-6,
     );
   }
@@ -91,9 +93,9 @@ class ProbabilityConfig {
   // ✅ Default config
   factory ProbabilityConfig.defaults() {
     return ProbabilityConfig(
-      thresholdTatCa: 1.46e-6,
-      thresholdTrung: 1.22e-7,
-      thresholdBac: 5.63e-7,
+      thresholdTatCa: 1.18604E-75,
+      thresholdTrung: 5.56464e-49,
+      thresholdBac: 7.74656e-53,
       thresholdXien: 1.97e-6,
     );
   }

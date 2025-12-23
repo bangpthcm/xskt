@@ -195,7 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildProbabilityThresholdField(
                   controller: _probabilityThresholdTatCaController,
                   label: 'Tất cả (3 miền)',
-                  hint: '1.46e-6',
+                  hint: '1.18604E-75',
                   helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
                 ),
                 const SizedBox(height: 16),
@@ -203,7 +203,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildProbabilityThresholdField(
                   controller: _probabilityThresholdTrungController,
                   label: 'Miền Trung',
-                  hint: '1.22e-7',
+                  hint: '5.56464e-49',
                   helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
                 ),
                 const SizedBox(height: 16),
@@ -211,7 +211,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildProbabilityThresholdField(
                   controller: _probabilityThresholdBacController,
                   label: 'Miền Bắc',
-                  hint: '5.63e-7',
+                  hint: '7.74656e-53',
                   helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
                 ),
                 const SizedBox(height: 16),
@@ -254,7 +254,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         '• Giá trị càng nhỏ → Ngày vào cược càng gần\n'
                         '• Giá trị càng lớn → Có thể chờ lâu hơn\n\n'
                         '• Mặc định:\n'
-                        '  - Tất cả/Trung/Bắc: 5.63e-7 (0.000000000005%)\n'
+                        '  - Tất cả/Trung/Bắc: 7.74656e-53 (0.000000000005%)\n'
                         '  - Xiên: 1.00e-10 (cao hơn vì ít cặp)\n\n'
                         '• Range cho phép: 8e-8 đến 6e-6',
                         style: TextStyle(
@@ -310,7 +310,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             return 'Phải <= 6e-6';
           }
         } catch (e) {
-          return 'Format không hợp lệ (ví dụ: 5.63e-7)';
+          return 'Format không hợp lệ (ví dụ: 7.74656e-53)';
         }
 
         return null;

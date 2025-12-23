@@ -13,7 +13,7 @@ class NumberAnalysisData {
   final String number;
   final double p1;
   final double p2;
-  final double p3;
+  final double p3; // ✅ THÊM
   final double pTotal;
   final double currentGan;
   final DateTime lastSeenDate;
@@ -22,7 +22,7 @@ class NumberAnalysisData {
     required this.number,
     required this.p1,
     required this.p2,
-    required this.p3,
+    required this.p3, // ✅ THÊM
     required this.pTotal,
     required this.currentGan,
     required this.lastSeenDate,
@@ -68,9 +68,20 @@ class AnalysisService {
   final Map<String, GanPairInfo> _ganPairCache = {};
   final Map<String, CycleAnalysisResult> _cycleCache = {};
 
-  static double _calculatePTotalCycle(double p2, double p3) {
-    if (p2 < 0 || p3 < 0) return 0.0;
-    return p2 * p3;
+  static double _calculatePTotalCycle(
+      double p1, double p2, double p3, double p4) {
+    if (p1 <= 0 || p2 <= 0 || p3 <= 0 || p4 <= 0) {
+      print('⚠️ [DEBUG] Invalid p value: p1=$p1, p2=$p2, p3=$p3, p4=$p4');
+      return 0.0;
+    }
+
+    // Công thức: pow(p1,12) * pow(p2,11.536142) * pow(p3,1.035033) * pow(p4,0.072644)
+    final result = pow(p1, 12).toDouble() *
+        pow(p2, 11.536142).toDouble() *
+        pow(p3, 1.035033).toDouble() *
+        pow(p4, 0.072644).toDouble();
+
+    return result;
   }
 
   static double _calculatePTotalXien(double p1) {
@@ -127,27 +138,36 @@ class AnalysisService {
       final p = pStats.p;
       if (p == 0) return null;
 
+      print('📊 [DEBUG] p (xác suất nền): ${p.toStringAsExponential(6)}');
+      print('📊 [DEBUG] Total slots: ${pStats.totalSlots}');
+
       final kExpected = pStats.totalSlots / 100.0;
+      print('📊 [DEBUG] kExpected: ${kExpected.toStringAsFixed(2)}');
+
       final allAnalysis = <NumberAnalysisData>[];
 
       for (int i = 0; i <= 99; i++) {
         final number = i.toString().padLeft(2, '0');
-        // ✅ Hàm này giờ trả về Map<String, dynamic> chứa cả 'lastDate'
         final stats = _getNumberStats(results, number);
 
         if (stats == null) continue;
 
         final currentGan = stats['currentGan'] as double;
         final lastCycleGan = stats['lastCycleGan'] as double;
+        final thirdCycleGan = stats['thirdCycleGan'] as double;
         final slots = stats['slots'] as double;
-        // ✅ Lấy DateTime an toàn
         final lastDate = stats['lastDate'] as DateTime;
+        final occurrences = stats['occurrences'] as double;
 
+        // Tính p1, p2, p3 theo công thức (1-p)^gan
         final p1 = _calculateP1(p, currentGan);
-        final p2 = _calculateP2(p, lastCycleGan, currentGan);
-        final p3 = (slots == 0) ? 0.000001 : (slots / kExpected);
+        final p2 = _calculateP1(p, lastCycleGan);
+        final p3 = thirdCycleGan > 0 ? _calculateP1(p, thirdCycleGan) : 1.0;
 
-        final pTotal = _calculatePTotalCycle(p2, p3);
+        // Tính p4 = slots / kExpected
+        final p4 = (slots == 0) ? 0.000001 : (slots / kExpected);
+
+        final pTotal = _calculatePTotalCycle(p1, p2, p3, p4);
 
         allAnalysis.add(NumberAnalysisData(
           number: number,
@@ -168,9 +188,55 @@ class AnalysisService {
       final minResult =
           allAnalysis.reduce((a, b) => a.pTotal < b.pTotal ? a : b);
 
+      // ✅ THÊM: In chi tiết p1, p2, p3, p4
       print('   ✅ Kết quả: Số ${minResult.number}');
+      print('      Gan hiện tại: ${minResult.currentGan.toInt()} ngày');
+      print('      p1 (current gan): ${minResult.p1.toStringAsExponential(6)}');
+      print(
+          '      p2 (last cycle gan): ${minResult.p2.toStringAsExponential(6)}');
+      print(
+          '      p3 (third cycle gan): ${minResult.p3.toStringAsExponential(6)}');
+
+      // ✅ Lấy stats của số này để in p4
+      final minStats = _getNumberStats(results, minResult.number);
+      if (minStats != null) {
+        final slots = minStats['slots'] as double;
+        final lastCycleGan = minStats['lastCycleGan'] as double;
+        final thirdCycleGan = minStats['thirdCycleGan'] as double;
+        final occurrences = minStats['occurrences'] as double;
+        final p4 = slots / kExpected;
+
+        print('      p4 (slots/expected): ${p4.toStringAsFixed(6)}');
+        print('      Slots thực tế: ${slots.toInt()}');
+        print('      kExpected: ${kExpected.toStringAsFixed(2)}');
+        print('      Gan chu kỳ trước: ${lastCycleGan.toInt()} ngày');
+        print('      Gan chu kỳ thứ 3: ${thirdCycleGan.toInt()} ngày');
+        print('      Số lần xuất hiện: ${occurrences.toInt()}');
+      }
+
       print('      P_total: ${minResult.pTotal.toStringAsExponential(6)}');
-      print('      Gan: ${minResult.currentGan.toInt()} ngày');
+
+      // ✅ THÊM: Tính thủ công để verify
+      print('');
+      print('   🔍 Verification:');
+      print(
+          '      pow(p1, 12) = ${pow(minResult.p1, 12).toStringAsExponential(6)}');
+      print(
+          '      pow(p2, 11.536142) = ${pow(minResult.p2, 11.536142).toStringAsExponential(6)}');
+      print(
+          '      pow(p3, 1.035033) = ${pow(minResult.p3, 1.035033).toStringAsExponential(6)}');
+      if (minStats != null) {
+        final slots = minStats['slots'] as double;
+        final p4 = slots / kExpected;
+        print(
+            '      pow(p4, 0.072644) = ${pow(p4, 0.072644).toStringAsExponential(6)}');
+        final manualPTotal = pow(minResult.p1, 12).toDouble() *
+            pow(minResult.p2, 11.536142).toDouble() *
+            pow(minResult.p3, 1.035033).toDouble() *
+            pow(p4, 0.072644).toDouble();
+        print(
+            '      P_total (manual calc) = ${manualPTotal.toStringAsExponential(6)}');
+      }
 
       return minResult;
     } catch (e) {
@@ -275,10 +341,9 @@ class AnalysisService {
           {int maxIterations = 10000}) async {
     return await compute(_findEndDateForCycleThresholdCompute, {
       'targetNumber': targetNumber.number,
+      'currentP1': targetNumber.p1,
       'currentP2': targetNumber.p2,
       'currentP3': targetNumber.p3,
-      'currentGan': targetNumber.currentGan,
-      'lastSeenDate': targetNumber.lastSeenDate.millisecondsSinceEpoch,
       'p': p,
       'results': results,
       'threshold': threshold,
@@ -290,18 +355,21 @@ class AnalysisService {
       _findEndDateForCycleThresholdCompute(
     Map<String, dynamic> params,
   ) {
-    // Lấy các tham số cần thiết
-    final currentP2 = params['currentP2'] as double;
-    final currentP3 = params['currentP3'] as double;
+    var currentP1 = params['currentP1'] as double;
+    final currentP2 = params['currentP2'] as double; // p2 không đổi
+    final currentP3 = params['currentP3'] as double; // p3 không đổi
     final p = params['p'] as double;
     final threshold = params['threshold'] as double;
     final maxIterations = params['maxIterations'] as int;
 
     try {
-      // 1. Tính P_total hiện tại
-      var currentPTotal = _calculatePTotalCycle(currentP2, currentP3);
+      // Tính p4 từ stats (cần truyền thêm hoặc giả định = 1.0)
+      // Để đơn giản, tạm set p4 = 1.0 vì trong mô phỏng nó không thay đổi
+      const currentP4 = 1.0;
 
-      // Nếu đã nhỏ hơn ngưỡng ngay từ đầu -> Trả về ngày mai
+      var currentPTotal =
+          _calculatePTotalCycle(currentP1, currentP2, currentP3, currentP4);
+
       if (currentPTotal < threshold) {
         return (
           endDate: DateTime.now().add(const Duration(days: 1)),
@@ -310,11 +378,13 @@ class AnalysisService {
       }
 
       int daysNeeded = 0;
-      // 2. Loop nhân (1-p) cho đến khi < threshold
-      // Logic: P_new = P_old * (1-p)
+
+      // Loop: chỉ p1 thay đổi theo (1-p)^day
       while (currentPTotal >= threshold && daysNeeded < maxIterations) {
         daysNeeded++;
-        currentPTotal = currentPTotal * (1 - p);
+        currentP1 = currentP1 * (1 - p);
+        currentPTotal =
+            _calculatePTotalCycle(currentP1, currentP2, currentP3, currentP4);
       }
 
       if (daysNeeded >= maxIterations) {
@@ -322,7 +392,6 @@ class AnalysisService {
         return null;
       }
 
-      // 3. Tính EndDate từ NGÀY HIỆN TẠI
       final endDate = DateTime.now().add(Duration(days: daysNeeded));
 
       print(
@@ -552,10 +621,6 @@ class AnalysisService {
 
   static double _calculateP1(double p, double gan) =>
       (p >= 1 || p <= 0) ? 0.0 : pow(1 - p, gan).toDouble();
-  static double _calculateP2(double p, double lastGan, double curGan) =>
-      (p >= 1 || p <= 0)
-          ? 0.0
-          : (pow(1 - p, lastGan) * p * pow(1 - p, curGan)).toDouble();
 
   // ✅ SỬA LOGIC: Trả về Map<String, dynamic> và thêm 'lastDate'
   static Map<String, dynamic>? _getNumberStats(
@@ -597,11 +662,15 @@ class AnalysisService {
 
     int lastCycleGan = 0;
     DateTime? secondLastSeenDate;
+    int secondLastSeenIndex = -1;
 
     for (int i = lastSeenIndex - 1; i >= 0; i--) {
       if (results[i].numbers.contains(targetNumber)) {
         secondLastSeenDate = date_utils.DateUtils.parseDate(results[i].ngay);
-        if (secondLastSeenDate != null) break;
+        if (secondLastSeenDate != null) {
+          secondLastSeenIndex = i;
+          break;
+        }
       }
     }
 
@@ -611,16 +680,33 @@ class AnalysisService {
           excludeEndDate: true);
     }
 
+    // ✅ THÊM: Tính gan chu kỳ thứ 3 (z)
+    int thirdCycleGan = 0;
+    if (secondLastSeenIndex > 0) {
+      for (int i = secondLastSeenIndex - 1; i >= 0; i--) {
+        if (results[i].numbers.contains(targetNumber)) {
+          final thirdLastSeenDate =
+              date_utils.DateUtils.parseDate(results[i].ngay);
+          if (thirdLastSeenDate != null && secondLastSeenDate != null) {
+            thirdCycleGan = _countMienOccurrencesStatic(
+                results, thirdLastSeenDate, secondLastSeenDate, lastSeenMien,
+                excludeEndDate: true);
+            break;
+          }
+        }
+      }
+    }
+
     final uniqueDays = results.map((r) => r.ngay).toSet().length;
 
-    // ✅ Map giờ trả về đúng cấu trúc
     return {
       'currentGan': currentGan.toDouble(),
       'lastCycleGan': lastCycleGan.toDouble(),
+      'thirdCycleGan': thirdCycleGan.toDouble(), // ✅ THÊM
       'occurrences': occurrences.toDouble(),
       'totalDays': uniqueDays.toDouble(),
       'slots': slots.toDouble(),
-      'lastDate': lastSeenDate, // Đã thêm
+      'lastDate': lastSeenDate,
     };
   }
 
