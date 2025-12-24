@@ -1,3 +1,4 @@
+// lib/data/services/analysis_service.dart
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -86,6 +87,73 @@ class AnalysisService {
   // ln(0.99) ≈ -0.01005
   static final double LN_BASE = log(max(1.0 - P_INDIV, 1e-12));
 
+  // ---------------------------------------------------------------------------
+  // Helpers: Slot counting with "shifted boundary" logic (Nam -> Trung -> Bắc)
+  // Ý tưởng: Nếu session hit ở 1 miền thì:
+  //   - Start tính từ session kế tiếp (miền tiếp theo)
+  //   - End tính đến session trước đó (miền trước)
+  // Các helper này giúp tính x/y/z (P1/P2/P3) đúng theo rule của bạn.
+  // ---------------------------------------------------------------------------
+
+  static int? _nextIndex(int i, int len) => (i + 1 < len) ? (i + 1) : null;
+  static int? _prevIndex(int i) => (i - 1 >= 0) ? (i - 1) : null;
+
+  static int? _startIndexAfterHit(int hitIdx, int len) =>
+      _nextIndex(hitIdx, len);
+  static int? _endIndexBeforeHit(int hitIdx) => _prevIndex(hitIdx);
+
+  // Slots = cum[end] - cum[start-1]
+  static int _slotsBetween(List<int> cumList, int? startIdx, int? endIdx) {
+    if (cumList.isEmpty) return 0;
+    if (startIdx == null || endIdx == null) return 0;
+    if (startIdx > endIdx) return 0;
+
+    final beforeStart = (startIdx > 0) ? cumList[startIdx - 1] : 0;
+    return cumList[endIdx] - beforeStart;
+  }
+
+  // Tính x/y/z theo rule "dịch mốc theo miền" giống logic Python bạn đang test.
+  static ({int x, int y, int z}) _computeXYZShifted(
+    List<int> hitIndices,
+    List<int> cumList,
+  ) {
+    if (cumList.isEmpty) return (x: 0, y: 0, z: 0);
+
+    final len = cumList.length;
+    final totalSlots = cumList.last;
+
+    if (hitIndices.isEmpty) {
+      // Không nổ trong window
+      return (x: totalSlots, y: 0, z: 0);
+    }
+
+    // x: từ sau hit cuối -> hết window
+    final last = hitIndices.last;
+    final xStart = _startIndexAfterHit(last, len);
+    final x = _slotsBetween(cumList, xStart, len - 1);
+
+    // y: giữa hit gần nhất và hit trước đó (dịch mốc)
+    int y = 0;
+    if (hitIndices.length >= 2) {
+      final prev = hitIndices[hitIndices.length - 2];
+      final yStart = _startIndexAfterHit(prev, len);
+      final yEnd = _endIndexBeforeHit(last);
+      y = _slotsBetween(cumList, yStart, yEnd);
+    }
+
+    // z: giữa hit thứ 3 gần nhất và hit thứ 2 gần nhất (dịch mốc)
+    int z = 0;
+    if (hitIndices.length >= 3) {
+      final prev2 = hitIndices[hitIndices.length - 3];
+      final prev = hitIndices[hitIndices.length - 2];
+      final zStart = _startIndexAfterHit(prev2, len);
+      final zEnd = _endIndexBeforeHit(prev);
+      z = _slotsBetween(cumList, zStart, zEnd);
+    }
+
+    return (x: x, y: y, z: z);
+  }
+
   // Trọng số Best W
   static const double W1 = 10.12024526;
   static const double W2 = 9.63792797;
@@ -110,6 +178,45 @@ class AnalysisService {
 
     // 2. So sánh ưu tiên miền (Nam -> Trung -> Bắc)
     return _getRegionPriority(a.mien).compareTo(_getRegionPriority(b.mien));
+  }
+
+  // ---------------------------------------------------------------------------
+  // IMPORTANT: Align session building with Python script
+  // Python groups results by (ngay, regionPriority) and merges numbers into
+  // 1 session per day per region before trimming + cumulative.
+  // If we treat each LotteryResult as a session directly (especially when one
+  // day has multiple stations/rows), x/y/z (P1/P2/P3) will drift.
+  // ---------------------------------------------------------------------------
+
+  static List<LotteryResult> _mergeToDailyRegionSessions(
+      List<LotteryResult> input) {
+    final Map<String, LotteryResult> merged = {};
+
+    for (final r in input) {
+      final date = date_utils.DateUtils.parseDate(r.ngay);
+      if (date == null) continue;
+      final dateKey = DateTime(date.year, date.month, date.day);
+      final prio = _getRegionPriority(r.mien);
+      final key = '${dateKey.toIso8601String()}|$prio';
+
+      if (!merged.containsKey(key)) {
+        // Create a shallow "session" copy
+        merged[key] = LotteryResult(
+          ngay: r.ngay,
+          mien: r.mien,
+          // Preserve province/station info if your LotteryResult requires it.
+          // Keep the first encountered value for this (day, region) session.
+          tinh: r.tinh,
+          numbers: <String>[...r.numbers],
+        );
+      } else {
+        merged[key]!.numbers.addAll(r.numbers);
+      }
+    }
+
+    final sessions = merged.values.toList();
+    sessions.sort(_compareSessions);
+    return sessions;
   }
 
   // --- MAIN LOGIC: TÌM SỐ VỚI MIN LOG P ---
@@ -145,7 +252,9 @@ class AnalysisService {
       }
 
       // 2. Sort chuẩn Python (Date Asc -> Region Priority)
-      scopedResults.sort(_compareSessions);
+      // IMPORTANT: Python first merges all rows of the same (day, region)
+      // into one "session" before trimming/cumulative.
+      scopedResults = _mergeToDailyRegionSessions(scopedResults);
 
       if (scopedResults.isEmpty) return null;
 
@@ -196,42 +305,10 @@ class AnalysisService {
         }
 
         // --- TÍNH TOÁN METRICS (Gap x, y, z) ---
-        double x = 0, y = 0, z = 0;
-
-        if (hitIndices.isEmpty) {
-          // Chưa nổ lần nào trong range
-          x = totalSlotsActual.toDouble();
-          y = 0;
-          z = 0;
-        } else {
-          int lastIdx = hitIndices.last;
-          // x = Tổng thực tế - Cum tại phiên nổ cuối
-          x = (totalSlotsActual - cumList[lastIdx]).toDouble();
-
-          if (hitIndices.length >= 2) {
-            int prevIdx = hitIndices[hitIndices.length - 2];
-            // y = Cum(trước last) - Cum(prev)
-            // Cum(trước last) = cumList[lastIdx - 1]
-            int cumBeforeLast = (lastIdx - 1 >= 0) ? cumList[lastIdx - 1] : 0;
-            y = (cumBeforeLast - cumList[prevIdx]).toDouble();
-
-            if (hitIndices.length >= 3) {
-              int prev2Idx = hitIndices[hitIndices.length - 3];
-              // z = Cum(trước prev) - Cum(prev2)
-              int cumBeforePrev = (prevIdx - 1 >= 0) ? cumList[prevIdx - 1] : 0;
-              z = (cumBeforePrev - cumList[prev2Idx]).toDouble();
-            } else {
-              // Trường hợp chỉ có đúng 2 hit
-              int cumBeforePrev = (prevIdx - 1 >= 0) ? cumList[prevIdx - 1] : 0;
-              z = cumBeforePrev.toDouble();
-            }
-          } else {
-            // Chỉ có 1 hit
-            int cumBeforeLast = (lastIdx - 1 >= 0) ? cumList[lastIdx - 1] : 0;
-            y = cumBeforeLast.toDouble();
-            z = 0;
-          }
-        }
+        final xyz = _computeXYZShifted(hitIndices, cumList);
+        final double x = xyz.x.toDouble();
+        final double y = xyz.y.toDouble();
+        final double z = xyz.z.toDouble();
 
         // --- TÍNH P1, P2, P3, P4 ---
         // ln(P) = slots * ln(base)
@@ -309,8 +386,9 @@ class AnalysisService {
   // Sử dụng Cumulative Array để đảm bảo logic thống nhất với core
   static Map<String, dynamic>? _getNumberStats(
       List<LotteryResult> rawResults, String targetNumber) {
-    var results = List<LotteryResult>.from(rawResults);
-    results.sort(_compareSessions);
+    // Keep stats consistent with core: merge (day, region) into 1 session
+    var results =
+        _mergeToDailyRegionSessions(List<LotteryResult>.from(rawResults));
 
     // Build cumulative
     List<int> cumList = [];
@@ -333,21 +411,11 @@ class AnalysisService {
     final int totalSlots = cumList.last;
     int lastIdx = hitIndices.last;
 
-    double currentGan = (totalSlots - cumList[lastIdx]).toDouble();
-    double lastCycleGan = 0;
-    if (hitIndices.length >= 2) {
-      int prevIdx = hitIndices[hitIndices.length - 2];
-      int cumBeforeLast = (lastIdx - 1 >= 0) ? cumList[lastIdx - 1] : 0;
-      lastCycleGan = (cumBeforeLast - cumList[prevIdx]).toDouble();
-    }
+    final xyz = _computeXYZShifted(hitIndices, cumList);
 
-    double thirdCycleGan = 0;
-    if (hitIndices.length >= 3) {
-      int prevIdx = hitIndices[hitIndices.length - 2];
-      int prev2Idx = hitIndices[hitIndices.length - 3];
-      int cumBeforePrev = (prevIdx - 1 >= 0) ? cumList[prevIdx - 1] : 0;
-      thirdCycleGan = (cumBeforePrev - cumList[prev2Idx]).toDouble();
-    }
+    final double currentGan = xyz.x.toDouble();
+    final double lastCycleGan = xyz.y.toDouble();
+    final double thirdCycleGan = xyz.z.toDouble();
 
     final lastDate = date_utils.DateUtils.parseDate(results[lastIdx].ngay);
     final uniqueDays = results.map((r) => r.ngay).toSet().length;
