@@ -270,6 +270,7 @@ class AnalysisViewModel extends ChangeNotifier {
         pStats.p,
         _allResults,
         pThreshold,
+        mien: _getMienFromType(type),
       );
 
       if (endDateResult == null) {
@@ -503,6 +504,7 @@ class AnalysisViewModel extends ChangeNotifier {
         pStats.p,
         _allResults,
         pThreshold,
+        mien: mien,
       );
 
       if (endDateResult == null) {
