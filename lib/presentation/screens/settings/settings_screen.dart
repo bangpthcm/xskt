@@ -89,18 +89,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungBudgetController.text = _formatToThousands(config.budget.trungBudget);
     _bacBudgetController.text = _formatToThousands(config.budget.bacBudget);
     _xienBudgetController.text = _formatToThousands(config.budget.xienBudget);
+
     _cycleDurationController.text = config.duration.cycleDuration.toString();
     _trungDurationController.text = config.duration.trungDuration.toString();
     _bacDurationController.text = config.duration.bacDuration.toString();
     _xienDurationController.text = config.duration.xienDuration.toString();
+
+    // ✅ CẬP NHẬT: Hiển thị giá trị Log (ln)
+    // Lưu ý tên biến controller là _probabilityThreshold...
     _probabilityThresholdTatCaController.text =
-        config.probability.thresholdTatCaString;
+        config.probability.thresholdLnTatCa.toString();
     _probabilityThresholdTrungController.text =
-        config.probability.thresholdTrungString;
+        config.probability.thresholdLnTrung.toString();
     _probabilityThresholdBacController.text =
-        config.probability.thresholdBacString;
+        config.probability.thresholdLnBac.toString();
     _probabilityThresholdXienController.text =
-        config.probability.thresholdXienString;
+        config.probability.thresholdLnXien.toString();
 
     for (int i = 0;
         i < _apiAccountControllers.length && i < config.apiAccounts.length;
@@ -299,20 +303,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return 'Vui lòng nhập giá trị';
         }
 
-        try {
-          final threshold = ProbabilityConfig.parseString(value);
-
-          // Validate range: 8e-8 đến 6e-6
-          if (threshold < 8e-8) {
-            return 'Phải >= 8e-8';
-          }
-          if (threshold > 8e-6) {
-            return 'Phải <= 6e-6';
-          }
-        } catch (e) {
-          return 'Format không hợp lệ (ví dụ: 7.74656e-53)';
+        // ✅ CẬP NHẬT: Validate số Log (thường là số âm từ -500 đến -2)
+        final val = double.tryParse(value);
+        if (val == null) {
+          return 'Phải là số thực (ví dụ: -172.63)';
         }
 
+        // Range an toàn cho Log xác suất
+        if (val < -500 || val > -2) {
+          return 'Giá trị Log nên từ -500 đến -2';
+        }
         return null;
       },
     );
@@ -804,47 +804,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveConfigAndTest() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // ✅ CẬP NHẬT: Validate & parse P_total thresholds
-    double thresholdTatCa;
-    double thresholdTrung;
-    double thresholdBac;
-    double thresholdXien;
+    // ✅ CẬP NHẬT: Parse giá trị Logarithm từ Controller
+    // Dùng tên biến đúng: _probabilityThreshold...
+    double thresholdTatCa =
+        double.tryParse(_probabilityThresholdTatCaController.text) ?? -172.63;
+    double thresholdTrung =
+        double.tryParse(_probabilityThresholdTrungController.text) ?? -111.11;
+    double thresholdBac =
+        double.tryParse(_probabilityThresholdBacController.text) ?? -120.08;
+    double thresholdXien =
+        double.tryParse(_probabilityThresholdXienController.text) ?? -13.14;
 
-    try {
-      final tatCaStr = _probabilityThresholdTatCaController.text.trim();
-      final trungStr = _probabilityThresholdTrungController.text.trim();
-      final bacStr = _probabilityThresholdBacController.text.trim();
-      final xienStr = _probabilityThresholdXienController.text.trim();
-
-      thresholdTatCa = ProbabilityConfig.parseString(tatCaStr);
-      thresholdTrung = ProbabilityConfig.parseString(trungStr);
-      thresholdBac = ProbabilityConfig.parseString(bacStr);
-      thresholdXien = ProbabilityConfig.parseString(xienStr);
-
-      // Validate từng cái
-      if (!_isValidProbabilityThreshold(thresholdTatCa)) {
-        throw Exception('Tất cả: Range 6e-6 đến 8e-8');
-      }
-      if (!_isValidProbabilityThreshold(thresholdTrung)) {
-        throw Exception('Trung: Range 6e-6 đến 8e-8');
-      }
-      if (!_isValidProbabilityThreshold(thresholdBac)) {
-        throw Exception('Bắc: Range 6e-6 đến 8e-8');
-      }
-      if (!_isValidProbabilityThreshold(thresholdXien)) {
-        throw Exception('Xiên: Range 6e-6 đến 8e-8');
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi P_total: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // ✅ THÊM: Duration validation (nếu chưa có)
+    // Validate Duration (giữ nguyên logic cũ)
     int cycleDuration = int.tryParse(_cycleDurationController.text) ?? 10;
     int trungDuration = int.tryParse(_trungDurationController.text) ?? 26;
     int bacDuration = int.tryParse(_bacDurationController.text) ?? 43;
@@ -887,12 +858,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       xienDuration: xienDuration,
     );
 
-    // Build Probability Config (✅ MỚI)
+    // ✅ CẬP NHẬT: Tạo ProbabilityConfig với các trường Ln mới
     final probabilityConfig = ProbabilityConfig(
-      thresholdTatCa: thresholdTatCa,
-      thresholdTrung: thresholdTrung,
-      thresholdBac: thresholdBac,
-      thresholdXien: thresholdXien,
+      thresholdLnTatCa: thresholdTatCa,
+      thresholdLnTrung: thresholdTrung,
+      thresholdLnBac: thresholdBac,
+      thresholdLnXien: thresholdXien,
     );
 
     // Build full config

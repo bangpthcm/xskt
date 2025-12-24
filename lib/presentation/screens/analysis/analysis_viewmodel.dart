@@ -234,7 +234,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
       // Step 1: Tìm end date (dựa P_total)
       final pThreshold =
-          config.probability.getThreshold(_getMienFromType(type));
+          config.probability.getThresholdLn(_getMienFromType(type));
 
       NumberAnalysisData? targetNumberData;
       DateTime? projectedEndDate;
@@ -467,7 +467,7 @@ class AnalysisViewModel extends ChangeNotifier {
           AnalysisService.calculatePStats(resultsForP, fixedMien: mien);
 
       // Step 1: Tìm số mục tiêu (Dựa trên P_total)
-      final pThreshold = config.probability.getThreshold(mien);
+      final pThreshold = config.probability.getThresholdLn(mien);
       final targetNumberData = await AnalysisService.findNumberWithMinPTotal(
         _allResults,
         mien,
@@ -609,7 +609,7 @@ class AnalysisViewModel extends ChangeNotifier {
       print('   ✅ Found pair: ${pairData.pairDisplay}');
 
       // Step 2: Tính end date (P1 < ngưỡng)
-      final pThreshold = config.probability.getThreshold('xien');
+      final pThreshold = config.probability.getThresholdLn('xien');
       final endDateResult = await AnalysisService.findEndDateForXienThreshold(
         pairData,
         AnalysisService.estimatePairProbability(1, 30),
@@ -699,7 +699,7 @@ class AnalysisViewModel extends ChangeNotifier {
       }
 
       // 2. Tìm số Tốt Nhất (Min P_total) - Giống hệt logic tính Optimal
-      final pThreshold = config.probability.getThreshold(mienForCalc);
+      final pThreshold = config.probability.getThresholdLn(mienForCalc);
       final bestNode = await AnalysisService.findNumberWithMinPTotal(
         _allResults,
         mienForCalc,

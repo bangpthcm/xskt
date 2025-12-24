@@ -9,30 +9,41 @@ import '../models/lottery_result.dart';
 import '../models/number_detail.dart';
 import '../services/betting_table_service.dart';
 
+/// Model chứa kết quả phân tích theo chuẩn Logarithm và Cumulative
 class NumberAnalysisData {
   final String number;
-  final double p1;
-  final double p2;
-  final double p3;
-  final double pTotal;
-  final double currentGan; // Đơn vị: Slots
+  final double lnP1;
+  final double lnP2;
+  final double lnP3;
+  final double lnP4;
+  final double lnPTotal; // ln(P_TOTAL)
+  final double currentGan; // Gap thực tế (x)
+  final double lastCycleGan; // Gap quá khứ (y)
   final DateTime lastSeenDate;
+  final int totalSlotsActual; // Tổng slots thực tế sau khi trim
+  final double cntReal; // Số nháy thực tế
+  final double cntTheory; // Số nháy lý thuyết
 
   NumberAnalysisData({
     required this.number,
-    required this.p1,
-    required this.p2,
-    required this.p3,
-    required this.pTotal,
+    required this.lnP1,
+    required this.lnP2,
+    required this.lnP3,
+    required this.lnP4,
+    required this.lnPTotal,
     required this.currentGan,
+    required this.lastCycleGan,
     required this.lastSeenDate,
+    required this.totalSlotsActual,
+    required this.cntReal,
+    required this.cntTheory,
   });
 
   @override
   String toString() {
     return 'NumberAnalysisData('
         'number: $number, '
-        'P_total: ${pTotal.toStringAsExponential(4)}, '
+        'lnPTotal: ${lnPTotal.toStringAsFixed(4)}, '
         'currentGan: $currentGan)';
   }
 }
@@ -40,16 +51,16 @@ class NumberAnalysisData {
 class PairAnalysisData {
   final String firstNumber;
   final String secondNumber;
-  final double p1Pair;
-  final double pTotalXien;
+  final double lnP1Pair;
+  final double lnPTotalXien;
   final double daysSinceLastSeen;
   final DateTime lastSeenDate;
 
   PairAnalysisData({
     required this.firstNumber,
     required this.secondNumber,
-    required this.p1Pair,
-    required this.pTotalXien,
+    required this.lnP1Pair,
+    required this.lnPTotalXien,
     required this.daysSinceLastSeen,
     required this.lastSeenDate,
   });
@@ -60,7 +71,7 @@ class PairAnalysisData {
   String toString() {
     return 'PairAnalysisData('
         'pair: $pairDisplay, '
-        'P_total: ${pTotalXien.toStringAsExponential(4)})';
+        'lnPTotal: ${lnPTotalXien.toStringAsFixed(4)})';
   }
 }
 
@@ -68,178 +79,363 @@ class AnalysisService {
   final Map<String, GanPairInfo> _ganPairCache = {};
   final Map<String, CycleAnalysisResult> _cycleCache = {};
 
-  // Tỷ lệ trượt 1 slot cố định là 0.99
-  static const double _probMissPerSlot = 0.99;
+  // --- HẰNG SỐ CẤU HÌNH (Theo Python Script) ---
+  static const double WINDOW_FREQ_SLOTS = 9801.0;
+  static const double P_INDIV = 0.01;
+  static final double LN_P_INDIV = log(P_INDIV);
+  // ln(0.99) ≈ -0.01005
+  static final double LN_BASE = log(max(1.0 - P_INDIV, 1e-12));
 
-  static double _calculatePTotalCycle(
-      double p1, double p2, double p3, double p4) {
-    if (p1 <= 0 || p2 <= 0 || p3 <= 0 || p4 <= 0) {
-      // print('⚠️ [DEBUG] Invalid p value: p1=$p1, p2=$p2, p3=$p3, p4=$p4');
-      return 0.0;
-    }
+  // Trọng số Best W
+  static const double W1 = 10.12024526;
+  static const double W2 = 9.63792797;
+  static const double W3 = 2.72846129;
+  static const double W4 = 0.10088029;
 
-    // Công thức: pow(p1,12) * pow(p2,11.536142) * pow(p3,1.035033) * pow(p4,0.072644)
-    final result = pow(p1, 10.12024526).toDouble() *
-        pow(p2, 9.63792797).toDouble() *
-        pow(p3, 2.72846129).toDouble() *
-        pow(p4, 0.10088029).toDouble();
-
-    return result;
+  // --- SORTING HELPERS ---
+  static int _getRegionPriority(String mien) {
+    final s = mien.toLowerCase();
+    if (s.contains('nam')) return 1;
+    if (s.contains('trung')) return 2;
+    if (s.contains('bắc') || s.contains('bac')) return 3;
+    return 9;
   }
 
-  static double _calculatePTotalXien(double p1) {
-    if (p1 < 0) return 0.0;
-    return p1;
+  static int _compareSessions(LotteryResult a, LotteryResult b) {
+    // 1. So sánh ngày
+    final dateA = date_utils.DateUtils.parseDate(a.ngay) ?? DateTime(1970);
+    final dateB = date_utils.DateUtils.parseDate(b.ngay) ?? DateTime(1970);
+    int dateComp = dateA.compareTo(dateB);
+    if (dateComp != 0) return dateComp;
+
+    // 2. So sánh ưu tiên miền (Nam -> Trung -> Bắc)
+    return _getRegionPriority(a.mien).compareTo(_getRegionPriority(b.mien));
   }
 
-  static double _calculateP1ForXienPair(double pPair, double daysSinceSeen) {
-    if (pPair >= 1 || pPair <= 0) return 0.0;
-    if (daysSinceSeen < 0) return 0.0;
-    // Xiên vẫn giữ logic theo ngày vì bản chất xiên tính theo cặp xuất hiện trong ngày
-    return pow(1 - pPair, daysSinceSeen).toDouble();
-  }
-
-  static double estimatePairProbability(
-    int totalUniquePairs,
-    int totalDays,
-  ) {
-    return 0.055;
-  }
-
+  // --- MAIN LOGIC: TÌM SỐ VỚI MIN LOG P ---
   static Future<NumberAnalysisData?> findNumberWithMinPTotal(
     List<LotteryResult> results,
     String mien,
-    double threshold,
+    double lnThreshold,
   ) async {
     return await compute(_findNumberWithMinPTotalCompute, {
       'results': results,
       'mien': mien,
-      'threshold': threshold,
+      'lnThreshold': lnThreshold,
     });
   }
 
   static NumberAnalysisData? _findNumberWithMinPTotalCompute(
     Map<String, dynamic> params,
   ) {
-    var results = params['results'] as List<LotteryResult>;
-    final mien = params['mien'] as String;
-    // final threshold = params['threshold'] as double; // Có thể dùng nếu cần lọc
+    var rawResults = params['results'] as List<LotteryResult>;
+    final mienScope = params['mien'] as String;
 
     try {
-      // 1. Lọc theo miền TRƯỚC để đảm bảo đếm slot chính xác cho miền đó
-      if (mien != 'tatca' && mien != 'Tất cả') {
-        results = results.where((r) => r.mien == mien).toList();
+      // 1. Filter Scope (Lọc miền)
+      List<LotteryResult> scopedResults;
+      if (mienScope.toLowerCase().contains('tất cả') ||
+          mienScope == 'tatca' ||
+          mienScope == 'ALL' ||
+          mienScope == 'Tất cả') {
+        scopedResults = List.from(rawResults);
+      } else {
+        scopedResults =
+            rawResults.where((r) => r.mien.contains(mienScope)).toList();
       }
 
-      if (results.isEmpty) return null;
+      // 2. Sort chuẩn Python (Date Asc -> Region Priority)
+      scopedResults.sort(_compareSessions);
 
-      // 2. Logic mới: Cắt danh sách sao cho tổng slots xấp xỉ 9801
-      const int targetSlots = 9801;
-      int accumulatedSlots = 0;
+      if (scopedResults.isEmpty) return null;
+
+      // 3. Trim (Cắt dữ liệu) - Logic Python: Dừng ngay khi >= 9801
+      int accumulated = 0;
       int cutIndex = 0;
-
-      // Duyệt ngược từ kỳ quay mới nhất về quá khứ
-      for (int i = results.length - 1; i >= 0; i--) {
-        accumulatedSlots += results[i].numbers.length;
-        if (accumulatedSlots >= targetSlots) {
+      // Chạy ngược
+      for (int i = scopedResults.length - 1; i >= 0; i--) {
+        accumulated += scopedResults[i].numbers.length;
+        if (accumulated >= WINDOW_FREQ_SLOTS.toInt()) {
           cutIndex = i;
-          break;
+          break; // Stop immediately, keep this session
         }
       }
 
-      // Cắt lấy đoạn dữ liệu đủ 9801 slots (hoặc tối đa nếu không đủ)
-      results = results.sublist(cutIndex);
+      // Lấy danh sách đã cắt (đúng chiều thời gian)
+      final finalSessions = scopedResults.sublist(cutIndex);
 
-      // 3. Tính kExpected dựa trên tập dữ liệu đã chuẩn hóa này
-      // pStats.totalSlots lúc này sẽ ~9801 (hoặc <= nếu data ít hơn)
-      final pStats = calculatePStats(results, fixedMien: mien);
-      final kExpected = pStats.totalSlots / 100.0;
+      // 4. Build Cumulative List (Mảng cộng dồn)
+      // cumList[i] = Tổng slots từ đầu đến HẾT session i
+      List<int> cumList = [];
+      int runningSum = 0;
+      for (var session in finalSessions) {
+        runningSum += session.numbers.length;
+        cumList.add(runningSum);
+      }
 
-      print('📊 [Setup] Phạm vi phân tích: ${results.length} kỳ quay');
-      print(
-          '📊 [Setup] Tổng slots thực tế: ${pStats.totalSlots} (Mục tiêu: $targetSlots)');
-      print(
-          '📊 [Setup] kExpected (Số lần xuất hiện kỳ vọng): ${kExpected.toStringAsFixed(2)}');
+      final int totalSlotsActual = runningSum;
 
+      // Setup thông số chung
       final allAnalysis = <NumberAnalysisData>[];
 
+      // 5. Tính toán cho từng số (00-99)
       for (int i = 0; i <= 99; i++) {
         final number = i.toString().padLeft(2, '0');
 
-        // Thống kê cũng chỉ xét trong phạm vi 9801 slots này để đồng bộ với P4
-        final stats = _getNumberStats(results, number);
+        // Tìm các phiên nổ (Hit Indices) trong finalSessions
+        List<int> hitIndices = [];
+        int cntRealInt = 0;
 
-        if (stats == null) continue;
+        for (int sIdx = 0; sIdx < finalSessions.length; sIdx++) {
+          int countInSession =
+              finalSessions[sIdx].numbers.where((n) => n == number).length;
+          if (countInSession > 0) {
+            hitIndices.add(sIdx);
+            cntRealInt += countInSession;
+          }
+        }
 
-        final currentGanSlots = stats['currentGan'] as double;
-        final lastCycleGanSlots = stats['lastCycleGan'] as double;
-        final thirdCycleGanSlots = stats['thirdCycleGan'] as double;
-        final slots = stats['slots']
-            as double; // Số lần xuất hiện thực tế trong 9801 slots
-        final lastDate = stats['lastDate'] as DateTime;
+        // --- TÍNH TOÁN METRICS (Gap x, y, z) ---
+        double x = 0, y = 0, z = 0;
 
-        // P(trượt N slots) = 0.99^N
-        final p1 = pow(_probMissPerSlot, currentGanSlots).toDouble();
-        final p2 = pow(_probMissPerSlot, lastCycleGanSlots).toDouble();
-        final p3 = thirdCycleGanSlots > 0
-            ? pow(_probMissPerSlot, thirdCycleGanSlots).toDouble()
-            : 1.0;
+        if (hitIndices.isEmpty) {
+          // Chưa nổ lần nào trong range
+          x = totalSlotsActual.toDouble();
+          y = 0;
+          z = 0;
+        } else {
+          int lastIdx = hitIndices.last;
+          // x = Tổng thực tế - Cum tại phiên nổ cuối
+          x = (totalSlotsActual - cumList[lastIdx]).toDouble();
 
-        // Tính p4 = Thực tế / Kỳ vọng
-        final p4 = (slots == 0) ? 0.000001 : (slots / kExpected);
+          if (hitIndices.length >= 2) {
+            int prevIdx = hitIndices[hitIndices.length - 2];
+            // y = Cum(trước last) - Cum(prev)
+            // Cum(trước last) = cumList[lastIdx - 1]
+            int cumBeforeLast = (lastIdx - 1 >= 0) ? cumList[lastIdx - 1] : 0;
+            y = (cumBeforeLast - cumList[prevIdx]).toDouble();
 
-        final pTotal = _calculatePTotalCycle(p1, p2, p3, p4);
+            if (hitIndices.length >= 3) {
+              int prev2Idx = hitIndices[hitIndices.length - 3];
+              // z = Cum(trước prev) - Cum(prev2)
+              int cumBeforePrev = (prevIdx - 1 >= 0) ? cumList[prevIdx - 1] : 0;
+              z = (cumBeforePrev - cumList[prev2Idx]).toDouble();
+            } else {
+              // Trường hợp chỉ có đúng 2 hit
+              int cumBeforePrev = (prevIdx - 1 >= 0) ? cumList[prevIdx - 1] : 0;
+              z = cumBeforePrev.toDouble();
+            }
+          } else {
+            // Chỉ có 1 hit
+            int cumBeforeLast = (lastIdx - 1 >= 0) ? cumList[lastIdx - 1] : 0;
+            y = cumBeforeLast.toDouble();
+            z = 0;
+          }
+        }
+
+        // --- TÍNH P1, P2, P3, P4 ---
+        // ln(P) = slots * ln(base)
+        final lnP1 = x * LN_BASE;
+        final lnP2 = y * LN_BASE;
+        final lnP3 = z * LN_BASE;
+
+        // P4: Tần suất
+        final double cntReal = cntRealInt.toDouble();
+        const double cntTheory = WINDOW_FREQ_SLOTS / 100.0; // Luôn là 98.01
+
+        // ln(P4) = ln(cnt_real) - ln(cnt_theory)
+        double lnP4;
+        if (cntReal <= 0) {
+          lnP4 = -300.0; // Giá trị phạt thay thế cho log(0)
+        } else {
+          lnP4 = log(cntReal) - log(cntTheory);
+        }
+
+        // --- TÍNH P_TOTAL (Log) ---
+        final lnPTotal = (2.0 * LN_P_INDIV) +
+            (W1 * lnP1) +
+            (W2 * lnP2) +
+            (W3 * lnP3) +
+            (W4 * lnP4);
 
         allAnalysis.add(NumberAnalysisData(
           number: number,
-          p1: p1,
-          p2: p2,
-          p3: p3,
-          pTotal: pTotal,
-          currentGan: currentGanSlots,
-          lastSeenDate: lastDate,
+          lnP1: lnP1,
+          lnP2: lnP2,
+          lnP3: lnP3,
+          lnP4: lnP4,
+          lnPTotal: lnPTotal,
+          currentGan: x,
+          lastCycleGan: y,
+          lastSeenDate: finalSessions.isNotEmpty
+              ? date_utils.DateUtils.parseDate(finalSessions.last.ngay) ??
+                  DateTime.now()
+              : DateTime.now(),
+          totalSlotsActual: totalSlotsActual,
+          cntReal: cntReal,
+          cntTheory: cntTheory,
         ));
       }
 
       if (allAnalysis.isEmpty) return null;
 
+      // Tìm min
       final minResult =
-          allAnalysis.reduce((a, b) => a.pTotal < b.pTotal ? a : b);
+          allAnalysis.reduce((a, b) => a.lnPTotal < b.lnPTotal ? a : b);
 
-      // =======================================================================
-      // 🔥 DEBUG LOG CHI TIẾT
-      // =======================================================================
-      print('\n🔍 [KIỂM TRA SỐ MỤC TIÊU] Số: ${minResult.number}');
-
-      final bestStats = _getNumberStats(results, minResult.number);
-      if (bestStats != null) {
-        final s1 = bestStats['currentGan'] as double;
-        final s2 = bestStats['lastCycleGan'] as double;
-        final s3 = bestStats['thirdCycleGan'] as double;
-        final actual = bestStats['slots'] as double;
-        final p4 = (actual == 0) ? 0.000001 : (actual / kExpected);
-
-        print(
-            '   🔹 P1: ${minResult.p1.toStringAsExponential(6)} \t| Slots Gan Hiện Tại: ${s1.toInt()}');
-        print(
-            '   🔹 P2: ${minResult.p2.toStringAsExponential(6)} \t| Slots Gan Quá Khứ:  ${s2.toInt()}');
-        print(
-            '   🔹 P3: ${minResult.p3.toStringAsExponential(6)} \t| Slots Gan Kia:      ${s3.toInt()}');
-        print(
-            '   🔹 P4: ${p4.toStringAsFixed(6)}       \t| Thực tế: ${actual.toInt()} / Dự kiến: ${kExpected.toStringAsFixed(2)} (trong ${pStats.totalSlots} slots)');
-        print('   👉 P_TOTAL: ${minResult.pTotal.toStringAsExponential(6)}');
-        print('--------------------------------------------------\n');
-      }
+      // --- DEBUG LOGGING ---
+      print('\n🔍 [MIN LOG P] Số: ${minResult.number}');
+      print('   📊 Tổng Slots: ${minResult.totalSlotsActual} (Target: 9801)');
+      print(
+          '   🔹 P1 (Gan hiện tại): ${minResult.lnP1.toStringAsFixed(4)} | Slots: ${minResult.currentGan}');
+      print(
+          '   🔹 P2 (Gan quá khứ): ${minResult.lnP2.toStringAsFixed(4)} | Slots: ${minResult.lastCycleGan}');
+      print(
+          '   🔹 P3 (Gan kìa):     ${minResult.lnP3.toStringAsFixed(4)} | Slots: ${minResult.lnP3 / LN_BASE}');
+      print(
+          '   🔹 P4 (Tần suất):    ${minResult.lnP4.toStringAsFixed(4)} | Nháy: ${minResult.cntReal} / ${minResult.cntTheory}');
+      print('   👉 LN_TOTAL: ${minResult.lnPTotal.toStringAsFixed(4)}');
+      print('--------------------------------------------------\n');
 
       return minResult;
-    } catch (e) {
+    } catch (e, stack) {
       print('❌ Error in findNumberWithMinPTotal: $e');
+      print(stack);
       return null;
     }
   }
 
-  // ... (Giữ nguyên phần Pair/Xiên analysis vì phần này logic khác) ...
+  // --- HÀM THỐNG KÊ CHI TIẾT (DÙNG CHO UI) ---
+  // Sử dụng Cumulative Array để đảm bảo logic thống nhất với core
+  static Map<String, dynamic>? _getNumberStats(
+      List<LotteryResult> rawResults, String targetNumber) {
+    var results = List<LotteryResult>.from(rawResults);
+    results.sort(_compareSessions);
 
+    // Build cumulative
+    List<int> cumList = [];
+    int runningSum = 0;
+    List<int> hitIndices = [];
+    int occurrences = 0;
+
+    for (int i = 0; i < results.length; i++) {
+      runningSum += results[i].numbers.length;
+      cumList.add(runningSum);
+      int count = results[i].numbers.where((n) => n == targetNumber).length;
+      if (count > 0) {
+        hitIndices.add(i);
+        occurrences += count;
+      }
+    }
+
+    if (hitIndices.isEmpty) return null;
+
+    final int totalSlots = cumList.last;
+    int lastIdx = hitIndices.last;
+
+    double currentGan = (totalSlots - cumList[lastIdx]).toDouble();
+    double lastCycleGan = 0;
+    if (hitIndices.length >= 2) {
+      int prevIdx = hitIndices[hitIndices.length - 2];
+      int cumBeforeLast = (lastIdx - 1 >= 0) ? cumList[lastIdx - 1] : 0;
+      lastCycleGan = (cumBeforeLast - cumList[prevIdx]).toDouble();
+    }
+
+    double thirdCycleGan = 0;
+    if (hitIndices.length >= 3) {
+      int prevIdx = hitIndices[hitIndices.length - 2];
+      int prev2Idx = hitIndices[hitIndices.length - 3];
+      int cumBeforePrev = (prevIdx - 1 >= 0) ? cumList[prevIdx - 1] : 0;
+      thirdCycleGan = (cumBeforePrev - cumList[prev2Idx]).toDouble();
+    }
+
+    final lastDate = date_utils.DateUtils.parseDate(results[lastIdx].ngay);
+    final uniqueDays = results.map((r) => r.ngay).toSet().length;
+
+    return {
+      'currentGan': currentGan,
+      'lastCycleGan': lastCycleGan,
+      'thirdCycleGan': thirdCycleGan,
+      'occurrences': occurrences.toDouble(),
+      'totalDays': uniqueDays.toDouble(),
+      'slots': occurrences.toDouble(),
+      'lastDate': lastDate,
+    };
+  }
+
+  // --- TÌM NGÀY KẾT THÚC (LOGARITHM SIMULATION) ---
+  static Future<({DateTime endDate, int daysNeeded})?>
+      findEndDateForCycleThreshold(NumberAnalysisData targetNumber,
+          double pUnused, List<LotteryResult> results, double lnThreshold,
+          {int maxIterations = 20000, String mien = 'Tất cả'}) async {
+    return await compute(_findEndDateForCycleThresholdCompute, {
+      'currentLnP1': targetNumber.lnP1,
+      'currentLnP2': targetNumber.lnP2,
+      'currentLnP3': targetNumber.lnP3,
+      'currentLnP4': targetNumber.lnP4,
+      'lnThreshold': lnThreshold,
+      'maxIterations': maxIterations,
+      'mien': mien,
+    });
+  }
+
+  static ({DateTime endDate, int daysNeeded})?
+      _findEndDateForCycleThresholdCompute(
+    Map<String, dynamic> params,
+  ) {
+    var currentLnP1 = params['currentLnP1'] as double;
+    final currentLnP2 = params['currentLnP2'] as double;
+    final currentLnP3 = params['currentLnP3'] as double;
+    final currentLnP4 = params['currentLnP4'] as double;
+    final lnThreshold = params['lnThreshold'] as double;
+    final maxIterations = params['maxIterations'] as int;
+    final mienFilter = params['mien'] as String;
+
+    try {
+      var currentLnPTotal = (2.0 * LN_P_INDIV) +
+          (W1 * currentLnP1) +
+          (W2 * currentLnP2) +
+          (W3 * currentLnP3) +
+          (W4 * currentLnP4);
+
+      if (currentLnPTotal < lnThreshold) {
+        return (
+          endDate: DateTime.now().add(const Duration(days: 1)),
+          daysNeeded: 1
+        );
+      }
+
+      int addedSlots = 0;
+      while (currentLnPTotal >= lnThreshold && addedSlots < maxIterations) {
+        addedSlots++;
+        // Mô phỏng: Gan tăng 1 slot -> P1 giảm đi base
+        currentLnP1 += LN_BASE;
+
+        currentLnPTotal = (2.0 * LN_P_INDIV) +
+            (W1 * currentLnP1) +
+            (W2 * currentLnP2) +
+            (W3 * currentLnP3) +
+            (W4 * currentLnP4);
+      }
+
+      if (addedSlots >= maxIterations) return null;
+
+      final simulationResult = _mapSlotsToDateAndMien(
+        slotsNeeded: addedSlots,
+        startDate: DateTime.now(),
+        mienFilter: mienFilter,
+      );
+
+      return (
+        endDate: simulationResult.date,
+        daysNeeded: simulationResult.daysFromStart
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // --- PHÂN TÍCH XIÊN (LOG) ---
   static Future<PairAnalysisData?> findPairWithMinPTotal(
     List<LotteryResult> allResults,
   ) async {
@@ -249,16 +445,13 @@ class AnalysisService {
   static PairAnalysisData? _findPairWithMinPTotalCompute(
     List<LotteryResult> allResults,
   ) {
-    // Logic xiên giữ nguyên theo ngày vì tính theo cặp
     try {
       var bacResults = allResults.where((r) => r.mien == 'Bắc').toList();
       if (bacResults.isEmpty) return null;
 
       const int limit = 368;
-      if (bacResults.length > limit) {
+      if (bacResults.length > limit)
         bacResults = bacResults.sublist(bacResults.length - limit);
-      }
-
       final resultsByDate = <DateTime, Set<String>>{};
       final pairLastSeen = <String, DateTime>{};
 
@@ -269,15 +462,12 @@ class AnalysisService {
       }
 
       final sortedDates = resultsByDate.keys.toList()..sort();
-
       for (final date in sortedDates) {
         final nums = resultsByDate[date]!.toList()..sort();
         if (nums.length < 2) continue;
-
         for (int i = 0; i < nums.length - 1; i++) {
           for (int j = i + 1; j < nums.length; j++) {
-            final pairKey = '${nums[i]}-${nums[j]}';
-            pairLastSeen[pairKey] = date;
+            pairLastSeen['${nums[i]}-${nums[j]}'] = date;
           }
         }
       }
@@ -297,113 +487,35 @@ class AnalysisService {
         final lastSeenDate = entry.value;
         final daysSince = now.difference(lastSeenDate).inDays.toDouble();
 
-        final p1Pair = _calculateP1ForXienPair(pPair, daysSince);
-        final pTotalXien = _calculatePTotalXien(p1Pair);
+        // Xiên: ln(P1) = days * ln(1 - pPair)
+        final lnP1Pair = daysSince * log(1 - pPair);
+        final lnPTotalXien = lnP1Pair;
 
         final parts = pairKey.split('-');
         allPairAnalysis.add(PairAnalysisData(
           firstNumber: parts[0],
           secondNumber: parts[1],
-          p1Pair: p1Pair,
-          pTotalXien: pTotalXien,
+          lnP1Pair: lnP1Pair,
+          lnPTotalXien: lnPTotalXien,
           daysSinceLastSeen: daysSince,
           lastSeenDate: lastSeenDate,
         ));
       }
 
       if (allPairAnalysis.isEmpty) return null;
-
       return allPairAnalysis
-          .reduce((a, b) => a.pTotalXien < b.pTotalXien ? a : b);
+          .reduce((a, b) => a.lnPTotalXien < b.lnPTotalXien ? a : b);
     } catch (e) {
       return null;
     }
   }
 
-  static Future<({DateTime endDate, int daysNeeded})?>
-      findEndDateForCycleThreshold(NumberAnalysisData targetNumber, double p,
-          List<LotteryResult> results, double threshold,
-          {int maxIterations = 20000, String mien = 'Tất cả'}) async {
-    // 🔥 DEBUG NGAY TẠI CỬA NGÕ: Xem nó nhận được cái gì
-    print('🔍 [DEBUG Mien] Input received: "$mien"');
+  // --- CÁC HÀM HELPER & KHÔI PHỤC ---
 
-    return await compute(_findEndDateForCycleThresholdCompute, {
-      'targetNumber': targetNumber.number,
-      'currentGanSlots': targetNumber.currentGan,
-      'currentP2': targetNumber.p2,
-      'currentP3': targetNumber.p3,
-      'threshold': threshold,
-      'maxIterations': maxIterations,
-      'mien': mien,
-    });
+  static double estimatePairProbability(int totalUniquePairs, int totalDays) {
+    return 0.055;
   }
 
-  static ({DateTime endDate, int daysNeeded})?
-      _findEndDateForCycleThresholdCompute(
-    Map<String, dynamic> params,
-  ) {
-    final currentGanSlots = params['currentGanSlots'] as double;
-    final currentP2 = params['currentP2'] as double;
-    final currentP3 = params['currentP3'] as double;
-    final threshold = params['threshold'] as double;
-    final maxIterations = params['maxIterations'] as int;
-    final mienFilter = params['mien'] as String;
-
-    try {
-      // Giả định p4 = 1.0 vì trong mô phỏng ngắn hạn nó ít biến động
-      const currentP4 = 1.0;
-
-      // 1. Kiểm tra trạng thái hiện tại
-      var currentP1 = pow(_probMissPerSlot, currentGanSlots).toDouble();
-      var currentPTotal =
-          _calculatePTotalCycle(currentP1, currentP2, currentP3, currentP4);
-
-      if (currentPTotal < threshold) {
-        return (
-          endDate: DateTime.now().add(const Duration(days: 1)),
-          daysNeeded: 1
-        );
-      }
-
-      // 2. Loop: Tăng dần số slot cần bốc thêm (addedSlots)
-      // Cho đến khi p1 đủ nhỏ để pTotal < threshold
-      int addedSlots = 0;
-      while (currentPTotal >= threshold && addedSlots < maxIterations) {
-        addedSlots++;
-        // Cứ thêm 1 slot thì p1 giảm đi 1% (nhân 0.99)
-        currentP1 = currentP1 * _probMissPerSlot;
-        currentPTotal =
-            _calculatePTotalCycle(currentP1, currentP2, currentP3, currentP4);
-      }
-
-      if (addedSlots >= maxIterations) {
-        print('   ⚠️ Vượt quá maxIterations slots ($maxIterations)');
-        return null;
-      }
-
-      // 3. Ánh xạ từ "Số slot cần thêm" -> "Ngày và Miền kết thúc"
-      // Phải dựa vào lịch quay thưởng (Schedule)
-      final simulationResult = _mapSlotsToDateAndMien(
-        slotsNeeded: addedSlots,
-        startDate: DateTime.now(),
-        mienFilter: mienFilter,
-      );
-
-      print('   ✅ Cần thêm $addedSlots slots.');
-      print(
-          '   ✅ Dự kiến chạm đáy vào: ${date_utils.DateUtils.formatDate(simulationResult.date)} (${simulationResult.endMien})');
-
-      return (
-        endDate: simulationResult.date,
-        daysNeeded: simulationResult.daysFromStart
-      );
-    } catch (e) {
-      print('❌ Error in findEndDateForCycleThreshold: $e');
-      return null;
-    }
-  }
-
-  // Hàm helper: Ánh xạ Slot -> Date dựa trên lịch xổ số (Bắc/Trung/Nam)
   static ({DateTime date, String endMien, int daysFromStart})
       _mapSlotsToDateAndMien({
     required int slotsNeeded,
@@ -413,177 +525,60 @@ class AnalysisService {
     DateTime currentDate = startDate;
     int slotsRemaining = slotsNeeded;
     int daysCount = 0;
-
-    // Safety break để tránh vòng lặp vô tận nếu logic sai
     int safetyLoop = 0;
     const int maxLookAheadDays = 365;
 
-    // Lặp từng ngày cho đến khi hết slots
     while (slotsRemaining > 0 && safetyLoop < maxLookAheadDays) {
       safetyLoop++;
-      // Sang ngày tiếp theo (bắt đầu tính từ ngày mai)
       currentDate = currentDate.add(const Duration(days: 1));
       daysCount++;
-
-      // Lấy danh sách các miền quay trong ngày đó dựa trên bộ lọc
       final schedule = _getLotterySchedule(currentDate, mienFilter);
-
-      // Nếu ngày đó không có đài nào quay (theo bộ lọc), bỏ qua
       if (schedule.isEmpty) continue;
 
       for (final mien in schedule) {
-        // Lấy số slot (số giải) chính xác của miền đó vào thứ đó
         final slotsInMien = _getSlotsForMien(mien, currentDate);
-
         if (slotsRemaining <= slotsInMien) {
-          // Kết thúc tại miền này
-          return (
-            date: currentDate,
-            endMien: mien,
-            daysFromStart: daysCount,
-          );
+          return (date: currentDate, endMien: mien, daysFromStart: daysCount);
         } else {
-          // Trừ slot và tiếp tục sang miền tiếp theo hoặc ngày tiếp theo
           slotsRemaining -= slotsInMien;
         }
       }
     }
-
     return (date: currentDate, endMien: 'Unknown', daysFromStart: daysCount);
   }
 
-  // Trả về thứ tự quay thưởng trong ngày CHỈ CHO PHÉP theo bộ lọc
   static List<String> _getLotterySchedule(DateTime date, String filter) {
     final list = <String>[];
-
-    // Chuẩn hóa chuỗi đầu vào: chữ thường + trim khoảng trắng
     final f = filter.toLowerCase().trim();
-
-    // Logic kiểm tra thông minh hơn: Dùng .contains()
-    // Chấp nhận: "miền bắc", "bắc", "xổ số bắc", "bac"...
     bool isBac = f.contains('bắc') || f.contains('bac');
     bool isTrung = f.contains('trung');
     bool isNam = f.contains('nam');
+    bool isAll =
+        f.contains('tất cả') || f.contains('tatca') || f.isEmpty || f == 'all';
+    if (!isBac && !isTrung && !isNam && !isAll) isAll = true;
 
-    // Nếu chuỗi chứa "tất cả", "tatca" hoặc RỖNG -> Là Tất cả
-    bool isAll = f.contains('tất cả') || f.contains('tatca') || f.isEmpty;
-
-    // Fallback: Nếu không khớp từ khóa nào cả -> Coi như là Tất cả (để tránh lỗi return list rỗng)
-    if (!isBac && !isTrung && !isNam && !isAll) {
-      // print('⚠️ [Schedule] Không nhận diện được miền "$filter", mặc định là Tất cả');
-      isAll = true;
-    }
-
-    // Thứ tự xổ thực tế: Nam (16:15) -> Trung (17:15) -> Bắc (18:15)
-
-    // 1. Miền Nam
-    if (isAll || isNam) {
-      list.add('Nam');
-    }
-
-    // 2. Miền Trung
-    if (isAll || isTrung) {
-      list.add('Trung');
-    }
-
-    // 3. Miền Bắc
-    if (isAll || isBac) {
-      list.add('Bắc');
-    }
-
+    if (isAll || isNam) list.add('Nam');
+    if (isAll || isTrung) list.add('Trung');
+    if (isAll || isBac) list.add('Bắc');
     return list;
   }
 
-  // Số slot (số giải) thực tế của từng miền trong 1 ngày (dựa trên thứ)
   static int _getSlotsForMien(String mien, DateTime date) {
-    final weekday = date.weekday; // 1 = Thứ 2, ..., 7 = Chủ Nhật
-    // 1 đài = 18 giải.
-
+    final weekday = date.weekday;
     switch (mien) {
       case 'Bắc':
-        // Miền Bắc: Luôn 27 giải (1 đài chung)
         return 27;
-
       case 'Trung':
-        // Quy luật miền Trung:
-        // T2: 2 đài (Huế, Phú Yên) -> 36
-        // T3: 2 đài (Đắk Lắk, Quảng Nam) -> 36
-        // T4: 2 đài (Đà Nẵng, Khánh Hòa) -> 36
-        // T5: 3 đài (Bình Định, Quảng Trị, Quảng Bình) -> 54
-        // T6: 2 đài (Gia Lai, Ninh Thuận) -> 36
-        // T7: 3 đài (Đà Nẵng, Quảng Ngãi, Đắk Nông) -> 54
-        // CN: 2 đài (Kon Tum, Khánh Hòa) -> 36
-
-        if (weekday == DateTime.thursday || weekday == DateTime.saturday) {
-          return 54; // 3 đài
-        }
-        return 36; // 2 đài
-
+        if (weekday == DateTime.thursday || weekday == DateTime.saturday)
+          return 54;
+        return 36;
       case 'Nam':
-        // Quy luật miền Nam:
-        // T2, T3, T4, T5, T6, CN: 3 đài -> 54 giải
-        // Riêng T7: 4 đài (TP.HCM, Long An, Bình Phước, Hậu Giang) -> 72 giải
-
-        if (weekday == DateTime.saturday) {
-          return 72; // 4 đài
-        }
-        return 54; // 3 đài
-
+        if (weekday == DateTime.saturday) return 72;
+        return 54;
       default:
-        return 18; // Fallback an toàn
+        return 18;
     }
   }
-
-  static Future<({DateTime endDate, int daysNeeded})?>
-      findEndDateForXienThreshold(
-          PairAnalysisData targetPair, double pPair, double threshold,
-          {int maxIterations = 10000}) async {
-    // Xiên vẫn giữ nguyên logic theo ngày như cũ
-    return await compute(_findEndDateForXienThresholdCompute, {
-      'pPair': pPair,
-      'currentDaysGan': targetPair.daysSinceLastSeen,
-      'threshold': threshold,
-      'maxIterations': maxIterations,
-    });
-  }
-
-  static ({DateTime endDate, int daysNeeded})?
-      _findEndDateForXienThresholdCompute(
-    Map<String, dynamic> params,
-  ) {
-    final pPair = params['pPair'] as double;
-    final currentDaysGan = params['currentDaysGan'] as double;
-    final threshold = params['threshold'] as double;
-    final maxIterations = params['maxIterations'] as int;
-
-    try {
-      var currentP1 = _calculateP1ForXienPair(pPair, currentDaysGan);
-
-      if (currentP1 < threshold) {
-        return (
-          endDate: DateTime.now().add(const Duration(days: 1)),
-          daysNeeded: 1
-        );
-      }
-
-      int daysNeeded = 0;
-      while (currentP1 >= threshold && daysNeeded < maxIterations) {
-        daysNeeded++;
-        currentP1 = currentP1 * (1 - pPair);
-      }
-
-      if (daysNeeded >= maxIterations) {
-        return null;
-      }
-
-      final endDate = DateTime.now().add(Duration(days: daysNeeded));
-      return (endDate: endDate, daysNeeded: daysNeeded);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // ... (Các hàm findOptimalStartDate, getMienIndex giữ nguyên) ...
 
   static Future<DateTime?> findOptimalStartDateForCycle({
     required DateTime baseStartDate,
@@ -651,17 +646,13 @@ class AnalysisService {
     required BettingTableService bettingService,
     int maxDaysToTry = 15,
   }) async {
-    print('🔍 [Start Date] Tìm start date tối ưu (Xiên)');
     DateTime currentStart = baseStartDate;
     int attempt = 0;
-
     while (attempt < maxDaysToTry && currentStart.isBefore(endDate)) {
       try {
         final actualBettingDays = endDate.difference(currentStart).inDays;
         if (actualBettingDays <= 1) break;
-
         final effectiveDurationBase = actualBettingDays + ganInfo.daysGan;
-
         final table = await bettingService.generateXienTable(
           ganInfo: ganInfo,
           startDate: currentStart,
@@ -669,25 +660,16 @@ class AnalysisService {
           durationBase: effectiveDurationBase,
           fitBudgetOnly: true,
         );
-
         if (table.isNotEmpty) {
           final totalCost = table.last.tongTien;
-          if (totalCost <= availableBudget) {
-            print(
-                '   ✅ TÌM ĐƯỢC! Start = ${date_utils.DateUtils.formatDate(currentStart)}');
-            return currentStart;
-          }
+          if (totalCost <= availableBudget) return currentStart;
         }
-      } catch (e) {
-        // Ignored
-      }
+      } catch (e) {}
       currentStart = currentStart.add(const Duration(days: 1));
       attempt++;
     }
     return null;
   }
-
-  // ... (Các hàm còn lại giữ nguyên, chỉ chỉnh sửa calculatePStats) ...
 
   static ({double p, int totalSlots}) calculatePStats(
       List<LotteryResult> results,
@@ -698,219 +680,11 @@ class AnalysisService {
         totalSlots += r.numbers.length;
       }
     }
-    // Giá trị p ở đây chỉ dùng để tham khảo hoặc tính kExpected
-    // Logic tính p1, p2, p3 chính đã chuyển sang dùng hằng số 0.99
     return (p: 0.01, totalSlots: totalSlots);
   }
 
-  // ... (Giữ nguyên các hàm helper khác) ...
-
-  static double _calculateP1(double p, double gan) =>
-      throw UnimplementedError("Use direct power calculation");
-
-  static Map<String, dynamic>? _getNumberStats(
-      List<LotteryResult> results, String targetNumber) {
-    // ... (Giữ nguyên logic đếm slots như code cũ của bạn) ...
-    // Code cũ đã đúng phần đếm slots (_countSlotsSinceLastSeen), nên giữ nguyên.
-    final completionDate = _getCompletionDate(results);
-    if (completionDate == null) return null;
-
-    int lastSeenIndex = -1;
-    DateTime? lastSeenDate;
-    String? lastSeenMien;
-    int slots = 0;
-    int occurrences = 0;
-
-    for (int i = 0; i < results.length; i++) {
-      final count = results[i].numbers.where((n) => n == targetNumber).length;
-      if (count > 0) {
-        occurrences++;
-        slots += count;
-      }
-    }
-
-    for (int i = results.length - 1; i >= 0; i--) {
-      if (results[i].numbers.contains(targetNumber)) {
-        final date = date_utils.DateUtils.parseDate(results[i].ngay);
-        if (date != null) {
-          lastSeenDate = date;
-          lastSeenMien = results[i].mien;
-          lastSeenIndex = i;
-          break;
-        }
-      }
-    }
-
-    if (lastSeenDate == null || lastSeenMien == null) return null;
-
-    final currentGanSlots = _countSlotsSinceLastSeen(
-      results,
-      lastSeenDate,
-      lastSeenMien,
-      completionDate,
-      excludeLastSeen: true,
-    );
-
-    int lastCycleGanSlots = 0;
-    DateTime? secondLastSeenDate;
-    String? secondLastSeenMien;
-    int secondLastSeenIndex = -1;
-
-    for (int i = lastSeenIndex - 1; i >= 0; i--) {
-      if (results[i].numbers.contains(targetNumber)) {
-        secondLastSeenDate = date_utils.DateUtils.parseDate(results[i].ngay);
-        if (secondLastSeenDate != null) {
-          secondLastSeenMien = results[i].mien;
-          secondLastSeenIndex = i;
-          break;
-        }
-      }
-    }
-
-    if (secondLastSeenDate != null && secondLastSeenMien != null) {
-      lastCycleGanSlots = _countSlotsBetween(
-        results,
-        secondLastSeenDate,
-        secondLastSeenMien,
-        lastSeenDate,
-        lastSeenMien,
-        excludeStart: true,
-        excludeEnd: false,
-      );
-    }
-
-    int thirdCycleGanSlots = 0;
-    if (secondLastSeenIndex > 0) {
-      for (int i = secondLastSeenIndex - 1; i >= 0; i--) {
-        if (results[i].numbers.contains(targetNumber)) {
-          final thirdLastSeenDate =
-              date_utils.DateUtils.parseDate(results[i].ngay);
-          if (thirdLastSeenDate != null && secondLastSeenDate != null) {
-            final thirdLastSeenMien = results[i].mien;
-            thirdCycleGanSlots = _countSlotsBetween(
-              results,
-              thirdLastSeenDate,
-              thirdLastSeenMien,
-              secondLastSeenDate,
-              secondLastSeenMien!,
-              excludeStart: true,
-              excludeEnd: false,
-            );
-            break;
-          }
-        }
-      }
-    }
-
-    final uniqueDays = results.map((r) => r.ngay).toSet().length;
-
-    return {
-      'currentGan': currentGanSlots.toDouble(),
-      'lastCycleGan': lastCycleGanSlots.toDouble(),
-      'thirdCycleGan': thirdCycleGanSlots.toDouble(),
-      'occurrences': occurrences.toDouble(),
-      'totalDays': uniqueDays.toDouble(),
-      'slots': slots.toDouble(),
-      'lastDate': lastSeenDate,
-    };
-  }
-
-  // ... (Giữ nguyên các hàm helper _getCompletionDate, _countSlotsSinceLastSeen, _countSlotsBetween...) ...
-  static DateTime? _getCompletionDate(List<LotteryResult> results) {
-    if (results.isEmpty) return null;
-    DateTime? latest;
-    for (final r in results) {
-      final d = date_utils.DateUtils.parseDate(r.ngay);
-      if (d != null && (latest == null || d.isAfter(latest))) latest = d;
-    }
-    return latest;
-  }
-
-  static int _countSlotsSinceLastSeen(
-    List<LotteryResult> allResults,
-    DateTime lastSeenDate,
-    String lastSeenMien,
-    DateTime completionDate, {
-    bool excludeLastSeen = true,
-  }) {
-    int lastSeenIndex = -1;
-    for (int i = allResults.length - 1; i >= 0; i--) {
-      final result = allResults[i];
-      final date = date_utils.DateUtils.parseDate(result.ngay);
-      if (date != null &&
-          date.isAtSameMomentAs(lastSeenDate) &&
-          result.mien == lastSeenMien) {
-        lastSeenIndex = i;
-        break;
-      }
-    }
-    if (lastSeenIndex == -1) return 0;
-    int slotCount = 0;
-    final startIndex = excludeLastSeen ? lastSeenIndex + 1 : lastSeenIndex;
-    for (int i = startIndex; i < allResults.length; i++) {
-      final result = allResults[i];
-      final date = date_utils.DateUtils.parseDate(result.ngay);
-      if (date != null &&
-          (date.isBefore(completionDate) ||
-              date.isAtSameMomentAs(completionDate))) {
-        slotCount +=
-            result.numbers.length; // ✅ FIX: Cộng số lượng giải trong kỳ đó
-      }
-    }
-    return slotCount;
-  }
-
-  static int _countSlotsBetween(
-    List<LotteryResult> allResults,
-    DateTime startDate,
-    String startMien,
-    DateTime endDate,
-    String endMien, {
-    bool excludeStart = true,
-    bool excludeEnd = false,
-  }) {
-    int startIndex = -1;
-    for (int i = allResults.length - 1; i >= 0; i--) {
-      final result = allResults[i];
-      final date = date_utils.DateUtils.parseDate(result.ngay);
-      if (date != null &&
-          date.isAtSameMomentAs(startDate) &&
-          result.mien == startMien) {
-        startIndex = i;
-        break;
-      }
-    }
-    if (startIndex == -1) return 0;
-
-    int endIndex = allResults.length - 1;
-    for (int i = allResults.length - 1; i >= 0; i--) {
-      final result = allResults[i];
-      final date = date_utils.DateUtils.parseDate(result.ngay);
-      if (date != null &&
-          date.isAtSameMomentAs(endDate) &&
-          result.mien == endMien) {
-        endIndex = i;
-        break;
-      }
-    }
-
-    final actualStartIndex = excludeStart ? startIndex + 1 : startIndex;
-    final actualEndIndex = excludeEnd ? endIndex - 1 : endIndex;
-
-    if (actualStartIndex > actualEndIndex) return 0;
-
-    int totalSlots = 0;
-    for (int i = actualStartIndex; i <= actualEndIndex; i++) {
-      totalSlots += allResults[i].numbers.length; // ✅ FIX: Cộng số lượng giải
-    }
-
-    return totalSlots;
-  }
-
-  // ... (Giữ các hàm helper còn lại như hasNumberReappeared, GanPair...)
   Future<GanPairInfo?> findGanPairsMienBac(
       List<LotteryResult> allResults) async {
-    // Logic cũ
     final key = 'ganpair_${allResults.length}';
     if (_ganPairCache.containsKey(key)) return _ganPairCache[key];
     final res = await compute(_findGanPairsMienBacCompute, allResults);
@@ -920,7 +694,6 @@ class AnalysisService {
 
   static GanPairInfo? _findGanPairsMienBacCompute(
       List<LotteryResult> allResults) {
-    // Logic cũ
     final bacResults = allResults.where((r) => r.mien == 'Bắc').toList();
     if (bacResults.isEmpty) return null;
     final resultsByDate = <DateTime, Set<String>>{};
@@ -958,8 +731,6 @@ class AnalysisService {
     );
   }
 
-  // Các hàm analyzeSpecificNumber, analyzeCycle... giữ nguyên nhưng chú ý logic tính toán
-  // bên trong nên dùng các helper đã update.
   Future<CycleAnalysisResult?> analyzeSpecificNumber(
       List<LotteryResult> allResults, String targetNumber) async {
     return await compute(_analyzeSpecificNumberCompute, {
@@ -979,7 +750,7 @@ class AnalysisService {
     return CycleAnalysisResult(
       targetNumber: targetNumber,
       ganNumbers: {targetNumber},
-      maxGanDays: (stats['currentGan'] as double).toInt(), // Hiển thị Gan Slots
+      maxGanDays: (stats['currentGan'] as double).toInt(),
       lastSeenDate: stats['lastDate'] as DateTime,
       mienGroups: {},
       historicalGan: (stats['lastCycleGan'] as double).toInt(),
@@ -989,27 +760,17 @@ class AnalysisService {
     );
   }
 
-  // ... (analyzeCycle giữ nguyên, chỉ thay đổi phần mapping stats tương tự như trên)
   Future<CycleAnalysisResult?> analyzeCycle(
       List<LotteryResult> allResults) async {
-    // ... logic analyzeCycle cũ ...
-    // Lưu ý: Phần tính toán P bên trong analyzeCycle nên dùng logic mới nếu cần
-    // Nhưng vì analyzeCycle chủ yếu trả về thống kê Gan Days (theo ngày) để hiển thị
-    // nên có thể giữ nguyên logic cũ nếu muốn hiển thị ngày, hoặc đổi sang slots nếu muốn đồng bộ.
-    // Ở đây tôi giữ nguyên logic analyzeCycle để tránh lỗi biên dịch,
-    // chỉ tập trung sửa findNumberWithMinPTotal theo yêu cầu của bạn.
     final key = 'cycle_${allResults.length}';
     if (_cycleCache.containsKey(key)) return _cycleCache[key];
-
     final res = await compute(_analyzeCycleCompute, allResults);
-
     if (res != null) _cycleCache[key] = res;
     return res;
   }
 
   static CycleAnalysisResult? _analyzeCycleCompute(
       List<LotteryResult> allResults) {
-    // ... (Giữ nguyên logic cũ cho an toàn, vì yêu cầu chỉ tập trung vào P-Total và findEndDate)
     if (allResults.isEmpty) return null;
     final lastSeenMap = <String, Map<String, dynamic>>{};
     for (final res in allResults) {
@@ -1054,11 +815,9 @@ class AnalysisService {
       mienGroups.putIfAbsent(s['mien'], () => []).add(s['so']);
     }
     final targetNumber = longestGroup.first['so'] as String;
-
     final pStats = calculatePStats(allResults);
     final double kExpected = pStats.totalSlots / 100.0;
     final stats = _getNumberStats(allResults, targetNumber);
-
     int historicalGan = 0;
     int occurrenceCount = 0;
     int analysisDays = 0;
@@ -1067,7 +826,6 @@ class AnalysisService {
       occurrenceCount = (stats['slots'] as double).toInt();
       analysisDays = (stats['totalDays'] as double).toInt();
     }
-
     return CycleAnalysisResult(
       ganNumbers: longestGroup.map((s) => s['so'] as String).toSet(),
       maxGanDays: maxGan,
@@ -1093,7 +851,6 @@ class AnalysisService {
     String targetMien, {
     bool excludeEndDate = false,
   }) {
-    // Giữ nguyên logic đếm ngày
     final uniqueDates = <String>{};
     for (final result in allResults) {
       if (result.mien != targetMien) continue;
@@ -1110,7 +867,6 @@ class AnalysisService {
     return uniqueDates.length;
   }
 
-  // ... (Giữ nguyên phần còn lại của file: analyzeNumberDetail, clearCache, hasNumberReappeared...)
   Future<NumberDetail?> analyzeNumberDetail(
       List<LotteryResult> allResults, String targetNumber) async {
     if (allResults.isEmpty) return null;
@@ -1173,7 +929,6 @@ class AnalysisService {
     final normalizedTarget = targetNumber.padLeft(2, '0');
     final completionDate = _getCompletionDate(allResults);
     if (completionDate == null) return false;
-
     for (final result in allResults) {
       if (mien.isNotEmpty && result.mien != mien) continue;
       if (!result.numbers.contains(normalizedTarget) &&
@@ -1189,5 +944,60 @@ class AnalysisService {
       }
     }
     return false;
+  }
+
+  static DateTime? _getCompletionDate(List<LotteryResult> results) {
+    if (results.isEmpty) return null;
+    DateTime? latest;
+    for (final r in results) {
+      final d = date_utils.DateUtils.parseDate(r.ngay);
+      if (d != null && (latest == null || d.isAfter(latest))) latest = d;
+    }
+    return latest;
+  }
+
+  static Future<({DateTime endDate, int daysNeeded})?>
+      findEndDateForXienThreshold(
+          PairAnalysisData targetPair, double pPair, double lnThreshold,
+          {int maxIterations = 10000}) async {
+    return await compute(_findEndDateForXienThresholdCompute, {
+      'pPair': pPair,
+      'currentDaysGan': targetPair.daysSinceLastSeen,
+      'lnThreshold': lnThreshold,
+      'maxIterations': maxIterations,
+    });
+  }
+
+  static ({DateTime endDate, int daysNeeded})?
+      _findEndDateForXienThresholdCompute(
+    Map<String, dynamic> params,
+  ) {
+    final pPair = params['pPair'] as double;
+    final currentDaysGan = params['currentDaysGan'] as double;
+    final lnThreshold = params['lnThreshold'] as double;
+    final maxIterations = params['maxIterations'] as int;
+
+    try {
+      // ln(P1) = days * ln(1-p)
+      var currentLnP1 = currentDaysGan * log(1 - pPair);
+      final lnDecayPerDay = log(1 - pPair);
+
+      if (currentLnP1 < lnThreshold) {
+        return (
+          endDate: DateTime.now().add(const Duration(days: 1)),
+          daysNeeded: 1
+        );
+      }
+      int daysNeeded = 0;
+      while (currentLnP1 >= lnThreshold && daysNeeded < maxIterations) {
+        daysNeeded++;
+        currentLnP1 += lnDecayPerDay;
+      }
+      if (daysNeeded >= maxIterations) return null;
+      final endDate = DateTime.now().add(Duration(days: daysNeeded));
+      return (endDate: endDate, daysNeeded: daysNeeded);
+    } catch (e) {
+      return null;
+    }
   }
 }
