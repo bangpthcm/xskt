@@ -82,10 +82,10 @@ class AnalysisService {
   final Map<String, CycleAnalysisResult> _cycleCache = {};
 
   // --- HẰNG SỐ CẤU HÌNH (Theo Python Script) ---
-  static const double WINDOW_FREQ_SLOTS = 11461.0;
+  static const double WINDOW_FREQ_SLOTS = 10816.0;
+
   static const double P_INDIV = 0.01;
   static final double LN_P_INDIV = log(P_INDIV);
-  // ln(0.99) ≈ -0.01005
   static final double LN_BASE = log(max(1.0 - P_INDIV, 1e-12));
 
   // ---------------------------------------------------------------------------
@@ -196,10 +196,9 @@ class AnalysisService {
   }
 
   // Trọng số Best W
-  static const double W1 = 1.175569375;
-  static const double W2 = 0.736153282;
-  static const double W3 = 0.013715723;
-  static const double W4 = 1.423790212;
+  static const double W1 = 7.88175576;
+  static const double W2 = 7.78253649;
+  static const double W3 = 1.54817466;
 
   // --- SORTING HELPERS ---
   static int _getRegionPriority(String mien) {
@@ -302,41 +301,33 @@ class AnalysisService {
       // 3. Trim (Cắt dữ liệu) - Logic Python: Dừng ngay khi >= 11461
       int accumulated = 0;
       int cutIndex = 0;
-      // Chạy ngược
       for (int i = scopedResults.length - 1; i >= 0; i--) {
         accumulated += scopedResults[i].numbers.length;
         if (accumulated >= WINDOW_FREQ_SLOTS.toInt()) {
           cutIndex = i;
-          break; // Stop immediately, keep this session
+          break;
         }
       }
 
-      // Lấy danh sách đã cắt (đúng chiều thời gian)
       final finalSessions = scopedResults.sublist(cutIndex);
 
-      // 4. Build Cumulative List (Mảng cộng dồn)
-      // cumList[i] = Tổng slots từ đầu đến HẾT session i
+      // 4. Build Cumulative List
       List<int> cumList = [];
       int runningSum = 0;
       for (var session in finalSessions) {
         runningSum += session.numbers.length;
         cumList.add(runningSum);
       }
-
       final int totalSlotsActual = runningSum;
 
-      // P4 (NEW) dùng N lý thuyết cố định theo WINDOW_FREQ_SLOTS
-      final int nTheory = WINDOW_FREQ_SLOTS.toInt();
-      _ensureLogFact(nTheory);
+      // Đã bỏ logic chuẩn bị P4 (nTheory, _ensureLogFact) tại đây
 
-      // Setup thông số chung
       final allAnalysis = <NumberAnalysisData>[];
 
       // 5. Tính toán cho từng số (00-99)
       for (int i = 0; i <= 99; i++) {
         final number = i.toString().padLeft(2, '0');
 
-        // Tìm các phiên nổ (Hit Indices) trong finalSessions
         List<int> hitIndices = [];
         int cntRealInt = 0;
 
@@ -355,29 +346,22 @@ class AnalysisService {
         final double y = xyz.y.toDouble();
         final double z = xyz.z.toDouble();
 
-        // --- TÍNH P1, P2, P3, P4 ---
-        // ln(P) = slots * ln(base)
+        // --- TÍNH P1, P2, P3 ---
         final lnP1 = x * LN_BASE;
         final lnP2 = y * LN_BASE;
         final lnP3 = z * LN_BASE;
 
-        // P4 (NEW): Binomial Negative Log-Likelihood (NLL)
-        //   k = số nháy thực tế trong window (sau trim)
-        //   N = WINDOW_FREQ_SLOTS (lý thuyết), p = 0.01
-        //   logP = ln P(K=k) với K~Binomial(N,p)
-        //   P4_NLL = -logP
+        // --- BỎ TÍNH TOÁN P4 ---
+        // Không tính Binomial NLL nữa để tiết kiệm resource
+        const double lnP4 = 0.0;
         final double cntReal = cntRealInt.toDouble();
-        final double cntTheory = nTheory * P_INDIV; // E[K] = N*p
-        final double logP4 = _binomialLogPMF(n: nTheory, k: cntRealInt);
-        final double lnP4 =
-            -logP4; // store as NLL for scoring (smaller is better)
+        const double cntTheory = 0.0; // Placeholder
 
-        // --- TÍNH P_TOTAL (Log) ---
-        final lnPTotal = (2.0 * LN_P_INDIV) +
-            (W1 * lnP1) +
-            (W2 * lnP2) +
-            (W3 * lnP3) +
-            (W4 * lnP4);
+        // --- TÍNH P_TOTAL (Log) MỚI ---
+        // Công thức: Constant + W1*P1 + W2*P2 + W3*P3
+        final lnPTotal =
+            (2.0 * LN_P_INDIV) + (W1 * lnP1) + (W2 * lnP2) + (W3 * lnP3);
+        // + (W4 * lnP4); // ĐÃ BỎ
 
         allAnalysis.add(NumberAnalysisData(
           number: number,
@@ -404,7 +388,7 @@ class AnalysisService {
       final minResult =
           allAnalysis.reduce((a, b) => a.lnPTotal < b.lnPTotal ? a : b);
 
-      // --- DEBUG LOGGING ---
+      // --- DEBUG LOGGING (Cập nhật để không in rác P4) ---
       print('\n🔍 [MIN LOG P] Số: ${minResult.number}');
       print(
           '   📊 Tổng Slots: ${minResult.totalSlotsActual} (Target: ${WINDOW_FREQ_SLOTS.toInt()})');
@@ -414,8 +398,6 @@ class AnalysisService {
           '   🔹 P2 (Gan quá khứ): ${minResult.lnP2.toStringAsFixed(4)} | Slots: ${minResult.lastCycleGan}');
       print(
           '   🔹 P3 (Gan kìa):     ${minResult.lnP3.toStringAsFixed(4)} | Slots: ${minResult.lnP3 / LN_BASE}');
-      print(
-          '   🔹 P4 (Binomial NLL): ${minResult.lnP4.toStringAsFixed(4)} | k=${minResult.cntReal} | E[k]=${minResult.cntTheory.toStringAsFixed(2)}');
       print('   👉 LN_TOTAL: ${minResult.lnPTotal.toStringAsFixed(4)}');
       print('--------------------------------------------------\n');
 
@@ -500,7 +482,6 @@ class AnalysisService {
     var currentLnP1 = params['currentLnP1'] as double;
     final currentLnP2 = params['currentLnP2'] as double;
     final currentLnP3 = params['currentLnP3'] as double;
-    final currentLnP4 = params['currentLnP4'] as double;
     final lnThreshold = params['lnThreshold'] as double;
     final maxIterations = params['maxIterations'] as int;
     final mienFilter = params['mien'] as String;
@@ -509,8 +490,7 @@ class AnalysisService {
       var currentLnPTotal = (2.0 * LN_P_INDIV) +
           (W1 * currentLnP1) +
           (W2 * currentLnP2) +
-          (W3 * currentLnP3) +
-          (W4 * currentLnP4);
+          (W3 * currentLnP3);
 
       if (currentLnPTotal < lnThreshold) {
         return (
@@ -528,8 +508,7 @@ class AnalysisService {
         currentLnPTotal = (2.0 * LN_P_INDIV) +
             (W1 * currentLnP1) +
             (W2 * currentLnP2) +
-            (W3 * currentLnP3) +
-            (W4 * currentLnP4);
+            (W3 * currentLnP3);
       }
 
       if (addedSlots >= maxIterations) return null;
