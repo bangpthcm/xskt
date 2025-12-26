@@ -934,11 +934,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ✅ THÊM: Helper validate
-  bool _isValidProbabilityThreshold(double value) {
-    return value >= 8e-8 && value <= 6e-6;
-  }
-
   String _formatToThousands(double value) => (value / 1000).toStringAsFixed(0);
   double _parseFromThousands(String text) =>
       (double.tryParse(text) ?? 0) * 1000;

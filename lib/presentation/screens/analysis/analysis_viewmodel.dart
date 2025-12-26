@@ -297,6 +297,7 @@ class AnalysisViewModel extends ChangeNotifier {
       // Step 4: Tìm start date sao cho budget đủ
       final lastInfo = _getLastResultInfo();
       DateTime baseStart;
+      // ignore: unused_local_variable
       int startMienIdx;
 
       if (lastInfo.isLastBac) {

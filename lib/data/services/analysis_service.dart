@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../../core/utils/date_utils.dart' as date_utils;
+import '../models/betting_row.dart';
 import '../models/cycle_analysis_result.dart';
 import '../models/gan_pair_info.dart';
 import '../models/lottery_result.dart';
@@ -81,11 +82,51 @@ class AnalysisService {
   final Map<String, CycleAnalysisResult> _cycleCache = {};
 
   // --- HẰNG SỐ CẤU HÌNH (Theo Python Script) ---
-  static const double WINDOW_FREQ_SLOTS = 9801.0;
+  static const double WINDOW_FREQ_SLOTS = 11461.0;
   static const double P_INDIV = 0.01;
   static final double LN_P_INDIV = log(P_INDIV);
   // ln(0.99) ≈ -0.01005
   static final double LN_BASE = log(max(1.0 - P_INDIV, 1e-12));
+
+  // ---------------------------------------------------------------------------
+  // P4 (NEW): Binomial log-PMF (Uniform assumption)
+  //   k ~ Binomial(N, p)
+  //   lnP4 = ln C(N,k) + k ln p + (N-k) ln(1-p)
+  //   - N được lấy từ WINDOW_FREQ_SLOTS ("lý thuyết")
+  //   - k là số nháy thực tế trong window sau khi trim
+  // NOTE: Dart không có lgamma builtin, nên dùng prefix log-factorial cache.
+  // ---------------------------------------------------------------------------
+  static final List<double> _logFact = <double>[0.0]; // log(0!)
+
+  static void _ensureLogFact(int n) {
+    if (n < 0) return;
+    // extend cache to at least n
+    for (int i = _logFact.length; i <= n; i++) {
+      _logFact.add(_logFact[i - 1] + log(i.toDouble()));
+    }
+  }
+
+  static double _logChoose(int n, int k) {
+    if (k < 0 || k > n) return double.negativeInfinity;
+    _ensureLogFact(n);
+    return _logFact[n] - _logFact[k] - _logFact[n - k];
+  }
+
+  static double _binomialLogPMF({
+    required int n,
+    required int k,
+    double p = P_INDIV,
+  }) {
+    if (n <= 0) return double.negativeInfinity;
+    if (k < 0 || k > n) {
+      // Binomial không thể có k > N
+      return -1e30; // penalty lớn để "đẩy" ra khỏi top
+    }
+    final pp = p.clamp(1e-12, 1.0 - 1e-12);
+    final lnC = _logChoose(n, k);
+    if (!lnC.isFinite) return -1e30;
+    return lnC + k * log(pp) + (n - k) * LN_BASE; // LN_BASE = ln(1-p)
+  }
 
   // ---------------------------------------------------------------------------
   // Helpers: Slot counting with "shifted boundary" logic (Nam -> Trung -> Bắc)
@@ -155,10 +196,10 @@ class AnalysisService {
   }
 
   // Trọng số Best W
-  static const double W1 = 10.12024526;
-  static const double W2 = 9.63792797;
-  static const double W3 = 2.72846129;
-  static const double W4 = 0.10088029;
+  static const double W1 = 1.175569375;
+  static const double W2 = 0.736153282;
+  static const double W3 = 0.013715723;
+  static const double W4 = 1.423790212;
 
   // --- SORTING HELPERS ---
   static int _getRegionPriority(String mien) {
@@ -258,7 +299,7 @@ class AnalysisService {
 
       if (scopedResults.isEmpty) return null;
 
-      // 3. Trim (Cắt dữ liệu) - Logic Python: Dừng ngay khi >= 9801
+      // 3. Trim (Cắt dữ liệu) - Logic Python: Dừng ngay khi >= 11461
       int accumulated = 0;
       int cutIndex = 0;
       // Chạy ngược
@@ -283,6 +324,10 @@ class AnalysisService {
       }
 
       final int totalSlotsActual = runningSum;
+
+      // P4 (NEW) dùng N lý thuyết cố định theo WINDOW_FREQ_SLOTS
+      final int nTheory = WINDOW_FREQ_SLOTS.toInt();
+      _ensureLogFact(nTheory);
 
       // Setup thông số chung
       final allAnalysis = <NumberAnalysisData>[];
@@ -316,17 +361,16 @@ class AnalysisService {
         final lnP2 = y * LN_BASE;
         final lnP3 = z * LN_BASE;
 
-        // P4: Tần suất
+        // P4 (NEW): Binomial Negative Log-Likelihood (NLL)
+        //   k = số nháy thực tế trong window (sau trim)
+        //   N = WINDOW_FREQ_SLOTS (lý thuyết), p = 0.01
+        //   logP = ln P(K=k) với K~Binomial(N,p)
+        //   P4_NLL = -logP
         final double cntReal = cntRealInt.toDouble();
-        const double cntTheory = WINDOW_FREQ_SLOTS / 100.0; // Luôn là 98.01
-
-        // ln(P4) = ln(cnt_real) - ln(cnt_theory)
-        double lnP4;
-        if (cntReal <= 0) {
-          lnP4 = -300.0; // Giá trị phạt thay thế cho log(0)
-        } else {
-          lnP4 = log(cntReal) - log(cntTheory);
-        }
+        final double cntTheory = nTheory * P_INDIV; // E[K] = N*p
+        final double logP4 = _binomialLogPMF(n: nTheory, k: cntRealInt);
+        final double lnP4 =
+            -logP4; // store as NLL for scoring (smaller is better)
 
         // --- TÍNH P_TOTAL (Log) ---
         final lnPTotal = (2.0 * LN_P_INDIV) +
@@ -362,7 +406,8 @@ class AnalysisService {
 
       // --- DEBUG LOGGING ---
       print('\n🔍 [MIN LOG P] Số: ${minResult.number}');
-      print('   📊 Tổng Slots: ${minResult.totalSlotsActual} (Target: 9801)');
+      print(
+          '   📊 Tổng Slots: ${minResult.totalSlotsActual} (Target: ${WINDOW_FREQ_SLOTS.toInt()})');
       print(
           '   🔹 P1 (Gan hiện tại): ${minResult.lnP1.toStringAsFixed(4)} | Slots: ${minResult.currentGan}');
       print(
@@ -370,7 +415,7 @@ class AnalysisService {
       print(
           '   🔹 P3 (Gan kìa):     ${minResult.lnP3.toStringAsFixed(4)} | Slots: ${minResult.lnP3 / LN_BASE}');
       print(
-          '   🔹 P4 (Tần suất):    ${minResult.lnP4.toStringAsFixed(4)} | Nháy: ${minResult.cntReal} / ${minResult.cntTheory}');
+          '   🔹 P4 (Binomial NLL): ${minResult.lnP4.toStringAsFixed(4)} | k=${minResult.cntReal} | E[k]=${minResult.cntTheory.toStringAsFixed(2)}');
       print('   👉 LN_TOTAL: ${minResult.lnPTotal.toStringAsFixed(4)}');
       print('--------------------------------------------------\n');
 
@@ -408,6 +453,7 @@ class AnalysisService {
 
     if (hitIndices.isEmpty) return null;
 
+    // ignore: unused_local_variable
     final int totalSlots = cumList.last;
     int lastIdx = hitIndices.last;
 
@@ -663,27 +709,70 @@ class AnalysisService {
     DateTime currentStart = baseStartDate;
     int attempt = 0;
 
+    // CHUẨN HÓA LOẠI MIỀN
+    final mienLower = mien.toLowerCase();
+    final isTrung = mienLower.contains('trung');
+    final isBac = mienLower.contains('bắc') || mienLower.contains('bac');
+    // Nếu không phải Trung hoặc Bắc thì mặc định là Tất cả (Cycle)
+
     while (attempt < maxDaysToTry && currentStart.isBefore(endDate)) {
       try {
-        final table = await bettingService.generateCycleTable(
-          cycleResult: cycleResult,
-          startDate: currentStart,
-          endDate: endDate,
-          startMienIndex: _getMienIndex(mien),
-          budgetMin: availableBudget * 0.8,
-          budgetMax: availableBudget,
-          allResults: allResults,
-          maxMienCount: maxMienCount,
-          durationLimit: endDate.difference(currentStart).inDays,
-        );
+        final durationLimit = endDate.difference(currentStart).inDays;
+        if (durationLimit <= 0) {
+          currentStart = currentStart.add(const Duration(days: 1));
+          attempt++;
+          continue;
+        }
 
+        List<BettingRow> table = [];
+
+        // SỬA LỖI: PHÂN LOẠI ĐỂ GỌI HÀM TẠO BẢNG TƯƠNG ỨNG
+        if (isTrung) {
+          // Logic Miền Trung
+          table = await bettingService.generateTrungGanTable(
+            cycleResult: cycleResult,
+            startDate: currentStart,
+            endDate: endDate,
+            budgetMin: availableBudget * 0.8,
+            budgetMax: availableBudget,
+            durationLimit: durationLimit,
+          );
+        } else if (isBac) {
+          // Logic Miền Bắc
+          table = await bettingService.generateBacGanTable(
+            cycleResult: cycleResult,
+            startDate: currentStart,
+            endDate: endDate,
+            budgetMin: availableBudget * 0.8,
+            budgetMax: availableBudget,
+            durationLimit: durationLimit,
+          );
+        } else {
+          // Logic Tất cả (Cycle - Xoay vòng)
+          table = await bettingService.generateCycleTable(
+            cycleResult: cycleResult,
+            startDate: currentStart,
+            endDate: endDate,
+            startMienIndex: _getMienIndex(mien),
+            budgetMin: availableBudget * 0.8,
+            budgetMax: availableBudget,
+            allResults: allResults,
+            maxMienCount: maxMienCount,
+            durationLimit: durationLimit,
+          );
+        }
+
+        // KIỂM TRA NGÂN SÁCH
         if (table.isNotEmpty) {
           final totalCost = table.last.tongTien;
           if (totalCost <= availableBudget) {
-            return currentStart;
+            return currentStart; // Tìm thấy ngày phù hợp
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        // Bỏ qua lỗi (thường là do vượt ngân sách khi tính toán) và thử ngày tiếp theo
+      }
+
       currentStart = currentStart.add(const Duration(days: 1));
       attempt++;
     }
