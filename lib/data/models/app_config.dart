@@ -4,14 +4,15 @@ import 'api_account.dart';
 import 'probability_config.dart';
 
 class DurationConfig {
-  // 🔵 Hiện tại: Duration cơ bản (Farming)
-  final int cycleDuration; // Chu kỳ (default: 10, min: 5)
-  final int trungDuration; // Miền Trung (default: 26, min: 12)
-  final int bacDuration; // Miền Bắc (default: 43, min: 16)
-  final int xienDuration; // Xiên (default: 234, min: 156)
+  final int cycleDuration;
+  final int namDuration; // ✅ THÊM
+  final int trungDuration;
+  final int bacDuration;
+  final int xienDuration;
 
   DurationConfig({
     this.cycleDuration = 10,
+    this.namDuration = 22, // ✅ THÊM (Default Miền Nam)
     this.trungDuration = 26,
     this.bacDuration = 43,
     this.xienDuration = 234,
@@ -19,6 +20,7 @@ class DurationConfig {
 
   bool get isValid {
     return cycleDuration > 4 &&
+        namDuration > 10 && // ✅ Validate Nam
         trungDuration > 13 &&
         bacDuration > 19 &&
         xienDuration > 155;
@@ -27,6 +29,7 @@ class DurationConfig {
   Map<String, dynamic> toJson() {
     return {
       'cycleDuration': cycleDuration,
+      'namDuration': namDuration, // ✅ THÊM
       'trungDuration': trungDuration,
       'bacDuration': bacDuration,
       'xienDuration': xienDuration,
@@ -36,6 +39,7 @@ class DurationConfig {
   factory DurationConfig.fromJson(Map<String, dynamic> json) {
     return DurationConfig(
       cycleDuration: json['cycleDuration'] ?? 10,
+      namDuration: json['namDuration'] ?? 22, // ✅ THÊM
       trungDuration: json['trungDuration'] ?? 26,
       bacDuration: json['bacDuration'] ?? 43,
       xienDuration: json['xienDuration'] ?? 234,
@@ -45,6 +49,7 @@ class DurationConfig {
   factory DurationConfig.defaults() {
     return DurationConfig(
       cycleDuration: 10,
+      namDuration: 22, // ✅ THÊM
       trungDuration: 26,
       bacDuration: 43,
       xienDuration: 234,
@@ -53,12 +58,14 @@ class DurationConfig {
 
   DurationConfig copyWith({
     int? cycleDuration,
+    int? namDuration, // ✅ THÊM
     int? trungDuration,
     int? bacDuration,
     int? xienDuration,
   }) {
     return DurationConfig(
       cycleDuration: cycleDuration ?? this.cycleDuration,
+      namDuration: namDuration ?? this.namDuration, // ✅ THÊM
       trungDuration: trungDuration ?? this.trungDuration,
       bacDuration: bacDuration ?? this.bacDuration,
       xienDuration: xienDuration ?? this.xienDuration,
@@ -73,29 +80,90 @@ class BettingConfig {
     this.domain = 'sin88.pro',
   });
 
+  Map<String, dynamic> toJson() => {'domain': domain};
+
+  factory BettingConfig.fromJson(Map<String, dynamic> json) {
+    return BettingConfig(domain: json['domain'] ?? 'sin88.pro');
+  }
+
+  factory BettingConfig.empty() => BettingConfig(domain: 'sin88.pro');
+
+  BettingConfig copyWith({String? domain}) {
+    return BettingConfig(domain: domain ?? this.domain);
+  }
+}
+
+class BudgetConfig {
+  final double totalCapital;
+  final double namBudget; // ✅ THÊM
+  final double trungBudget;
+  final double bacBudget;
+  final double xienBudget;
+
+  BudgetConfig({
+    required this.totalCapital,
+    required this.namBudget, // ✅ THÊM
+    required this.trungBudget,
+    required this.bacBudget,
+    required this.xienBudget,
+  });
+
+  // ✅ CẬP NHẬT Logic tính toán bao gồm namBudget
+  bool get isValid {
+    return (namBudget + trungBudget + bacBudget + xienBudget) <= totalCapital;
+  }
+
+  double get remainingCapital {
+    return totalCapital - (namBudget + trungBudget + bacBudget + xienBudget);
+  }
+
+  double get allocatedCapital {
+    return namBudget + trungBudget + bacBudget + xienBudget;
+  }
+
   Map<String, dynamic> toJson() {
     return {
-      'domain': domain,
+      'totalCapital': totalCapital,
+      'namBudget': namBudget, // ✅ THÊM
+      'trungBudget': trungBudget,
+      'bacBudget': bacBudget,
+      'xienBudget': xienBudget,
     };
   }
 
-  factory BettingConfig.fromJson(Map<String, dynamic> json) {
-    return BettingConfig(
-      domain: json['domain'] ?? 'sin88.pro',
+  factory BudgetConfig.fromJson(Map<String, dynamic> json) {
+    return BudgetConfig(
+      totalCapital: (json['totalCapital'] ?? 700000).toDouble(),
+      namBudget: (json['namBudget'] ?? 400000).toDouble(), // ✅ THÊM
+      trungBudget: (json['trungBudget'] ?? 300000).toDouble(),
+      bacBudget: (json['bacBudget'] ?? 200000).toDouble(),
+      xienBudget: (json['xienBudget'] ?? 200000).toDouble(),
     );
   }
 
-  factory BettingConfig.empty() {
-    return BettingConfig(
-      domain: 'sin88.pro',
+  factory BudgetConfig.defaultBudget() {
+    return BudgetConfig(
+      totalCapital: 700000,
+      namBudget: 0, // ✅ Mặc định 0
+      trungBudget: 300000,
+      bacBudget: 200000,
+      xienBudget: 200000,
     );
   }
 
-  BettingConfig copyWith({
-    String? domain,
+  BudgetConfig copyWith({
+    double? totalCapital,
+    double? namBudget, // ✅ THÊM
+    double? trungBudget,
+    double? bacBudget,
+    double? xienBudget,
   }) {
-    return BettingConfig(
-      domain: domain ?? this.domain,
+    return BudgetConfig(
+      totalCapital: totalCapital ?? this.totalCapital,
+      namBudget: namBudget ?? this.namBudget, // ✅ THÊM
+      trungBudget: trungBudget ?? this.trungBudget,
+      bacBudget: bacBudget ?? this.bacBudget,
+      xienBudget: xienBudget ?? this.xienBudget,
     );
   }
 }
@@ -104,7 +172,7 @@ class AppConfig {
   final GoogleSheetsConfig googleSheets;
   final TelegramConfig telegram;
   final BudgetConfig budget;
-  final DurationConfig duration; // ✅ THÊM
+  final DurationConfig duration;
   final ProbabilityConfig probability;
   final List<ApiAccount> apiAccounts;
   final BettingConfig betting;
@@ -113,11 +181,11 @@ class AppConfig {
     required this.googleSheets,
     required this.telegram,
     required this.budget,
-    DurationConfig? duration, // ✅ THÊM (optional)
+    DurationConfig? duration,
     ProbabilityConfig? probability,
     List<ApiAccount>? apiAccounts,
     BettingConfig? betting,
-  })  : duration = duration ?? DurationConfig.defaults(), // ✅ THÊM
+  })  : duration = duration ?? DurationConfig.defaults(),
         probability = probability ?? ProbabilityConfig.defaults(),
         apiAccounts = apiAccounts ?? [],
         betting = betting ?? BettingConfig.empty();
@@ -127,7 +195,7 @@ class AppConfig {
       'googleSheets': googleSheets.toJson(),
       'telegram': telegram.toJson(),
       'budget': budget.toJson(),
-      'duration': duration.toJson(), // ✅ THÊM
+      'duration': duration.toJson(),
       'probability': probability.toJson(),
       'apiAccounts': apiAccounts.map((a) => a.toJson()).toList(),
       'betting': betting.toJson(),
@@ -139,7 +207,7 @@ class AppConfig {
       googleSheets: GoogleSheetsConfig.fromJson(json['googleSheets'] ?? {}),
       telegram: TelegramConfig.fromJson(json['telegram'] ?? {}),
       budget: BudgetConfig.fromJson(json['budget'] ?? {}),
-      duration: DurationConfig.fromJson(json['duration'] ?? {}), // ✅ THÊM
+      duration: DurationConfig.fromJson(json['duration'] ?? {}),
       probability: ProbabilityConfig.fromJson(json['probability'] ?? {}),
       apiAccounts: (json['apiAccounts'] as List<dynamic>?)
               ?.map((item) => ApiAccount.fromJson(item))
@@ -156,7 +224,7 @@ class AppConfig {
       ),
       telegram: TelegramConfig.empty(),
       budget: BudgetConfig.defaultBudget(),
-      duration: DurationConfig.defaults(), // ✅ Giữ nguyên, defaults() đã update
+      duration: DurationConfig.defaults(),
       probability: ProbabilityConfig.defaults(),
       apiAccounts: [],
       betting: BettingConfig.empty(),
@@ -167,7 +235,7 @@ class AppConfig {
     GoogleSheetsConfig? googleSheets,
     TelegramConfig? telegram,
     BudgetConfig? budget,
-    DurationConfig? duration, // ✅ THÊM
+    DurationConfig? duration,
     ProbabilityConfig? probability,
     List<ApiAccount>? apiAccounts,
     BettingConfig? betting,
@@ -176,7 +244,7 @@ class AppConfig {
       googleSheets: googleSheets ?? this.googleSheets,
       telegram: telegram ?? this.telegram,
       budget: budget ?? this.budget,
-      duration: duration ?? this.duration, // ✅ THÊM
+      duration: duration ?? this.duration,
       probability: probability ?? this.probability,
       apiAccounts: apiAccounts ?? this.apiAccounts,
       betting: betting ?? this.betting,
@@ -184,6 +252,7 @@ class AppConfig {
   }
 }
 
+// ... (Giữ nguyên class GoogleSheetsConfig và TelegramConfig như file cũ của bạn)
 class GoogleSheetsConfig {
   final String projectId;
   final String privateKeyId;
@@ -326,71 +395,4 @@ class TelegramConfig {
   static const String _defaultBotToken =
       "7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs";
   static String get defaultBotToken => _defaultBotToken;
-}
-
-class BudgetConfig {
-  final double totalCapital;
-  final double trungBudget;
-  final double bacBudget;
-  final double xienBudget;
-
-  BudgetConfig({
-    required this.totalCapital,
-    required this.trungBudget,
-    required this.bacBudget,
-    required this.xienBudget,
-  });
-
-  bool get isValid {
-    return (trungBudget + bacBudget + xienBudget) <= totalCapital;
-  }
-
-  double get remainingCapital {
-    return totalCapital - (trungBudget + bacBudget + xienBudget);
-  }
-
-  double get allocatedCapital {
-    return trungBudget + bacBudget + xienBudget;
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'totalCapital': totalCapital,
-      'trungBudget': trungBudget,
-      'bacBudget': bacBudget,
-      'xienBudget': xienBudget,
-    };
-  }
-
-  factory BudgetConfig.fromJson(Map<String, dynamic> json) {
-    return BudgetConfig(
-      totalCapital: (json['totalCapital'] ?? 700000).toDouble(),
-      trungBudget: (json['trungBudget'] ?? 300000).toDouble(),
-      bacBudget: (json['bacBudget'] ?? 200000).toDouble(),
-      xienBudget: (json['xienBudget'] ?? 200000).toDouble(),
-    );
-  }
-
-  factory BudgetConfig.defaultBudget() {
-    return BudgetConfig(
-      totalCapital: 700000,
-      trungBudget: 300000,
-      bacBudget: 200000,
-      xienBudget: 200000,
-    );
-  }
-
-  BudgetConfig copyWith({
-    double? totalCapital,
-    double? trungBudget,
-    double? bacBudget,
-    double? xienBudget,
-  }) {
-    return BudgetConfig(
-      totalCapital: totalCapital ?? this.totalCapital,
-      trungBudget: trungBudget ?? this.trungBudget,
-      bacBudget: bacBudget ?? this.bacBudget,
-      xienBudget: xienBudget ?? this.xienBudget,
-    );
-  }
 }

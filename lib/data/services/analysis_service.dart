@@ -89,46 +89,6 @@ class AnalysisService {
   static final double LN_BASE = log(max(1.0 - P_INDIV, 1e-12));
 
   // ---------------------------------------------------------------------------
-  // P4 (NEW): Binomial log-PMF (Uniform assumption)
-  //   k ~ Binomial(N, p)
-  //   lnP4 = ln C(N,k) + k ln p + (N-k) ln(1-p)
-  //   - N được lấy từ WINDOW_FREQ_SLOTS ("lý thuyết")
-  //   - k là số nháy thực tế trong window sau khi trim
-  // NOTE: Dart không có lgamma builtin, nên dùng prefix log-factorial cache.
-  // ---------------------------------------------------------------------------
-  static final List<double> _logFact = <double>[0.0]; // log(0!)
-
-  static void _ensureLogFact(int n) {
-    if (n < 0) return;
-    // extend cache to at least n
-    for (int i = _logFact.length; i <= n; i++) {
-      _logFact.add(_logFact[i - 1] + log(i.toDouble()));
-    }
-  }
-
-  static double _logChoose(int n, int k) {
-    if (k < 0 || k > n) return double.negativeInfinity;
-    _ensureLogFact(n);
-    return _logFact[n] - _logFact[k] - _logFact[n - k];
-  }
-
-  static double _binomialLogPMF({
-    required int n,
-    required int k,
-    double p = P_INDIV,
-  }) {
-    if (n <= 0) return double.negativeInfinity;
-    if (k < 0 || k > n) {
-      // Binomial không thể có k > N
-      return -1e30; // penalty lớn để "đẩy" ra khỏi top
-    }
-    final pp = p.clamp(1e-12, 1.0 - 1e-12);
-    final lnC = _logChoose(n, k);
-    if (!lnC.isFinite) return -1e30;
-    return lnC + k * log(pp) + (n - k) * LN_BASE; // LN_BASE = ln(1-p)
-  }
-
-  // ---------------------------------------------------------------------------
   // Helpers: Slot counting with "shifted boundary" logic (Nam -> Trung -> Bắc)
   // Ý tưởng: Nếu session hit ở 1 miền thì:
   //   - Start tính từ session kế tiếp (miền tiếp theo)
@@ -196,9 +156,9 @@ class AnalysisService {
   }
 
   // Trọng số Best W
-  static const double W1 = 7.88175576;
-  static const double W2 = 7.78253649;
-  static const double W3 = 1.54817466;
+  static const double W1 = 5.52351909;
+  static const double W2 = 5.41766504;
+  static const double W3 = 1.21090533;
 
   // --- SORTING HELPERS ---
   static int _getRegionPriority(String mien) {
@@ -690,9 +650,9 @@ class AnalysisService {
 
     // CHUẨN HÓA LOẠI MIỀN
     final mienLower = mien.toLowerCase();
+    final isNam = mienLower.contains('nam'); // ✅ Detect Nam
     final isTrung = mienLower.contains('trung');
     final isBac = mienLower.contains('bắc') || mienLower.contains('bac');
-    // Nếu không phải Trung hoặc Bắc thì mặc định là Tất cả (Cycle)
 
     while (attempt < maxDaysToTry && currentStart.isBefore(endDate)) {
       try {
@@ -705,8 +665,18 @@ class AnalysisService {
 
         List<BettingRow> table = [];
 
-        // SỬA LỖI: PHÂN LOẠI ĐỂ GỌI HÀM TẠO BẢNG TƯƠNG ỨNG
-        if (isTrung) {
+        // ✅ LOGIC TẠO BẢNG CHO TỪNG MIỀN
+        if (isNam) {
+          // ✅ Logic Miền Nam (Cần thêm hàm này vào BettingTableService)
+          table = await bettingService.generateNamGanTable(
+            cycleResult: cycleResult,
+            startDate: currentStart,
+            endDate: endDate,
+            budgetMin: availableBudget * 0.8,
+            budgetMax: availableBudget,
+            durationLimit: durationLimit,
+          );
+        } else if (isTrung) {
           // Logic Miền Trung
           table = await bettingService.generateTrungGanTable(
             cycleResult: cycleResult,
@@ -727,7 +697,7 @@ class AnalysisService {
             durationLimit: durationLimit,
           );
         } else {
-          // Logic Tất cả (Cycle - Xoay vòng)
+          // Logic Tất cả (Cycle)
           table = await bettingService.generateCycleTable(
             cycleResult: cycleResult,
             startDate: currentStart,
@@ -745,11 +715,11 @@ class AnalysisService {
         if (table.isNotEmpty) {
           final totalCost = table.last.tongTien;
           if (totalCost <= availableBudget) {
-            return currentStart; // Tìm thấy ngày phù hợp
+            return currentStart;
           }
         }
       } catch (e) {
-        // Bỏ qua lỗi (thường là do vượt ngân sách khi tính toán) và thử ngày tiếp theo
+        // Bỏ qua lỗi
       }
 
       currentStart = currentStart.add(const Duration(days: 1));

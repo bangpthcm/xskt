@@ -36,6 +36,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _probabilityThresholdTrungController;
   late TextEditingController _probabilityThresholdBacController;
   late TextEditingController _probabilityThresholdXienController;
+  late TextEditingController _namBudgetController; // ✅ Thêm
+  late TextEditingController _namDurationController; // ✅ Thêm
+  late TextEditingController _probabilityThresholdNamController; // ✅ Thêm
 
   final List<Map<String, TextEditingController>> _apiAccountControllers = [];
 
@@ -68,6 +71,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _probabilityThresholdTrungController = TextEditingController();
     _probabilityThresholdBacController = TextEditingController();
     _probabilityThresholdXienController = TextEditingController();
+    _namBudgetController = TextEditingController();
+    _namDurationController = TextEditingController();
+    _probabilityThresholdNamController = TextEditingController();
 
     for (int i = 0; i < 3; i++) {
       _apiAccountControllers.add({
@@ -89,6 +95,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _trungBudgetController.text = _formatToThousands(config.budget.trungBudget);
     _bacBudgetController.text = _formatToThousands(config.budget.bacBudget);
     _xienBudgetController.text = _formatToThousands(config.budget.xienBudget);
+    _namBudgetController.text = _formatToThousands(
+        config.budget.namBudget); // ✅ Thêm (cần đảm bảo AppConfig có namBudget)
+    _namDurationController.text =
+        config.duration.namDuration.toString(); // ✅ Thêm
+    _probabilityThresholdNamController.text =
+        config.probability.thresholdLnNam.toString(); // ✅ Thêm
 
     _cycleDurationController.text = config.duration.cycleDuration.toString();
     _trungDurationController.text = config.duration.trungDuration.toString();
@@ -205,6 +217,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
 
                 _buildProbabilityThresholdField(
+                  controller: _probabilityThresholdNamController,
+                  label: 'Miền Nam',
+                  hint: '-84.48',
+                  helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
+                ),
+                const SizedBox(height: 16),
+
+                _buildProbabilityThresholdField(
                   controller: _probabilityThresholdTrungController,
                   label: 'Miền Trung',
                   hint: '5.56464e-49',
@@ -306,7 +326,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // ✅ CẬP NHẬT: Validate số Log (thường là số âm từ -500 đến -2)
         final val = double.tryParse(value);
         if (val == null) {
-          return 'Phải là số thực (ví dụ: -172.63)';
+          return 'Phải là số thực (ví dụ: -84.48)';
         }
 
         // Range an toàn cho Log xác suất
@@ -342,6 +362,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   minValue: 5,
                   maxValue: 11,
                   helperText: 'Phải > 9 (farming: 9). Mặc định: 10',
+                ),
+                const SizedBox(height: 16),
+
+                _buildDurationField(
+                  controller: _namDurationController,
+                  label: 'Miền Nam (ngày)',
+                  icon: Icons.calendar_month,
+                  hint: '31',
+                  minValue: 25,
+                  maxValue: 35,
+                  helperText: 'Phải > 24. Mặc định: 31',
                 ),
                 const SizedBox(height: 16),
 
@@ -807,16 +838,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // ✅ CẬP NHẬT: Parse giá trị Logarithm từ Controller
     // Dùng tên biến đúng: _probabilityThreshold...
     double thresholdTatCa =
-        double.tryParse(_probabilityThresholdTatCaController.text) ?? -172.63;
+        double.tryParse(_probabilityThresholdTatCaController.text) ?? -84.48;
+    double thresholdNam =
+        double.tryParse(_probabilityThresholdNamController.text) ?? -120.0;
     double thresholdTrung =
-        double.tryParse(_probabilityThresholdTrungController.text) ?? -111.11;
+        double.tryParse(_probabilityThresholdTrungController.text) ?? -90.09;
     double thresholdBac =
-        double.tryParse(_probabilityThresholdBacController.text) ?? -120.08;
+        double.tryParse(_probabilityThresholdBacController.text) ?? -83.38;
     double thresholdXien =
         double.tryParse(_probabilityThresholdXienController.text) ?? -13.14;
 
     // Validate Duration (giữ nguyên logic cũ)
     int cycleDuration = int.tryParse(_cycleDurationController.text) ?? 10;
+    int namDuration = int.tryParse(_namDurationController.text) ?? 22;
     int trungDuration = int.tryParse(_trungDurationController.text) ?? 26;
     int bacDuration = int.tryParse(_bacDurationController.text) ?? 43;
     int xienDuration = int.tryParse(_xienDurationController.text) ?? 234;
@@ -853,6 +887,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Build Duration Config
     final durationConfig = DurationConfig(
       cycleDuration: cycleDuration,
+      namDuration: namDuration, // ✅
       trungDuration: trungDuration,
       bacDuration: bacDuration,
       xienDuration: xienDuration,
@@ -861,6 +896,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // ✅ CẬP NHẬT: Tạo ProbabilityConfig với các trường Ln mới
     final probabilityConfig = ProbabilityConfig(
       thresholdLnTatCa: thresholdTatCa,
+      thresholdLnNam: thresholdNam,
       thresholdLnTrung: thresholdTrung,
       thresholdLnBac: thresholdBac,
       thresholdLnXien: thresholdXien,
@@ -868,6 +904,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Build full config
     final totalCapital = _parseFromThousands(_totalCapitalController.text);
+    final namBudget = _parseFromThousands(_namBudgetController.text);
     final trungBudget = _parseFromThousands(_trungBudgetController.text);
     final bacBudget = _parseFromThousands(_bacBudgetController.text);
     final xienBudget = _parseFromThousands(_xienBudgetController.text);
@@ -894,6 +931,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       budget: BudgetConfig(
         totalCapital: totalCapital,
+        namBudget: namBudget,
         trungBudget: trungBudget,
         bacBudget: bacBudget,
         xienBudget: xienBudget,

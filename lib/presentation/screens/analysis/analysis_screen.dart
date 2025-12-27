@@ -102,7 +102,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  // ... (Giữ nguyên _buildOptimalSummaryCard và _buildSummaryRow)
   Widget _buildOptimalSummaryCard(AnalysisViewModel viewModel) {
     return Card(
       child: Padding(
@@ -110,26 +109,16 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'Ngày có thể bắt đầu',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ],
-                ),
-                Text(
-                  date_utils.DateUtils.formatDate(DateTime.now()),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
-            ),
+            // ... (Header giữ nguyên)
             const Divider(color: Colors.grey),
             _buildSummaryRow('Tất cả', viewModel.optimalTatCa,
                 date: viewModel.dateTatCa),
+
+            // ✅ THÊM DÒNG NÀY
+            _buildSummaryRow(
+                'Nam', viewModel.optimalNam, // Cần thêm field này vào ViewModel
+                date: viewModel.dateNam), // Cần thêm field này vào ViewModel
+
             _buildSummaryRow('Trung', viewModel.optimalTrung,
                 date: viewModel.dateTrung),
             _buildSummaryRow('Bắc', viewModel.optimalBac,
@@ -180,6 +169,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     DateTime? currentEndDate;
     if (viewModel.selectedMien == 'Tất cả') {
       currentEndDate = viewModel.endDateTatCa;
+    } else if (viewModel.selectedMien == 'Nam') {
+      currentEndDate = viewModel.endDateNam; // ✅ THÊM
     } else if (viewModel.selectedMien == 'Trung') {
       currentEndDate = viewModel.endDateTrung;
     } else if (viewModel.selectedMien == 'Bắc') {
@@ -205,32 +196,29 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ],
                   ),
                 ),
-                if (viewModel.selectedMien != 'Nam')
-                  IconButton(
-                    icon: Icon(Icons.table_chart,
-                        color: Theme.of(context).primaryColor.withOpacity(0.9)),
-                    tooltip: 'Tạo bảng cược',
-                    onPressed: cycleResult != null
-                        ? () {
-                            if (viewModel.selectedMien == 'Bắc') {
-                              _showCreateBacGanTableDialog(
-                                  context, viewModel, cycleResult.targetNumber);
-                            } else if (viewModel.selectedMien == 'Trung') {
-                              _showCreateTrungGanTableDialog(
-                                  context, viewModel, cycleResult.targetNumber);
-                            } else {
-                              _createCycleBettingTable(
-                                  context, viewModel, cycleResult.targetNumber);
-                            }
-                          }
-                        : null,
-                  ),
+
+                // ✅ ĐÃ BỎ ĐIỀU KIỆN if (viewModel.selectedMien != 'Nam')
                 IconButton(
-                  icon: Icon(Icons.send,
+                  icon: Icon(Icons.table_chart,
                       color: Theme.of(context).primaryColor.withOpacity(0.9)),
-                  tooltip: 'Gửi Telegram',
+                  tooltip: 'Tạo bảng cược',
                   onPressed: cycleResult != null
-                      ? () => _sendCycleToTelegram(context, viewModel)
+                      ? () {
+                          if (viewModel.selectedMien == 'Bắc') {
+                            _showCreateBacGanTableDialog(
+                                context, viewModel, cycleResult.targetNumber);
+                          } else if (viewModel.selectedMien == 'Trung') {
+                            _showCreateTrungGanTableDialog(
+                                context, viewModel, cycleResult.targetNumber);
+                          } else if (viewModel.selectedMien == 'Nam') {
+                            // ✅ THÊM XỬ LÝ CHO NAM
+                            _showCreateNamGanTableDialog(
+                                context, viewModel, cycleResult.targetNumber);
+                          } else {
+                            _createCycleBettingTable(
+                                context, viewModel, cycleResult.targetNumber);
+                          }
+                        }
                       : null,
                 ),
               ],
@@ -785,6 +773,79 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
                   if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ ${viewModel.errorMessage}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Tạo bảng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCreateNamGanTableDialog(
+    BuildContext context,
+    AnalysisViewModel viewModel,
+    String number,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tạo bảng cược Miền Nam'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Số: $number'),
+            const SizedBox(height: 8),
+            const Text(
+              'Tạo bảng cược cho số gan Miền Nam?\n\n'
+              '• Chỉ cược Miền Nam\n'
+              '• Dựa trên kết quả phân tích\n'
+              '• Bảng hiện tại sẽ bị thay thế',
+              style: TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+
+              final config = context.read<SettingsViewModel>().config;
+
+              // ⚠️ LƯU Ý: Trò cần thêm hàm createNamGanBettingTable vào AnalysisViewModel
+              await viewModel.createNamGanBettingTable(number, config);
+
+              if (context.mounted) {
+                if (viewModel.errorMessage == null) {
+                  await context.read<BettingViewModel>().loadBettingTables();
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Tạo bảng cược Miền Nam thành công!'),
+                      backgroundColor: ThemeProvider.profit,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  await Future.delayed(const Duration(milliseconds: 300));
+
+                  if (context.mounted) {
+                    mainNavigationKey.currentState
+                        ?.switchToTab(1); // Chuyển sang tab Bảng cược
                   }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(

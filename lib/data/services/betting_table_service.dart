@@ -163,6 +163,35 @@ class BettingTableService {
     );
   }
 
+  /// ✅ THÊM: Generate Nam Gan Table
+  Future<List<BettingRow>> generateNamGanTable({
+    required CycleAnalysisResult cycleResult,
+    required DateTime startDate,
+    required DateTime endDate,
+    required double budgetMin,
+    required double budgetMax,
+    required int durationLimit,
+  }) async {
+    return _optimizeTableSearch(
+      budgetMin: budgetMin,
+      budgetMax: budgetMax,
+      calculator: (profitTarget, startBet) => _calculateSingleMienTable(
+        targetNumber: cycleResult.targetNumber,
+        mien: 'Nam',
+        startDate: startDate,
+        endDate: endDate,
+        startBetValue: startBet,
+        profitTarget: profitTarget,
+        durationLimit: durationLimit,
+        winMultiplier: AppConstants
+            .namGanWinMultiplier, // Đảm bảo AppConstants đã có biến này
+      ),
+      configName: "Nam Gan",
+      profitSearchRange: 22,
+      betSearchRange: 22,
+    );
+  }
+
   /// Generate Bac Gan Table
   Future<List<BettingRow>> generateBacGanTable({
     required CycleAnalysisResult cycleResult,

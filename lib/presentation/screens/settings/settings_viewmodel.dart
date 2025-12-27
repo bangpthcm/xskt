@@ -39,6 +39,7 @@ class SettingsViewModel extends ChangeNotifier {
 
   // THÊM CONSTANT cho validation
   static const int _minCycleDuration = 4; // > 4
+  static const int _minNamDuration = 10;
   static const int _minTrungDuration = 12; // > 12
   static const int _minBacDuration = 15; // > 16
   static const int _minXienDuration = 156; // > 155
@@ -48,6 +49,10 @@ class SettingsViewModel extends ChangeNotifier {
     // Validate Chu kỳ
     if (config.cycleDuration < _minCycleDuration) {
       return 'Chu kỳ phải > 4 ngày (hiện: ${config.cycleDuration})';
+    }
+
+    if (config.namDuration < _minNamDuration) {
+      return 'Miền Nam phải > 10 ngày (hiện: ${config.namDuration})';
     }
 
     // Validate Miền Trung
