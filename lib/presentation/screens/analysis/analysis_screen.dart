@@ -221,6 +221,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                         }
                       : null,
                 ),
+                IconButton(
+                  icon: Icon(Icons.send,
+                      color: Theme.of(context).primaryColor.withOpacity(0.9)),
+                  onPressed: cycleResult != null
+                      ? () => _sendCycleToTelegram(context, viewModel)
+                      : null,
+                ),
               ],
             ),
             const Divider(color: Colors.grey),
