@@ -256,13 +256,17 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
               ),
 
-              // Ngày gan hiện tại
-              _buildInfoRow(
-                  'Ngày gan hiện tại:', '${cycleResult.maxGanDays} ngày'),
+              // Ngày gan hiện tại (Cột E)
+              _buildInfoRow('Ngày gan hiện tại:',
+                  '${cycleResult.maxGanDays} ngày (Slots: ${cycleResult.ganCurrentSlots})'),
 
-              // Ngày gan quá khứ (Mới)
-              _buildInfoRow(
-                  'Ngày gan quá khứ:', '${cycleResult.historicalGan} ngày'),
+              // Ngày gan cũ (Cột H)
+              _buildInfoRow('Ngày gan CK trước:',
+                  '${cycleResult.ganCKTruocDays} ngày (Slots: ${cycleResult.ganCKTruocSlots})'),
+
+              // Ngày gan kìa (Cột J)
+              _buildInfoRow('Ngày gan CK kìa:',
+                  '${cycleResult.ganCKKiaDays} ngày (Slots: ${cycleResult.ganCKKiaSlots})'),
 
               // Số lần xuất hiện (Mới)
               Padding(
@@ -403,6 +407,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ],
                   ),
                 ),
+                // Nút tạo bảng
                 IconButton(
                   icon: Icon(Icons.table_chart,
                       color: Theme.of(context).primaryColor.withOpacity(0.9)),
@@ -410,6 +415,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       ? () => _createXienBettingTable(context, viewModel)
                       : null,
                 ),
+                // Nút gửi Telegram
                 IconButton(
                   icon: Icon(Icons.send,
                       color: Theme.of(context).primaryColor.withOpacity(0.9)),
@@ -420,8 +426,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               ],
             ),
             const Divider(color: Colors.grey),
+
+            // ✅ HIỂN THỊ KHI CÓ DỮ LIỆU
             if (ganInfo == null)
-              const Text('Chưa có dữ liệu phân tích')
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.0),
+                child: Text('Chưa có dữ liệu phân tích Xiên',
+                    style: TextStyle(color: Colors.grey)),
+              )
             else ...[
               _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
               _buildInfoRow(
@@ -436,22 +448,30 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 ),
               const SizedBox(height: 8),
               const Text(
-                'Các cặp gan nhất:',
+                'Cặp mục tiêu:',
                 style:
                     TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              ...ganInfo.pairs.asMap().entries.map((entry) {
-                final index = entry.key;
-                final pairWithDays = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    '${index + 1}. ${pairWithDays.pair.display} (${pairWithDays.daysGan} ngày)',
-                    style: const TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-                );
-              }),
+
+              // Render danh sách cặp an toàn
+              if (ganInfo.pairs.isNotEmpty)
+                ...ganInfo.pairs.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final pairWithDays = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${index + 1}. ${pairWithDays.display} (Gan: ${pairWithDays.daysGan})',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  );
+                })
+              else
+                const Text("Không có cặp số nào"),
             ],
           ],
         ),
