@@ -1106,4 +1106,105 @@ class AnalysisService {
       return null;
     }
   }
+
+  // --- THÊM MỚI: Lấy dữ liệu phân tích cho 1 số cụ thể (Dùng cho Simulation) ---
+  static Future<NumberAnalysisData?> getAnalysisData(
+    String targetNumber,
+    List<LotteryResult> results,
+    String mien,
+  ) async {
+    return await compute(_getAnalysisDataCompute, {
+      'number': targetNumber,
+      'results': results,
+      'mien': mien,
+    });
+  }
+
+  static NumberAnalysisData? _getAnalysisDataCompute(
+      Map<String, dynamic> params) {
+    final targetNumber = params['number'] as String;
+    var rawResults = params['results'] as List<LotteryResult>;
+    final mienScope = params['mien'] as String;
+
+    try {
+      // 1. Filter & Merge (Giống logic tìm Min P)
+      List<LotteryResult> scopedResults;
+      if (mienScope.toLowerCase().contains('tất cả') ||
+          mienScope == 'tatca' ||
+          mienScope == 'ALL') {
+        scopedResults = List.from(rawResults);
+      } else {
+        scopedResults =
+            rawResults.where((r) => r.mien.contains(mienScope)).toList();
+      }
+      scopedResults = _mergeToDailyRegionSessions(scopedResults);
+
+      if (scopedResults.isEmpty) return null;
+
+      // 2. Trim
+      int accumulated = 0;
+      int cutIndex = 0;
+      for (int i = scopedResults.length - 1; i >= 0; i--) {
+        accumulated += scopedResults[i].numbers.length;
+        if (accumulated >= WINDOW_FREQ_SLOTS.toInt()) {
+          cutIndex = i;
+          break;
+        }
+      }
+      final finalSessions = scopedResults.sublist(cutIndex);
+
+      // 3. Calc Stats
+      List<int> cumList = [];
+      int runningSum = 0;
+      for (var session in finalSessions) {
+        runningSum += session.numbers.length;
+        cumList.add(runningSum);
+      }
+      final int totalSlotsActual = runningSum;
+
+      List<int> hitIndices = [];
+      int cntRealInt = 0;
+      for (int sIdx = 0; sIdx < finalSessions.length; sIdx++) {
+        int countInSession =
+            finalSessions[sIdx].numbers.where((n) => n == targetNumber).length;
+        if (countInSession > 0) {
+          hitIndices.add(sIdx);
+          cntRealInt += countInSession;
+        }
+      }
+
+      final xyz = _computeXYZShifted(hitIndices, cumList);
+      final double x = xyz.x.toDouble();
+      final double y = xyz.y.toDouble();
+      final double z = xyz.z.toDouble();
+
+      final lnP1 = x * LN_BASE;
+      final lnP2 = y * LN_BASE;
+      final lnP3 = z * LN_BASE;
+      const double lnP4 = 0.0;
+
+      final lnPTotal =
+          (2.0 * LN_P_INDIV) + (W1 * lnP1) + (W2 * lnP2) + (W3 * lnP3);
+
+      return NumberAnalysisData(
+        number: targetNumber,
+        lnP1: lnP1,
+        lnP2: lnP2,
+        lnP3: lnP3,
+        lnP4: lnP4,
+        lnPTotal: lnPTotal,
+        currentGan: x,
+        lastCycleGan: y,
+        lastSeenDate: finalSessions.isNotEmpty
+            ? date_utils.DateUtils.parseDate(finalSessions.last.ngay) ??
+                DateTime.now()
+            : DateTime.now(),
+        totalSlotsActual: totalSlotsActual,
+        cntReal: cntRealInt.toDouble(),
+        cntTheory: 0.0,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
 }

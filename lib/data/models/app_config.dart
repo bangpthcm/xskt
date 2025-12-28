@@ -3,76 +3,6 @@
 import 'api_account.dart';
 import 'probability_config.dart';
 
-class DurationConfig {
-  final int cycleDuration;
-  final int namDuration; // ✅ THÊM
-  final int trungDuration;
-  final int bacDuration;
-  final int xienDuration;
-
-  DurationConfig({
-    this.cycleDuration = 10,
-    this.namDuration = 22, // ✅ THÊM (Default Miền Nam)
-    this.trungDuration = 26,
-    this.bacDuration = 43,
-    this.xienDuration = 234,
-  });
-
-  bool get isValid {
-    return cycleDuration > 4 &&
-        namDuration > 10 && // ✅ Validate Nam
-        trungDuration > 13 &&
-        bacDuration > 19 &&
-        xienDuration > 155;
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'cycleDuration': cycleDuration,
-      'namDuration': namDuration, // ✅ THÊM
-      'trungDuration': trungDuration,
-      'bacDuration': bacDuration,
-      'xienDuration': xienDuration,
-    };
-  }
-
-  factory DurationConfig.fromJson(Map<String, dynamic> json) {
-    return DurationConfig(
-      cycleDuration: json['cycleDuration'] ?? 10,
-      namDuration: json['namDuration'] ?? 22, // ✅ THÊM
-      trungDuration: json['trungDuration'] ?? 26,
-      bacDuration: json['bacDuration'] ?? 43,
-      xienDuration: json['xienDuration'] ?? 234,
-    );
-  }
-
-  factory DurationConfig.defaults() {
-    return DurationConfig(
-      cycleDuration: 10,
-      namDuration: 22, // ✅ THÊM
-      trungDuration: 26,
-      bacDuration: 43,
-      xienDuration: 234,
-    );
-  }
-
-  DurationConfig copyWith({
-    int? cycleDuration,
-    int? namDuration, // ✅ THÊM
-    int? trungDuration,
-    int? bacDuration,
-    int? xienDuration,
-  }) {
-    return DurationConfig(
-      cycleDuration: cycleDuration ?? this.cycleDuration,
-      namDuration: namDuration ?? this.namDuration, // ✅ THÊM
-      trungDuration: trungDuration ?? this.trungDuration,
-      bacDuration: bacDuration ?? this.bacDuration,
-      xienDuration: xienDuration ?? this.xienDuration,
-    );
-  }
-}
-
 class BettingConfig {
   final String domain;
 
@@ -172,7 +102,6 @@ class AppConfig {
   final GoogleSheetsConfig googleSheets;
   final TelegramConfig telegram;
   final BudgetConfig budget;
-  final DurationConfig duration;
   final ProbabilityConfig probability;
   final List<ApiAccount> apiAccounts;
   final BettingConfig betting;
@@ -181,12 +110,10 @@ class AppConfig {
     required this.googleSheets,
     required this.telegram,
     required this.budget,
-    DurationConfig? duration,
     ProbabilityConfig? probability,
     List<ApiAccount>? apiAccounts,
     BettingConfig? betting,
-  })  : duration = duration ?? DurationConfig.defaults(),
-        probability = probability ?? ProbabilityConfig.defaults(),
+  })  : probability = probability ?? ProbabilityConfig.defaults(),
         apiAccounts = apiAccounts ?? [],
         betting = betting ?? BettingConfig.empty();
 
@@ -195,7 +122,6 @@ class AppConfig {
       'googleSheets': googleSheets.toJson(),
       'telegram': telegram.toJson(),
       'budget': budget.toJson(),
-      'duration': duration.toJson(),
       'probability': probability.toJson(),
       'apiAccounts': apiAccounts.map((a) => a.toJson()).toList(),
       'betting': betting.toJson(),
@@ -207,7 +133,6 @@ class AppConfig {
       googleSheets: GoogleSheetsConfig.fromJson(json['googleSheets'] ?? {}),
       telegram: TelegramConfig.fromJson(json['telegram'] ?? {}),
       budget: BudgetConfig.fromJson(json['budget'] ?? {}),
-      duration: DurationConfig.fromJson(json['duration'] ?? {}),
       probability: ProbabilityConfig.fromJson(json['probability'] ?? {}),
       apiAccounts: (json['apiAccounts'] as List<dynamic>?)
               ?.map((item) => ApiAccount.fromJson(item))
@@ -224,7 +149,6 @@ class AppConfig {
       ),
       telegram: TelegramConfig.empty(),
       budget: BudgetConfig.defaultBudget(),
-      duration: DurationConfig.defaults(),
       probability: ProbabilityConfig.defaults(),
       apiAccounts: [],
       betting: BettingConfig.empty(),
@@ -235,7 +159,6 @@ class AppConfig {
     GoogleSheetsConfig? googleSheets,
     TelegramConfig? telegram,
     BudgetConfig? budget,
-    DurationConfig? duration,
     ProbabilityConfig? probability,
     List<ApiAccount>? apiAccounts,
     BettingConfig? betting,
@@ -244,7 +167,6 @@ class AppConfig {
       googleSheets: googleSheets ?? this.googleSheets,
       telegram: telegram ?? this.telegram,
       budget: budget ?? this.budget,
-      duration: duration ?? this.duration,
       probability: probability ?? this.probability,
       apiAccounts: apiAccounts ?? this.apiAccounts,
       betting: betting ?? this.betting,

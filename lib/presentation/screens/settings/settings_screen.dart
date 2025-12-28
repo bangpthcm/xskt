@@ -27,17 +27,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _bacBudgetController;
   late TextEditingController _xienBudgetController;
   late TextEditingController _bettingDomainController;
-  late TextEditingController _cycleDurationController;
-  late TextEditingController _trungDurationController;
-  late TextEditingController _bacDurationController;
-  late TextEditingController _xienDurationController;
   late TextEditingController _probabilityThresholdController;
   late TextEditingController _probabilityThresholdTatCaController;
   late TextEditingController _probabilityThresholdTrungController;
   late TextEditingController _probabilityThresholdBacController;
   late TextEditingController _probabilityThresholdXienController;
   late TextEditingController _namBudgetController; // ✅ Thêm
-  late TextEditingController _namDurationController; // ✅ Thêm
   late TextEditingController _probabilityThresholdNamController; // ✅ Thêm
 
   final List<Map<String, TextEditingController>> _apiAccountControllers = [];
@@ -62,17 +57,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _bacBudgetController = TextEditingController();
     _xienBudgetController = TextEditingController();
     _bettingDomainController = TextEditingController();
-    _cycleDurationController = TextEditingController();
-    _trungDurationController = TextEditingController();
-    _bacDurationController = TextEditingController();
-    _xienDurationController = TextEditingController();
     _probabilityThresholdController = TextEditingController();
     _probabilityThresholdTatCaController = TextEditingController();
     _probabilityThresholdTrungController = TextEditingController();
     _probabilityThresholdBacController = TextEditingController();
     _probabilityThresholdXienController = TextEditingController();
     _namBudgetController = TextEditingController();
-    _namDurationController = TextEditingController();
     _probabilityThresholdNamController = TextEditingController();
 
     for (int i = 0; i < 3; i++) {
@@ -97,15 +87,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _xienBudgetController.text = _formatToThousands(config.budget.xienBudget);
     _namBudgetController.text = _formatToThousands(
         config.budget.namBudget); // ✅ Thêm (cần đảm bảo AppConfig có namBudget)
-    _namDurationController.text =
-        config.duration.namDuration.toString(); // ✅ Thêm
     _probabilityThresholdNamController.text =
         config.probability.thresholdLnNam.toString(); // ✅ Thêm
-
-    _cycleDurationController.text = config.duration.cycleDuration.toString();
-    _trungDurationController.text = config.duration.trungDuration.toString();
-    _bacDurationController.text = config.duration.bacDuration.toString();
-    _xienDurationController.text = config.duration.xienDuration.toString();
 
     // ✅ CẬP NHẬT: Hiển thị giá trị Log (ln)
     // Lưu ý tên biến controller là _probabilityThreshold...
@@ -137,10 +120,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _bacBudgetController.dispose();
     _xienBudgetController.dispose();
     _bettingDomainController.dispose();
-    _cycleDurationController.dispose();
-    _trungDurationController.dispose();
-    _bacDurationController.dispose();
-    _xienDurationController.dispose();
     _probabilityThresholdController.dispose();
     _probabilityThresholdTatCaController.dispose();
     _probabilityThresholdTrungController.dispose();
@@ -171,8 +150,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildApiAccountsSection(),
                 const SizedBox(height: 10),
                 _buildBudgetSection(),
-                const SizedBox(height: 10),
-                _buildDurationSection(),
                 const SizedBox(height: 10),
                 if (viewModel.errorMessage != null)
                   _buildErrorCard(viewModel.errorMessage!),
@@ -332,159 +309,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // Range an toàn cho Log xác suất
         if (val < -500 || val > -2) {
           return 'Giá trị Log nên từ -500 đến -2';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildDurationSection() {
-    return Card(
-      child: ExpansionTile(
-        leading: Icon(Icons.schedule, color: Theme.of(context).primaryColor),
-        title: const Text('Thời lượng chu kỳ',
-            style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('Cấu hình số ngày cho mỗi loại cược',
-            style: TextStyle(fontSize: 12, color: Colors.grey)),
-        initiallyExpanded: false,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Chu kỳ
-                _buildDurationField(
-                  controller: _cycleDurationController,
-                  label: 'Chu kỳ 00-99 (ngày)',
-                  icon: Icons.calendar_month,
-                  hint: '10',
-                  minValue: 5,
-                  maxValue: 11,
-                  helperText: 'Phải > 9 (farming: 9). Mặc định: 10',
-                ),
-                const SizedBox(height: 16),
-
-                _buildDurationField(
-                  controller: _namDurationController,
-                  label: 'Miền Nam (ngày)',
-                  icon: Icons.calendar_month,
-                  hint: '31',
-                  minValue: 25,
-                  maxValue: 35,
-                  helperText: 'Phải > 24. Mặc định: 31',
-                ),
-                const SizedBox(height: 16),
-
-                // Miền Trung
-                _buildDurationField(
-                  controller: _trungDurationController,
-                  label: 'Miền Trung (ngày)',
-                  icon: Icons.calendar_month,
-                  hint: '26',
-                  minValue: 25,
-                  maxValue: 31,
-                  helperText: 'Phải > 25 (farming: 25). Mặc định: 30',
-                ),
-                const SizedBox(height: 16),
-
-                // Miền Bắc
-                _buildDurationField(
-                  controller: _bacDurationController,
-                  label: 'Miền Bắc (ngày)',
-                  icon: Icons.calendar_month,
-                  hint: '43',
-                  minValue: 41,
-                  maxValue: 46,
-                  helperText: 'Phải > 41 (threshold: 41). Mặc định: 43',
-                ),
-                const SizedBox(height: 16),
-
-                // Xiên
-                _buildDurationField(
-                  controller: _xienDurationController,
-                  label: 'Xiên Bắc (ngày)',
-                  icon: Icons.calendar_month,
-                  hint: '234',
-                  minValue: 222,
-                  maxValue: 245,
-                  helperText: 'Phải > 222 (threshold: 222). Mặc định: 234',
-                ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).canvasColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '📌 Giải thích:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                          fontSize: 13,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        '• Chu kỳ: Số ngày để đợi một vòng quay hoàn chỉnh (3 miền)\n'
-                        '• Miền Trung/Bắc: Số ngày cụ thể cho mỗi miền\n'
-                        '• Xiên: Số ngày chờ cặp số xuất hiện\n\n'
-                        '• Mỗi loại phải lớn hơn threshold để đảm bảo có đủ dữ liệu phân tích',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDurationField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    required String hint,
-    required int minValue,
-    required int maxValue,
-    required String helperText,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        hintText: hint,
-        helperText: helperText,
-        helperMaxLines: 2,
-        suffixText: 'ngày',
-      ),
-      keyboardType: TextInputType.number,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Vui lòng nhập giá trị';
-        }
-        final intValue = int.tryParse(value);
-        if (intValue == null) {
-          return 'Phải là số nguyên';
-        }
-        if (intValue < minValue) {
-          return 'Phải >= $minValue';
-        }
-        if (intValue > maxValue) {
-          return 'Phải <= $maxValue';
         }
         return null;
       },
@@ -848,51 +672,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     double thresholdXien =
         double.tryParse(_probabilityThresholdXienController.text) ?? -13.14;
 
-    // Validate Duration (giữ nguyên logic cũ)
-    int cycleDuration = int.tryParse(_cycleDurationController.text) ?? 10;
-    int namDuration = int.tryParse(_namDurationController.text) ?? 22;
-    int trungDuration = int.tryParse(_trungDurationController.text) ?? 26;
-    int bacDuration = int.tryParse(_bacDurationController.text) ?? 43;
-    int xienDuration = int.tryParse(_xienDurationController.text) ?? 234;
-
-    if (cycleDuration <= 4) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Chu kỳ phải > 4 ngày'),
-        backgroundColor: Colors.red,
-      ));
-      return;
-    }
-    if (trungDuration <= 13) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Trung phải > 13 ngày'),
-        backgroundColor: Colors.red,
-      ));
-      return;
-    }
-    if (bacDuration <= 19) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Bắc phải > 19 ngày'),
-        backgroundColor: Colors.red,
-      ));
-      return;
-    }
-    if (xienDuration <= 155) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Xiên phải > 155 ngày'),
-        backgroundColor: Colors.red,
-      ));
-      return;
-    }
-
-    // Build Duration Config
-    final durationConfig = DurationConfig(
-      cycleDuration: cycleDuration,
-      namDuration: namDuration, // ✅
-      trungDuration: trungDuration,
-      bacDuration: bacDuration,
-      xienDuration: xienDuration,
-    );
-
     // ✅ CẬP NHẬT: Tạo ProbabilityConfig với các trường Ln mới
     final probabilityConfig = ProbabilityConfig(
       thresholdLnTatCa: thresholdTatCa,
@@ -936,7 +715,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         bacBudget: bacBudget,
         xienBudget: xienBudget,
       ),
-      duration: durationConfig,
       probability: probabilityConfig, // ✅ MỚI
       apiAccounts: <ApiAccount>[
         for (int i = 0; i < _apiAccountControllers.length; i++)

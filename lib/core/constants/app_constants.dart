@@ -8,21 +8,12 @@ class AppConstants {
   // Xiên betting constants
   static const double targetBudgetXien = 19000.0;
   static const double winMultiplierXien = 17.0;
-  static const int durationBaseXien = 234;
   static const double startingProfit = 50.0;
   static const double finalProfit = 800.0;
-
-  // ✅ CẤU HÌNH CÁC MIỀN (ĐÃ BỔ SUNG NAM)
-  static const int durationBaseBac = 43;
-  static const int durationBaseTrung = 26;
-  static const int durationBaseNam = 22; // ✅ Thêm: Duration cơ sở cho miền Nam
 
   static const int bacGanWinMultiplier = 99;
   static const int trungGanWinMultiplier = 98;
   static const int namGanWinMultiplier = 98; // ✅ Thêm: Multiplier miền Nam
-
-  static const int durationBaseCycle = 10;
-  static const int cycleGanWinMultiplier = 98;
 
   // Win multipliers
   static const int winMultiplier = 98;

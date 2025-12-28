@@ -409,15 +409,7 @@ class AnalysisViewModel extends ChangeNotifier {
         daysGan: ganCurDays,
         lastSeen: lastSeen,
       );
-
-      if (config != null) {
-        final start = DateTime.now().add(const Duration(days: 1));
-        final endDate = start.add(Duration(days: config.duration.xienDuration));
-
-        _dateXien = start;
-        _endDateXien = endDate;
-        _optimalXien = date_utils.DateUtils.formatDate(start);
-      }
+      _calculatePlanForXien(config);
     } catch (e) {
       print('❌ Lỗi parse dòng Xiên: $e');
     }
@@ -453,57 +445,116 @@ class AnalysisViewModel extends ChangeNotifier {
   Future<void> _calculatePlanForRegion(
       CycleAnalysisResult result, String mienName, AppConfig? config) async {
     if (config == null) return;
-
-    BettingTableTypeEnum type;
-    String normalizedMien = mienName.toLowerCase();
-
-    if (normalizedMien.contains('nam'))
-      type = BettingTableTypeEnum.nam;
-    else if (normalizedMien.contains('trung'))
-      type = BettingTableTypeEnum.trung;
-    else if (normalizedMien.contains('bắc'))
-      type = BettingTableTypeEnum.bac;
-    else
-      type = BettingTableTypeEnum.tatca;
-
-    final durationDays = _getDurationForType(type, config);
-
-    final safeGanDays = (result.maxGanDays > result.historicalGan)
-        ? result.maxGanDays + 5
-        : result.historicalGan + 5;
-
-    final estimatedEndDate =
-        result.lastSeenDate.add(Duration(days: safeGanDays));
-
-    DateTime finalEndDate = estimatedEndDate;
-    if (finalEndDate.isBefore(DateTime.now())) {
-      finalEndDate = DateTime.now().add(Duration(days: durationDays));
+    if (_allResults.isEmpty) {
+      // Nếu chưa có kết quả để tính toán, tạm để trống hoặc load ngầm
+      // Ở đây giả sử _allResults đã được load ở bước cuối loadAnalysis
+      // Nếu chưa có thì logic tính toán sẽ chạy lại khi refresh.
+      return;
     }
 
+    String normalizedMien = mienName.toLowerCase();
+
+    // 1. Xác định ngưỡng xác suất (Threshold)
+    double thresholdLn;
+    if (normalizedMien.contains('nam')) {
+      thresholdLn = config.probability.thresholdLnNam;
+    } else if (normalizedMien.contains('trung')) {
+      thresholdLn = config.probability.thresholdLnTrung;
+    } else if (normalizedMien.contains('bắc') ||
+        normalizedMien.contains('bac')) {
+      thresholdLn = config.probability.thresholdLnBac;
+    } else {
+      thresholdLn = config.probability.thresholdLnTatCa;
+    }
+
+    // 2. Lấy dữ liệu phân tích chi tiết (P-values) cho số mục tiêu
+    final analysisData = await AnalysisService.getAnalysisData(
+      result.targetNumber,
+      _allResults,
+      mienName,
+    );
+
+    DateTime? finalEndDate;
+    int daysNeeded = 0;
+
+    if (analysisData != null) {
+      // 3. Chạy mô phỏng để tìm ngày kết thúc
+      final simResult = await AnalysisService.findEndDateForCycleThreshold(
+        analysisData,
+        0.01, // P_INDIV placeholder
+        _allResults,
+        thresholdLn,
+        mien: mienName,
+      );
+
+      if (simResult != null) {
+        finalEndDate = simResult.endDate;
+        daysNeeded = simResult.daysNeeded;
+      }
+    }
+
+    // Fallback an toàn nếu mô phỏng thất bại (nhưng không dùng Duration tĩnh)
+    finalEndDate ??= DateTime.now().add(const Duration(days: 2));
+
+    // Format hiển thị
     final startDate = DateTime.now().add(const Duration(days: 1));
     String planString = date_utils.DateUtils.formatDate(startDate);
 
-    switch (type) {
-      case BettingTableTypeEnum.tatca:
-        _dateTatCa = startDate;
-        _endDateTatCa = finalEndDate;
-        _optimalTatCa = planString;
-        break;
-      case BettingTableTypeEnum.nam:
-        _dateNam = startDate;
-        _endDateNam = finalEndDate;
-        _optimalNam = planString;
-        break;
-      case BettingTableTypeEnum.trung:
-        _dateTrung = startDate;
-        _endDateTrung = finalEndDate;
-        _optimalTrung = planString;
-        break;
-      case BettingTableTypeEnum.bac:
-        _dateBac = startDate;
-        _endDateBac = finalEndDate;
-        _optimalBac = planString;
-        break;
+    if (daysNeeded > 60) {
+      planString += " (Kéo dài > 2 tháng)";
+    }
+
+    // Gán vào State
+    if (normalizedMien.contains('nam')) {
+      _dateNam = startDate;
+      _endDateNam = finalEndDate;
+      _optimalNam = planString;
+    } else if (normalizedMien.contains('trung')) {
+      _dateTrung = startDate;
+      _endDateTrung = finalEndDate;
+      _optimalTrung = planString;
+    } else if (normalizedMien.contains('bắc')) {
+      _dateBac = startDate;
+      _endDateBac = finalEndDate;
+      _optimalBac = planString;
+    } else {
+      _dateTatCa = startDate;
+      _endDateTatCa = finalEndDate;
+      _optimalTatCa = planString;
+    }
+  }
+
+  // ✅ CẬP NHẬT LOGIC XIÊN: Dùng findEndDateForXienThreshold
+  Future<void> _calculatePlanForXien(AppConfig? config) async {
+    if (_ganPairInfo == null || config == null) return;
+
+    final thresholdLn = config.probability.thresholdLnXien;
+    final pairAnalysis = PairAnalysisData(
+      firstNumber: _ganPairInfo!.pairs[0].pair.first,
+      secondNumber: _ganPairInfo!.pairs[0].pair.second,
+      lnP1Pair: 0, // Placeholder, hàm tính sẽ tự lo dựa trên daysSinceLastSeen
+      lnPTotalXien: 0,
+      daysSinceLastSeen: _ganPairInfo!.daysGan.toDouble(),
+      lastSeenDate: _ganPairInfo!.lastSeen,
+    );
+
+    // Tính P-pair ước lượng (hoặc lấy từ config nếu cần chính xác hơn)
+    const pPair = 0.055;
+
+    final simResult = await AnalysisService.findEndDateForXienThreshold(
+        pairAnalysis, pPair, thresholdLn);
+
+    final start = DateTime.now().add(const Duration(days: 1));
+
+    if (simResult != null) {
+      _dateXien = start;
+      _endDateXien = simResult.endDate;
+      _optimalXien = date_utils.DateUtils.formatDate(start);
+    } else {
+      // Fallback tối thiểu
+      _dateXien = start;
+      _endDateXien = start.add(const Duration(days: 5));
+      _optimalXien = "Đang tính toán...";
     }
   }
 
@@ -591,29 +642,31 @@ class AnalysisViewModel extends ChangeNotifier {
     DateTime endDate;
     int startMienIndex = 0;
 
+    // Lấy ngày đã tính toán từ Probability (không fallback Duration nữa)
     if (type == BettingTableTypeEnum.tatca) {
-      if (_dateTatCa == null) throw Exception('Chưa tính ngày tối ưu.');
+      if (_dateTatCa == null || _endDateTatCa == null)
+        throw Exception('Chưa có dữ liệu phân tích xác suất.');
       startDate = _dateTatCa!;
-      endDate = _endDateTatCa ??
-          startDate.add(Duration(days: config.duration.cycleDuration));
+      endDate = _endDateTatCa!;
     } else if (type == BettingTableTypeEnum.nam) {
-      if (_dateNam == null) throw Exception('Chưa tính ngày tối ưu.');
+      if (_dateNam == null || _endDateNam == null)
+        throw Exception('Chưa có dữ liệu phân tích xác suất.');
       startDate = _dateNam!;
-      endDate = _endDateNam ??
-          startDate.add(Duration(days: config.duration.namDuration));
+      endDate = _endDateNam!;
     } else if (type == BettingTableTypeEnum.trung) {
-      if (_dateTrung == null) throw Exception('Chưa tính ngày tối ưu.');
+      if (_dateTrung == null || _endDateTrung == null)
+        throw Exception('Chưa có dữ liệu phân tích xác suất.');
       startDate = _dateTrung!;
-      endDate = _endDateTrung ??
-          startDate.add(Duration(days: config.duration.trungDuration));
+      endDate = _endDateTrung!;
     } else {
-      if (_dateBac == null) throw Exception('Chưa tính ngày tối ưu.');
+      if (_dateBac == null || _endDateBac == null)
+        throw Exception('Chưa có dữ liệu phân tích xác suất.');
       startDate = _dateBac!;
-      endDate = _endDateBac ??
-          startDate.add(Duration(days: config.duration.bacDuration));
+      endDate = _endDateBac!;
     }
 
     final actualDuration = endDate.difference(startDate).inDays;
+    // Đảm bảo tối thiểu 1 ngày để không lỗi bảng
     final durationLimit = actualDuration > 0 ? actualDuration : 1;
 
     return BettingTableParams(
@@ -700,8 +753,9 @@ class AnalysisViewModel extends ChangeNotifier {
       config ??= AppConfig.defaultConfig();
 
       final start = _dateXien ?? DateTime.now().add(const Duration(days: 1));
-      final endDate = _endDateXien ??
-          start.add(Duration(days: config.duration.xienDuration));
+
+      // Sử dụng endDate đã tính theo Probability
+      final endDate = _endDateXien ?? start.add(const Duration(days: 3));
 
       final actualBettingDays = endDate.difference(start).inDays;
       final effectiveDurationBase = actualBettingDays + _ganPairInfo!.daysGan;
@@ -749,15 +803,6 @@ class AnalysisViewModel extends ChangeNotifier {
   }
 
   // --- HELPERS ---
-
-  int _getDurationForType(BettingTableTypeEnum type, AppConfig config) {
-    return switch (type) {
-      BettingTableTypeEnum.tatca => config.duration.cycleDuration,
-      BettingTableTypeEnum.nam => config.duration.namDuration,
-      BettingTableTypeEnum.trung => config.duration.trungDuration,
-      BettingTableTypeEnum.bac => config.duration.bacDuration,
-    };
-  }
 
   Future<void> _saveTableToSheet(BettingTableTypeEnum type,
       List<BettingRow> table, CycleAnalysisResult result) async {
