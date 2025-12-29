@@ -166,11 +166,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   Widget _buildCycleSection(AnalysisViewModel viewModel) {
     final cycleResult = viewModel.cycleResult;
 
+    // ✅ Lấy end date tương ứng với miền đang chọn
     DateTime? currentEndDate;
     if (viewModel.selectedMien == 'Tất cả') {
       currentEndDate = viewModel.endDateTatCa;
     } else if (viewModel.selectedMien == 'Nam') {
-      currentEndDate = viewModel.endDateNam; // ✅ THÊM
+      currentEndDate = viewModel.endDateNam;
     } else if (viewModel.selectedMien == 'Trung') {
       currentEndDate = viewModel.endDateTrung;
     } else if (viewModel.selectedMien == 'Bắc') {
@@ -196,8 +197,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ],
                   ),
                 ),
-
-                // ✅ ĐÃ BỎ ĐIỀU KIỆN if (viewModel.selectedMien != 'Nam')
                 IconButton(
                   icon: Icon(Icons.table_chart,
                       color: Theme.of(context).primaryColor.withOpacity(0.9)),
@@ -211,7 +210,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                             _showCreateTrungGanTableDialog(
                                 context, viewModel, cycleResult.targetNumber);
                           } else if (viewModel.selectedMien == 'Nam') {
-                            // ✅ THÊM XỬ LÝ CHO NAM
                             _showCreateNamGanTableDialog(
                                 context, viewModel, cycleResult.targetNumber);
                           } else {
@@ -236,20 +234,26 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (cycleResult == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              // --- CÁC CHỈ SỐ QUAN TRỌNG (ĐÃ SỬA LẠI THEO YÊU CẦU) ---
+              _buildInfoRow(
+                'Số mục tiêu:',
+                cycleResult.targetNumber,
+                isHighlight: true,
+              ),
 
-              if (viewModel.selectedMien != 'Nam')
-                _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber,
-                    isHighlight: true),
-
-              // Kết thúc dự kiến
+              // ✅ HIỂN THỊ END DATE với highlight màu đỏ
               if (currentEndDate != null)
                 _buildInfoRow(
-                  'Kết thúc (dự kiến):',
+                  'Kết thúc dự kiến:',
                   date_utils.DateUtils.formatDate(currentEndDate),
                   textColor: const Color(0xFFFF5252),
-                ),
-
+                )
+              else ...[
+                _buildInfoRow(
+                  'Kết thúc dự kiến:',
+                  'Đang tính ...',
+                  textColor: const Color(0xFFFF5252),
+                )
+              ],
               // Lần cuối về
               _buildInfoRow(
                 'Lần cuối về:',
@@ -268,14 +272,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               _buildInfoRow('Ngày gan CK kìa:',
                   '${cycleResult.ganCKKiaDays} ngày (Slots: ${cycleResult.ganCKKiaSlots})'),
 
-              // Số lần xuất hiện (Mới)
+              // Số lần xuất hiện
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(
-                      width: 140, // Căn chỉnh width cho label
+                      width: 140,
                       child: Text(
                         'Số lần xuất hiện:',
                         style: TextStyle(
@@ -292,7 +296,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 ),
               ),
 
-              // --- NHÓM SỐ GAN NHẤT ---
+              // Nhóm số gan nhất
               const SizedBox(height: 16),
               const Text(
                 'Nhóm số gan nhất:',
@@ -307,7 +311,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 children: cycleResult.ganNumbers.map((number) {
                   final isTarget = number == cycleResult.targetNumber;
 
-                  // Chỉ hiển thị Chip tĩnh, không còn bấm được (ActionChip)
                   return Chip(
                     label: Text(
                       number,
@@ -331,7 +334,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 }).toList(),
               ),
 
-              // --- PHÂN BỔ THEO MIỀN ---
+              // Phân bổ theo miền
               if (viewModel.selectedMien == 'Tất cả') ...[
                 const SizedBox(height: 16),
                 const Text(
@@ -373,8 +376,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   );
                 }),
               ],
-
-              // Đã xóa phần hiển thị chi tiết số (if _selectedNumber != null ...)
             ],
           ],
         ),
@@ -435,43 +436,26 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     style: TextStyle(color: Colors.grey)),
               )
             else ...[
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
-              _buildInfoRow(
-                'Lần cuối về:',
-                date_utils.DateUtils.formatDate(ganInfo.lastSeen),
-              ),
+              if (ganInfo.pairs.isNotEmpty)
+                ...ganInfo.pairs.asMap().entries.map((entry) {
+                  final pairWithDays = entry.value;
+                  return _buildInfoRow(
+                    'Cặp số mục tiêu:',
+                    pairWithDays.display,
+                    textColor: Colors.white,
+                  );
+                }),
               if (viewModel.endDateXien != null)
                 _buildInfoRow(
                   'Kết thúc (dự kiến):',
                   date_utils.DateUtils.formatDate(viewModel.endDateXien!),
                   textColor: const Color(0xFFFF5252),
                 ),
-              const SizedBox(height: 8),
-              const Text(
-                'Cặp mục tiêu:',
-                style:
-                    TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+              _buildInfoRow(
+                'Lần cuối về:',
+                date_utils.DateUtils.formatDate(ganInfo.lastSeen),
               ),
-              const SizedBox(height: 8),
-
-              // Render danh sách cặp an toàn
-              if (ganInfo.pairs.isNotEmpty)
-                ...ganInfo.pairs.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final pairWithDays = entry.value;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '${index + 1}. ${pairWithDays.display} (Gan: ${pairWithDays.daysGan})',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  );
-                })
-              else
-                const Text("Không có cặp số nào"),
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/151 ngày'),
             ],
           ],
         ),

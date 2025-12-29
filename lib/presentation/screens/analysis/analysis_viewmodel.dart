@@ -165,11 +165,11 @@ class AnalysisViewModel extends ChangeNotifier {
   String _sheetHeaderRegion = "";
 
   // State Optimal Plan
-  String _optimalTatCa = "Chưa có";
-  String _optimalNam = "Chưa có";
-  String _optimalTrung = "Chưa có";
-  String _optimalBac = "Chưa có";
-  String _optimalXien = "Chưa có";
+  String _optimalTatCa = "Đang tính ...";
+  String _optimalNam = "Đang tính ...";
+  String _optimalTrung = "Đang tính ...";
+  String _optimalBac = "Đang tính ...";
+  String _optimalXien = "Đang tính ...";
 
   DateTime? _dateTatCa;
   DateTime? _dateNam;
@@ -443,14 +443,12 @@ class AnalysisViewModel extends ChangeNotifier {
   }
 
   Future<void> _calculatePlanForRegion(
-      CycleAnalysisResult result, String mienName, AppConfig? config) async {
+    CycleAnalysisResult result,
+    String mienName,
+    AppConfig? config,
+  ) async {
     if (config == null) return;
-    if (_allResults.isEmpty) {
-      // Nếu chưa có kết quả để tính toán, tạm để trống hoặc load ngầm
-      // Ở đây giả sử _allResults đã được load ở bước cuối loadAnalysis
-      // Nếu chưa có thì logic tính toán sẽ chạy lại khi refresh.
-      return;
-    }
+    if (_allResults.isEmpty) return;
 
     String normalizedMien = mienName.toLowerCase();
 
@@ -478,7 +476,7 @@ class AnalysisViewModel extends ChangeNotifier {
     int daysNeeded = 0;
 
     if (analysisData != null) {
-      // 3. Chạy mô phỏng để tìm ngày kết thúc
+      // 3. ✅ Chạy mô phỏng để tìm ngày kết thúc (P_total < threshold)
       final simResult = await AnalysisService.findEndDateForCycleThreshold(
         analysisData,
         0.01, // P_INDIV placeholder
@@ -490,14 +488,18 @@ class AnalysisViewModel extends ChangeNotifier {
       if (simResult != null) {
         finalEndDate = simResult.endDate;
         daysNeeded = simResult.daysNeeded;
+        print(
+            '✅ End date simulation: $finalEndDate ($daysNeeded days from now)');
       }
     }
 
-    // Fallback an toàn nếu mô phỏng thất bại (nhưng không dùng Duration tĩnh)
+    // Fallback an toàn nếu mô phỏng thất bại
     finalEndDate ??= DateTime.now().add(const Duration(days: 2));
 
-    // Format hiển thị
+    // 4. ✅ Start date: Để tối ưu khi tạo bảng cược, ở đây chỉ set default
     final startDate = DateTime.now().add(const Duration(days: 1));
+
+    // Format hiển thị
     String planString = date_utils.DateUtils.formatDate(startDate);
 
     if (daysNeeded > 60) {
@@ -506,8 +508,8 @@ class AnalysisViewModel extends ChangeNotifier {
 
     // Gán vào State
     if (normalizedMien.contains('nam')) {
-      _dateNam = startDate;
-      _endDateNam = finalEndDate;
+      _dateNam = startDate; // Start date placeholder
+      _endDateNam = finalEndDate; // ✅ End date từ simulation
       _optimalNam = planString;
     } else if (normalizedMien.contains('trung')) {
       _dateTrung = startDate;
@@ -688,6 +690,7 @@ class AnalysisViewModel extends ChangeNotifier {
   ) async {
     print('🚀 [Generic] Starting table creation...');
     try {
+      // STEP 1: Calculate budget
       final budgetService =
           BudgetCalculationService(sheetsService: _sheetsService);
       final budgetResult =
@@ -698,10 +701,44 @@ class AnalysisViewModel extends ChangeNotifier {
         endDate: params.endDate,
       );
 
+      // ✅ STEP 2: Optimize start date (NEW)
+      print('🔍 Optimizing start date...');
+      DateTime finalStartDate = params.startDate;
+
+      try {
+        final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
+          baseStartDate: params.startDate,
+          endDate: params.endDate,
+          availableBudget: budgetResult.budgetMax,
+          mien: params.type == BettingTableTypeEnum.tatca
+              ? 'Tất cả'
+              : params.type.displayName,
+          targetNumber: params.targetNumber,
+          cycleResult: params.cycleResult,
+          allResults: params.allResults,
+          bettingService: _bettingService,
+          maxMienCount: params.type == BettingTableTypeEnum.tatca
+              ? params.durationLimit
+              : 0,
+        );
+
+        if (optimalStart != null) {
+          finalStartDate = optimalStart;
+          print(
+              '✅ Optimized start date: ${date_utils.DateUtils.formatDate(finalStartDate)}');
+        } else {
+          print('⚠️ Could not optimize start date, using default');
+        }
+      } catch (e) {
+        print('⚠️ Error optimizing start date: $e');
+        // Continue with default start date
+      }
+
+      // STEP 3: Generate table with optimized start date
       final table = await params.type.generateTable(
         service: _bettingService,
         result: params.cycleResult,
-        start: params.startDate,
+        start: finalStartDate, // ✅ Use optimized start date
         end: params.endDate,
         startIdx: params.startMienIndex,
         min: budgetResult.budgetMax * 0.9,
@@ -710,10 +747,14 @@ class AnalysisViewModel extends ChangeNotifier {
         maxCount: params.type == BettingTableTypeEnum.tatca
             ? params.durationLimit
             : 0,
-        durationLimit: params.durationLimit,
+        durationLimit: params.endDate
+            .difference(finalStartDate)
+            .inDays, // ✅ Calculate actual duration
       );
 
+      // STEP 4: Save to sheet
       await _saveTableToSheet(params.type, table, params.cycleResult);
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
