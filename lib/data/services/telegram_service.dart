@@ -7,9 +7,10 @@ import 'package:intl/intl.dart';
 import '../models/app_config.dart';
 import '../models/betting_row.dart';
 
-// ✅ THÊM ENUM ĐỂ PHÂN BIỆT LOẠI BẢNG
+// ✅ CẬP NHẬT ENUM: Thêm nam
 enum TelegramTableType {
   tatCa, // Chu kỳ tất cả miền
+  nam, // Chu kỳ miền Nam (MỚI)
   trung, // Chu kỳ miền Trung
   bac, // Chu kỳ miền Bắc
   xien, // Xiên miền Bắc
@@ -29,20 +30,14 @@ class TelegramService {
     }
 
     try {
-      // ✅ Dùng API getMe để kiểm tra bot token
       final url = 'https://api.telegram.org/bot${_config!.botToken}/getMe';
-
       print('🔄 Testing Telegram connection...');
 
-      final response = await http
-          .get(
-            Uri.parse(url),
-          )
-          .timeout(const Duration(seconds: 10));
+      final response =
+          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
         if (data['ok'] == true) {
           final botInfo = data['result'];
           print('✅ Telegram connected successfully!');
@@ -93,8 +88,6 @@ class TelegramService {
     }
   }
 
-  // ✅ FORMAT XIÊN - GIỮ NGUYÊN NHƯNG CẬP NHẬT TIÊU ĐỀ
-// ✅ FORMAT XIÊN - ĐÃ SỬA LỖI HIỂN THỊ CỘT MIỀN
   String formatXienTableMessage(
       List<BettingRow> table, String capSo, int soNgayGan, String lanCuoiVe) {
     final buffer = StringBuffer();
@@ -104,19 +97,16 @@ class TelegramService {
     buffer.writeln('<b>Lần cuối:</b> $lanCuoiVe\n');
     buffer.writeln('<pre>');
 
-    // Header
     buffer.writeln('Ngày |Miền | Cược  |  Tổng | Lời ');
     buffer.writeln('-----|-----|-------|-------|-----');
 
-    // Rows
     for (final row in table) {
-      final ngay = row.ngay.substring(0, 5); // dd/mm
+      final ngay = row.ngay.substring(0, 5);
       final mien = row.mien.padRight(5);
       final cuoc = _formatNumber(row.cuocMien);
       final tong = _formatNumber(row.tongTien);
       final loi = _formatNumber(row.loi1So);
 
-      // ✅ Đã thêm biến $mien vào chuỗi in ra
       buffer.writeln(
           '${ngay.padRight(5)}|$mien|${cuoc.padLeft(6)}|${tong.padLeft(7)}|${loi.padLeft(6)}');
     }
@@ -125,7 +115,6 @@ class TelegramService {
     return buffer.toString();
   }
 
-  // ✅ METHOD CŨ - GIỮ ĐỂ BACKWARD COMPATIBLE (DEFAULT = TẤT CẢ)
   String formatCycleTableMessage(
     List<BettingRow> table,
     String nhomGan,
@@ -139,7 +128,6 @@ class TelegramService {
     );
   }
 
-  // ✅ METHOD MỚI - NHẬN THÊM TYPE ĐỂ CHỌN TIÊU ĐỀ
   String formatCycleTableMessageWithType(
     List<BettingRow> table,
     String nhomGan,
@@ -148,10 +136,13 @@ class TelegramService {
   ) {
     final buffer = StringBuffer();
 
-    // ✅ CHỌN TIÊU ĐỀ THEO TYPE
+    // ✅ CẬP NHẬT SWITCH CASE: Thêm Miền Nam
     switch (type) {
       case TelegramTableType.tatCa:
         buffer.writeln('<b>💰 BẢNG CƯỢC CHU KỲ (TẤT CẢ) 💰</b>\n');
+        break;
+      case TelegramTableType.nam: // ✅ MỚI
+        buffer.writeln('<b>🌴 BẢNG CƯỢC MIỀN NAM 🌴</b>\n');
         break;
       case TelegramTableType.trung:
         buffer.writeln('<b>📋 BẢNG CƯỢC MIỀN TRUNG 📋</b>\n');
@@ -168,11 +159,9 @@ class TelegramService {
     buffer.writeln('<b>Số mục tiêu:</b> $soMucTieu\n');
     buffer.writeln('<pre>');
 
-    // Header
     buffer.writeln('Ngày |Miền |Cược/s|Tổng   |Lời1số');
     buffer.writeln('-----|-----|------|-------|------');
 
-    // Rows (chỉ hiển thị một số dòng để không quá dài)
     final displayRows = table.length > 20 ? table.take(20).toList() : table;
 
     for (final row in displayRows) {
@@ -194,7 +183,6 @@ class TelegramService {
     return buffer.toString();
   }
 
-  // ✅ FIX: Hiển thị số đầy đủ với 2 chữ số thập phân, KHÔNG viết tắt
   String _formatNumber(double value) {
     final formatter = NumberFormat('#,###', 'vi_VN');
     return formatter.format(value.round());

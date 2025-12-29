@@ -1,19 +1,20 @@
 // lib/presentation/screens/betting/betting_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../../../app.dart';
+import '../../../core/utils/number_utils.dart';
+import '../../../data/models/api_account.dart';
+import '../../../data/models/betting_row.dart';
+import '../../../data/services/betting_api_service.dart';
+import '../../../data/services/google_sheets_service.dart';
+import '../../widgets/shimmer_loading.dart';
+import '../home/home_screen.dart';
+import '../settings/settings_viewmodel.dart';
+import 'betting_detail_screen.dart';
 import 'betting_viewmodel.dart';
 import 'select_account_screen.dart';
-import 'betting_detail_screen.dart';
-import '../../../core/utils/number_utils.dart';
-import '../../../data/models/betting_row.dart';
-import '../../widgets/shimmer_loading.dart';
-import '../../../app.dart';
-import '../settings/settings_viewmodel.dart';
-import '../../../data/models/api_account.dart';
-import '../../../data/services/betting_api_service.dart';
-import '../home/home_screen.dart';
-import '../../../data/services/google_sheets_service.dart';
 
 class BettingScreen extends StatefulWidget {
   const BettingScreen({super.key});
@@ -26,21 +27,16 @@ class _BettingScreenState extends State<BettingScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // ✅ SỬA LẠI LOGIC INIT:
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final settingsVM = context.read<SettingsViewModel>();
         final bettingVM = context.read<BettingViewModel>();
-        final sheetsService = context.read<GoogleSheetsService>(); // Lấy service
-        
+        final sheetsService = context.read<GoogleSheetsService>();
+
         settingsVM.loadConfig().then((_) async {
-          // 🛡️ BẢO VỆ: Init lại Sheets Service bằng config vừa load để chắc chắn nó không null
-           await sheetsService.initialize(settingsVM.config.googleSheets);
-        
-          // Sau đó mới tải bảng cược
+          await sheetsService.initialize(settingsVM.config.googleSheets);
           if (mounted) {
-             bettingVM.loadBettingTables();
+            bettingVM.loadBettingTables();
           }
         });
       }
@@ -51,7 +47,7 @@ class _BettingScreenState extends State<BettingScreen> {
     try {
       final settingsVM = context.read<SettingsViewModel>();
       final config = settingsVM.config;
-      
+
       final validAccounts = config.apiAccounts
           .where((a) => a.username.isNotEmpty && a.password.isNotEmpty)
           .toList();
@@ -82,14 +78,12 @@ class _BettingScreenState extends State<BettingScreen> {
         return;
       }
 
-      // ✅ THÊM: Nếu chỉ có 1 tài khoản, tự động vào
       if (validAccounts.length == 1) {
-        print('✅ Chỉ có 1 tài khoản, tự động vào: ${validAccounts[0].username}');
-        _navigateToBettingWebView(context, validAccounts[0], config.betting.domain);
+        _navigateToBettingWebView(
+            context, validAccounts[0], config.betting.domain);
         return;
       }
 
-      // ✅ Nếu > 1 tài khoản, hiển thị dialog chọn
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -102,15 +96,11 @@ class _BettingScreenState extends State<BettingScreen> {
     } catch (e) {
       print('❌ Error opening betting: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
-  // ✅ THÊM: Hàm xử lý xác thực và vào WebView
   Future<void> _navigateToBettingWebView(
     BuildContext context,
     ApiAccount account,
@@ -118,15 +108,13 @@ class _BettingScreenState extends State<BettingScreen> {
   ) async {
     try {
       print('🔐 Authenticating: ${account.username}');
-      
+
       final apiService = BettingApiService();
       final token = await apiService.authenticateAndGetToken(account, domain);
 
       if (!mounted) return;
 
       if (token != null && token.isNotEmpty) {
-        print('✅ Token received, opening WebView...');
-
         if (mounted) {
           Navigator.push(
             context,
@@ -140,7 +128,6 @@ class _BettingScreenState extends State<BettingScreen> {
           );
         }
       } else {
-        print('❌ Failed to get token');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -151,13 +138,9 @@ class _BettingScreenState extends State<BettingScreen> {
         }
       }
     } catch (e) {
-      print('❌ Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -165,7 +148,7 @@ class _BettingScreenState extends State<BettingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(      
+    return Scaffold(
       body: Consumer<BettingViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
@@ -185,7 +168,8 @@ class _BettingScreenState extends State<BettingScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const SizedBox(height: 100),
-                        const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                        const Icon(Icons.error_outline,
+                            size: 64, color: Colors.red),
                         const SizedBox(height: 16),
                         Text(
                           viewModel.errorMessage!,
@@ -234,10 +218,17 @@ class _BettingScreenState extends State<BettingScreen> {
     );
   }
 
-  Widget _buildStatisticsSection(BuildContext context, BettingViewModel viewModel) {
-    final tongTienTatCa = viewModel.cycleTable?.isNotEmpty == true 
-        ? viewModel.cycleTable!.last.tongTien 
+  Widget _buildStatisticsSection(
+      BuildContext context, BettingViewModel viewModel) {
+    final tongTienTatCa = viewModel.cycleTable?.isNotEmpty == true
+        ? viewModel.cycleTable!.last.tongTien
         : 0.0;
+
+    // ✅ Lấy tổng tiền Miền Nam
+    final tongTienNam = viewModel.namTable?.isNotEmpty == true
+        ? viewModel.namTable!.last.tongTien
+        : 0.0;
+
     final tongTienTrung = viewModel.trungTable?.isNotEmpty == true
         ? viewModel.trungTable!.last.tongTien
         : 0.0;
@@ -248,21 +239,25 @@ class _BettingScreenState extends State<BettingScreen> {
         ? viewModel.xienTable!.last.tongTien
         : 0.0;
 
-    final tongTienChuKy = tongTienTatCa + tongTienTrung + tongTienBac;
+    // ✅ Thêm Nam vào tổng chu kỳ
+    final tongTienChuKy =
+        tongTienTatCa + tongTienNam + tongTienTrung + tongTienBac;
     final tongTienTongQuat = tongTienChuKy + tongTienXien;
 
     final now = DateTime.now();
-    final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+    final today =
+        '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
     final todayCycleRows = _getTodayCycleRows(viewModel, today);
-    final todayXienRows = viewModel.xienTable
-        ?.where((r) => r.ngay == today)
-        .toList() ?? [];
+    final todayXienRows =
+        viewModel.xienTable?.where((r) => r.ngay == today).toList() ?? [];
     final allRows = <BettingRow>[...todayCycleRows, ...todayXienRows];
 
-    final hasAnyTable = viewModel.cycleTable != null || 
-                        viewModel.trungTable != null || 
-                        viewModel.bacTable != null ||
-                        viewModel.xienTable != null;
+    // ✅ Kiểm tra có bảng nào không (bao gồm Nam)
+    final hasAnyTable = viewModel.cycleTable != null ||
+        viewModel.namTable != null ||
+        viewModel.trungTable != null ||
+        viewModel.bacTable != null ||
+        viewModel.xienTable != null;
 
     return Column(
       children: [
@@ -288,7 +283,6 @@ class _BettingScreenState extends State<BettingScreen> {
                 const SizedBox(height: 16),
                 const Divider(color: Colors.grey),
                 const SizedBox(height: 16),
-
                 if (!hasAnyTable)
                   Center(
                     child: Padding(
@@ -342,17 +336,27 @@ class _BettingScreenState extends State<BettingScreen> {
                             children: [
                               Text(
                                 '• Tất cả: ${NumberUtils.formatCurrency(tongTienTatCa)}',
-                                style: const TextStyle(color: Colors.grey, fontSize: 14),
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 14),
+                              ),
+                              const SizedBox(height: 4),
+                              // ✅ Thêm hiển thị Miền Nam
+                              Text(
+                                '• Miền Nam: ${NumberUtils.formatCurrency(tongTienNam)}',
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 14),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 '• Miền Trung: ${NumberUtils.formatCurrency(tongTienTrung)}',
-                                style: const TextStyle(color: Colors.grey, fontSize: 14),
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 14),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 '• Miền Bắc: ${NumberUtils.formatCurrency(tongTienBac)}',
-                                style: const TextStyle(color: Colors.grey, fontSize: 14),
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 14),
                               ),
                             ],
                           ),
@@ -361,7 +365,6 @@ class _BettingScreenState extends State<BettingScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
                   Padding(
                     padding: const EdgeInsets.only(left: 16),
                     child: Text(
@@ -372,9 +375,7 @@ class _BettingScreenState extends State<BettingScreen> {
                       ),
                     ),
                   ),
-                  
                   const SizedBox(height: 16),
-
                   if (hasAnyTable) ...[
                     Divider(color: Colors.grey.shade600),
                     const SizedBox(height: 16),
@@ -392,7 +393,6 @@ class _BettingScreenState extends State<BettingScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    
                     if (allRows.isEmpty)
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -413,9 +413,7 @@ class _BettingScreenState extends State<BettingScreen> {
                       )
                     else
                       _buildUnifiedTable(allRows),
-
                     const SizedBox(height: 16),
-
                     SizedBox(
                       width: double.infinity,
                       child: TextButton.icon(
@@ -423,14 +421,17 @@ class _BettingScreenState extends State<BettingScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const BettingDetailScreen(initialTab: 0),
+                              builder: (context) =>
+                                  const BettingDetailScreen(initialTab: 0),
                             ),
                           );
                         },
-                        icon: Icon(Icons.arrow_forward, color: Theme.of(context).primaryColor),
+                        icon: Icon(Icons.arrow_forward,
+                            color: Theme.of(context).primaryColor),
                         label: Text(
                           'Xem chi tiết',
-                          style: TextStyle(color: Theme.of(context).primaryColor),
+                          style:
+                              TextStyle(color: Theme.of(context).primaryColor),
                         ),
                       ),
                     ),
@@ -462,7 +463,6 @@ class _BettingScreenState extends State<BettingScreen> {
         Expanded(
           child: ElevatedButton.icon(
             onPressed: () {
-              print('🔴 Xem Live button pressed');
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -482,16 +482,20 @@ class _BettingScreenState extends State<BettingScreen> {
     );
   }
 
-  List<BettingRow> _getTodayCycleRows(BettingViewModel viewModel, String today) {
+  List<BettingRow> _getTodayCycleRows(
+      BettingViewModel viewModel, String today) {
+    // ✅ Bổ sung bảng Miền Nam vào danh sách
     final todayCycleRows = <BettingRow>[
       ...viewModel.cycleTable?.where((r) => r.ngay == today) ?? [],
+      ...viewModel.namTable?.where((r) => r.ngay == today) ?? [], // ✅ MỚI
       ...viewModel.trungTable?.where((r) => r.ngay == today) ?? [],
       ...viewModel.bacTable?.where((r) => r.ngay == today) ?? [],
     ];
 
     todayCycleRows.sort((a, b) {
       const mienOrder = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
-      final mienCompare = (mienOrder[a.mien] ?? 0).compareTo(mienOrder[b.mien] ?? 0);
+      final mienCompare =
+          (mienOrder[a.mien] ?? 0).compareTo(mienOrder[b.mien] ?? 0);
       return mienCompare;
     });
 
@@ -565,12 +569,11 @@ class _BettingScreenState extends State<BettingScreen> {
               ],
             ),
           ),
-          
           ...rows.asMap().entries.map((entry) {
             final index = entry.key;
             final row = entry.value;
             final isEven = index % 2 == 0;
-            
+
             final isCycleRow = row.cuocSo > 0;
             final cuocValue = isCycleRow ? row.cuocSo : row.cuocMien;
 
@@ -630,5 +633,4 @@ class _BettingScreenState extends State<BettingScreen> {
       ),
     );
   }
-
 }
