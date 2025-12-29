@@ -4,7 +4,6 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../../core/utils/date_utils.dart' as date_utils;
-import '../models/betting_row.dart';
 import '../models/cycle_analysis_result.dart';
 import '../models/gan_pair_info.dart';
 import '../models/lottery_result.dart';
@@ -82,7 +81,7 @@ class AnalysisService {
   final Map<String, CycleAnalysisResult> _cycleCache = {};
 
   // --- HẰNG SỐ CẤU HÌNH (Theo Python Script) ---
-  static const double WINDOW_FREQ_SLOTS = 10816.0;
+  static const double WINDOW_FREQ_SLOTS = 11816.0;
 
   static const double P_INDIV = 0.01;
   static final double LN_P_INDIV = log(P_INDIV);
@@ -156,9 +155,9 @@ class AnalysisService {
   }
 
   // Trọng số Best W
-  static const double W1 = 5.52351909;
-  static const double W2 = 5.41766504;
-  static const double W3 = 1.21090533;
+  static const double W1 = 10.19588052;
+  static const double W2 = 9.28250979;
+  static const double W3 = 0.86177579;
 
   // --- SORTING HELPERS ---
   static int _getRegionPriority(String mien) {
@@ -443,15 +442,18 @@ class AnalysisService {
     final currentLnP2 = params['currentLnP2'] as double;
     final currentLnP3 = params['currentLnP3'] as double;
     final lnThreshold = params['lnThreshold'] as double;
-    final maxIterations = params['maxIterations'] as int;
+    final maxIterations =
+        params['maxIterations'] as int; // Giờ là max slots giới hạn
     final mienFilter = params['mien'] as String;
 
     try {
-      var currentLnPTotal = (2.0 * LN_P_INDIV) +
+      // 1. Tính P_Total hiện tại
+      final currentLnPTotal = (2.0 * LN_P_INDIV) +
           (W1 * currentLnP1) +
           (W2 * currentLnP2) +
           (W3 * currentLnP3);
 
+      // Nếu đã đạt ngưỡng rồi thì trả về ngay
       if (currentLnPTotal < lnThreshold) {
         return (
           endDate: DateTime.now().add(const Duration(days: 1)),
@@ -459,20 +461,28 @@ class AnalysisService {
         );
       }
 
-      int addedSlots = 0;
-      while (currentLnPTotal >= lnThreshold && addedSlots < maxIterations) {
-        addedSlots++;
-        // Mô phỏng: Gan tăng 1 slot -> P1 giảm đi base
-        currentLnP1 += LN_BASE;
+      // 2. Tính Delta cần giảm
+      // Mục tiêu: currentLnPTotal + (W1 * deltaP1) < lnThreshold
+      // deltaP1 = addedSlots * LN_BASE
+      // => currentLnPTotal + W1 * addedSlots * LN_BASE < lnThreshold
+      // => addedSlots * (W1 * LN_BASE) < lnThreshold - currentLnPTotal
+      // Vì (W1 * LN_BASE) là số ÂM (do LN_BASE < 0), nên khi chia phải đổi chiều bất đẳng thức:
+      // => addedSlots > (lnThreshold - currentLnPTotal) / (W1 * LN_BASE)
 
-        currentLnPTotal = (2.0 * LN_P_INDIV) +
-            (W1 * currentLnP1) +
-            (W2 * currentLnP2) +
-            (W3 * currentLnP3);
-      }
+      final double denominator = W1 * LN_BASE;
+      if (denominator == 0) return null; // Tránh chia cho 0
 
-      if (addedSlots >= maxIterations) return null;
+      final double gapNeeded = lnThreshold - currentLnPTotal;
+      final double slotsNeededDouble = gapNeeded / denominator;
 
+      // Làm tròn lên để đảm bảo < threshold
+      int addedSlots = slotsNeededDouble.ceil();
+
+      // Nếu số slots cần thiết âm (do sai logic nào đó) hoặc quá lớn thì chặn lại
+      if (addedSlots <= 0) addedSlots = 1;
+      if (addedSlots > maxIterations) return null;
+
+      // 3. Map từ số slots ra ngày (Giữ nguyên logic map ngày vì nó phụ thuộc lịch quay)
       final simulationResult = _mapSlotsToDateAndMien(
         slotsNeeded: addedSlots,
         startDate: DateTime.now(),
@@ -648,27 +658,33 @@ class AnalysisService {
     DateTime currentStart = baseStartDate;
     int attempt = 0;
 
-    // CHUẨN HÓA LOẠI MIỀN
     final mienLower = mien.toLowerCase();
-    final isNam = mienLower.contains('nam'); // ✅ Detect Nam
+    final isNam = mienLower.contains('nam');
     final isTrung = mienLower.contains('trung');
     final isBac = mienLower.contains('bắc') || mienLower.contains('bac');
 
     while (attempt < maxDaysToTry && currentStart.isBefore(endDate)) {
+      final durationLimit = endDate.difference(currentStart).inDays;
+
+      if (durationLimit <= 0) {
+        currentStart = currentStart.add(const Duration(days: 1));
+        attempt++;
+        continue;
+      }
+
+      // TỐI ƯU: Cần implement hàm estimateCost trong BettingTableService
+      // để không phải tạo toàn bộ List<BettingRow>.
+      // Hiện tại nếu chưa có, code này vẫn đúng logic nhưng chậm.
+      // Anh CẦN vào BettingTableService viết hàm calculateTotalCost(...) trả về double.
+
+      double totalCost = 0;
       try {
-        final durationLimit = endDate.difference(currentStart).inDays;
-        if (durationLimit <= 0) {
-          currentStart = currentStart.add(const Duration(days: 1));
-          attempt++;
-          continue;
-        }
-
-        List<BettingRow> table = [];
-
-        // ✅ LOGIC TẠO BẢNG CHO TỪNG MIỀN
         if (isNam) {
-          // ✅ Logic Miền Nam (Cần thêm hàm này vào BettingTableService)
-          table = await bettingService.generateNamGanTable(
+          // Ví dụ gọi hàm tối ưu (giả định anh sẽ viết)
+          // totalCost = await bettingService.estimateNamCost(...);
+
+          // Tạm thời dùng hàm cũ nhưng chỉ lấy dòng cuối (vẫn chậm, nhưng đỡ hơn xử lý list dài)
+          final table = await bettingService.generateNamGanTable(
             cycleResult: cycleResult,
             startDate: currentStart,
             endDate: endDate,
@@ -676,9 +692,9 @@ class AnalysisService {
             budgetMax: availableBudget,
             durationLimit: durationLimit,
           );
+          if (table.isNotEmpty) totalCost = table.last.tongTien;
         } else if (isTrung) {
-          // Logic Miền Trung
-          table = await bettingService.generateTrungGanTable(
+          final table = await bettingService.generateTrungGanTable(
             cycleResult: cycleResult,
             startDate: currentStart,
             endDate: endDate,
@@ -686,9 +702,9 @@ class AnalysisService {
             budgetMax: availableBudget,
             durationLimit: durationLimit,
           );
+          if (table.isNotEmpty) totalCost = table.last.tongTien;
         } else if (isBac) {
-          // Logic Miền Bắc
-          table = await bettingService.generateBacGanTable(
+          final table = await bettingService.generateBacGanTable(
             cycleResult: cycleResult,
             startDate: currentStart,
             endDate: endDate,
@@ -696,9 +712,9 @@ class AnalysisService {
             budgetMax: availableBudget,
             durationLimit: durationLimit,
           );
+          if (table.isNotEmpty) totalCost = table.last.tongTien;
         } else {
-          // Logic Tất cả (Cycle)
-          table = await bettingService.generateCycleTable(
+          final table = await bettingService.generateCycleTable(
             cycleResult: cycleResult,
             startDate: currentStart,
             endDate: endDate,
@@ -709,17 +725,14 @@ class AnalysisService {
             maxMienCount: maxMienCount,
             durationLimit: durationLimit,
           );
+          if (table.isNotEmpty) totalCost = table.last.tongTien;
         }
 
-        // KIỂM TRA NGÂN SÁCH
-        if (table.isNotEmpty) {
-          final totalCost = table.last.tongTien;
-          if (totalCost <= availableBudget) {
-            return currentStart;
-          }
+        if (totalCost > 0 && totalCost <= availableBudget) {
+          return currentStart;
         }
       } catch (e) {
-        // Bỏ qua lỗi
+        // Log error if needed
       }
 
       currentStart = currentStart.add(const Duration(days: 1));
