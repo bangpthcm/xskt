@@ -473,11 +473,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 const Text('Phân bổ:', style: TextStyle(color: Colors.grey)),
                 const SizedBox(height: 8),
+
+                // ✅ THÊM: Input Miền Nam
+                TextFormField(
+                  controller: _namBudgetController,
+                  decoration: const InputDecoration(
+                    labelText: 'Miền Nam (triệu)',
+                    prefixIcon: Icon(Icons.filter), // Hoặc icon khác
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 16),
+
                 TextFormField(
                   controller: _trungBudgetController,
                   decoration: const InputDecoration(
-                      labelText: 'Miền Trung (triệu)',
-                      prefixIcon: Icon(Icons.filter_1)),
+                    labelText: 'Miền Trung (triệu)',
+                    prefixIcon: Icon(Icons.filter_1),
+                  ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onChanged: (_) => setState(() {}),
@@ -486,8 +501,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextFormField(
                   controller: _bacBudgetController,
                   decoration: const InputDecoration(
-                      labelText: 'Miền Bắc (triệu)',
-                      prefixIcon: Icon(Icons.filter_2)),
+                    labelText: 'Miền Bắc (triệu)',
+                    prefixIcon: Icon(Icons.filter_2),
+                  ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onChanged: (_) => setState(() {}),
@@ -496,8 +512,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextFormField(
                   controller: _xienBudgetController,
                   decoration: const InputDecoration(
-                      labelText: 'Xiên (triệu)',
-                      prefixIcon: Icon(Icons.favorite_border)),
+                    labelText: 'Xiên (triệu)',
+                    prefixIcon: Icon(Icons.favorite_border),
+                  ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onChanged: (_) => setState(() {}),
@@ -514,11 +531,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildBudgetSummary() {
     final totalCapital = _parseFromThousands(_totalCapitalController.text);
+    final namBudget = _parseFromThousands(_namBudgetController.text); // ✅ THÊM
     final trungBudget = _parseFromThousands(_trungBudgetController.text);
     final bacBudget = _parseFromThousands(_bacBudgetController.text);
     final xienBudget = _parseFromThousands(_xienBudgetController.text);
 
-    final totalAllocated = trungBudget + bacBudget + xienBudget;
+    final totalAllocated =
+        namBudget + trungBudget + bacBudget + xienBudget; // ✅ CẬP NHẬT
     final remaining = totalCapital - totalAllocated;
     final isValid = totalAllocated <= totalCapital;
     final color = isValid
@@ -683,12 +702,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Build full config
     final totalCapital = _parseFromThousands(_totalCapitalController.text);
-    final namBudget = _parseFromThousands(_namBudgetController.text);
+    final namBudget = _parseFromThousands(_namBudgetController.text); // ✅ THÊM
     final trungBudget = _parseFromThousands(_trungBudgetController.text);
     final bacBudget = _parseFromThousands(_bacBudgetController.text);
     final xienBudget = _parseFromThousands(_xienBudgetController.text);
 
-    if (trungBudget + bacBudget + xienBudget > totalCapital) {
+    // ✅ CẬP NHẬT: Validate tổng phân bổ bao gồm Nam
+    if (namBudget + trungBudget + bacBudget + xienBudget >
+        (1.5 * totalCapital)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Vốn phân bổ không hợp lệ'),
         backgroundColor: Colors.red,
