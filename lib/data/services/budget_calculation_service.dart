@@ -1,8 +1,8 @@
 // lib/data/services/budget_calculation_service.dart
 
-import 'google_sheets_service.dart';
 import '../../core/utils/date_utils.dart' as date_utils;
 import '../../core/utils/number_utils.dart';
+import 'google_sheets_service.dart';
 
 class BudgetCalculationService {
   final GoogleSheetsService _sheetsService;
@@ -18,13 +18,13 @@ class BudgetCalculationService {
   /// 3. Cho bảng "Tất cả" (xsktBot1): lấy giá trị lớn nhất trong ngày (1, 2 hoặc 3 dòng)
   /// 4. Cho bảng "Xiên": tìm ngày và lấy cột F (tổng tiền), nếu không có ngày thì lấy dòng cuối
   Future<Reserved5DaysResult> calculateReservedByEndDate({
-    required String targetTable,  // 'tatca', 'trung', 'bac', 'xien'
-    required DateTime endDate,    // Ngày kết thúc bảng đang tạo
+    required String targetTable, // 'tatca', 'trung', 'bac', 'xien'
+    required DateTime endDate, // Ngày kết thúc bảng đang tạo
   }) async {
     print('📊 Calculating reserved by end date...');
     print('   Target table: $targetTable');
     print('   End date: ${date_utils.DateUtils.formatDate(endDate)}');
-    
+
     double tatCa5Days = 0;
     double trung5Days = 0;
     double bac5Days = 0;
@@ -34,16 +34,17 @@ class BudgetCalculationService {
       final endDateStr = date_utils.DateUtils.formatDate(endDate);
 
       // ✅ Tính dự trữ cho các bảng KHÔNG phải bảng đang tạo
-      
+
       // 1. Tất cả (xsktBot1) - lấy giá trị lớn nhất trong ngày kết thúc
       if (targetTable != 'tatca') {
         tatCa5Days = await _getTotalMoneyByDate(
           sheetName: 'xsktBot1',
           targetDate: endDateStr,
           columnIndex: 7,
-          takeMaxIfMultiple: true,  // Lấy max vì có thể 1, 2 hoặc 3 dòng
+          takeMaxIfMultiple: true, // Lấy max vì có thể 1, 2 hoặc 3 dòng
         );
-        print('   ✅ xsktBot1 (ngày $endDateStr): ${NumberUtils.formatCurrency(tatCa5Days)}');
+        print(
+            '   ✅ xsktBot1 (ngày $endDateStr): ${NumberUtils.formatCurrency(tatCa5Days)}');
       }
 
       // 2. Trung Bot - lấy tổng tiền ngày kết thúc
@@ -54,7 +55,8 @@ class BudgetCalculationService {
           columnIndex: 7,
           takeMaxIfMultiple: false,
         );
-        print('   ✅ trungBot (ngày $endDateStr): ${NumberUtils.formatCurrency(trung5Days)}');
+        print(
+            '   ✅ trungBot (ngày $endDateStr): ${NumberUtils.formatCurrency(trung5Days)}');
       }
 
       // 3. Bắc Bot - lấy tổng tiền ngày kết thúc
@@ -65,7 +67,8 @@ class BudgetCalculationService {
           columnIndex: 7,
           takeMaxIfMultiple: false,
         );
-        print('   ✅ bacBot (ngày $endDateStr): ${NumberUtils.formatCurrency(bac5Days)}');
+        print(
+            '   ✅ bacBot (ngày $endDateStr): ${NumberUtils.formatCurrency(bac5Days)}');
       }
 
       // 4. Xiên Bot - tìm ngày trong bảng, lấy cột F (tổng tiền)
@@ -73,10 +76,11 @@ class BudgetCalculationService {
         xien5Days = await _getTotalMoneyByDate(
           sheetName: 'xienBot',
           targetDate: endDateStr,
-          columnIndex: 5,  // Cột F (index 5) = Tổng tiền
+          columnIndex: 5, // Cột F (index 5) = Tổng tiền
           takeMaxIfMultiple: false,
         );
-        print('   ✅ xienBot (ngày $endDateStr): ${NumberUtils.formatCurrency(xien5Days)}');
+        print(
+            '   ✅ xienBot (ngày $endDateStr): ${NumberUtils.formatCurrency(xien5Days)}');
       }
 
       final total = tatCa5Days + trung5Days + bac5Days + xien5Days;
@@ -95,7 +99,6 @@ class BudgetCalculationService {
         xienReserved: xien5Days,
         totalReserved: total,
       );
-
     } catch (e) {
       print('❌ Error calculating reserved by end date: $e');
       return Reserved5DaysResult(
@@ -117,7 +120,8 @@ class BudgetCalculationService {
     required String sheetName,
     required String targetDate,
     required int columnIndex,
-    required bool takeMaxIfMultiple,  // true: lấy max (cho xsktBot1), false: lấy dòng cuối
+    required bool
+        takeMaxIfMultiple, // true: lấy max (cho xsktBot1), false: lấy dòng cuối
   }) async {
     try {
       final rows = await _sheetsService.getAllValues(sheetName);
@@ -132,11 +136,11 @@ class BudgetCalculationService {
 
       for (int i = 3; i < rows.length; i++) {
         final row = rows[i];
-        
+
         if (row.isEmpty || row.length < 2) continue;
-        
+
         final rowDate = row[1].toString().trim();
-        
+
         if (rowDate == targetDate) {
           if (row.length > columnIndex) {
             final value = _parseSheetNumber(row[columnIndex]);
@@ -151,7 +155,8 @@ class BudgetCalculationService {
 
       // ✅ Xử lý kết quả
       if (matchingRows.isEmpty) {
-        print('   ⚠️ $sheetName: Ngày $targetDate không tồn tại, lấy dòng cuối cùng');
+        print(
+            '   ⚠️ $sheetName: Ngày $targetDate không tồn tại, lấy dòng cuối cùng');
         return await _getTotalMoneyOfWholeSheet(
           sheetName: sheetName,
           columnIndex: columnIndex,
@@ -163,23 +168,25 @@ class BudgetCalculationService {
         final maxValue = matchingRows
             .map((m) => m['value'] as double)
             .reduce((a, b) => a > b ? a : b);
-        
-        print('   📍 $sheetName: Ngày $targetDate - ${matchingRows.length} dòng, lấy max: ${NumberUtils.formatCurrency(maxValue)}');
+
+        print(
+            '   📍 $sheetName: Ngày $targetDate - ${matchingRows.length} dòng, lấy max: ${NumberUtils.formatCurrency(maxValue)}');
         return maxValue;
       }
 
       // ✅ Nếu chỉ có 1 dòng, lấy dòng đó
       if (matchingRows.length == 1) {
         final value = matchingRows[0]['value'] as double;
-        print('   📍 $sheetName: Ngày $targetDate - dòng ${matchingRows[0]['rowIndex'] + 1}: ${NumberUtils.formatCurrency(value)}');
+        print(
+            '   📍 $sheetName: Ngày $targetDate - dòng ${matchingRows[0]['rowIndex'] + 1}: ${NumberUtils.formatCurrency(value)}');
         return value;
       }
 
       // ✅ Nếu có nhiều dòng, lấy dòng cuối cùng (giá trị lớn nhất)
       final lastValue = matchingRows.last['value'] as double;
-      print('   📍 $sheetName: Ngày $targetDate - ${matchingRows.length} dòng, lấy dòng cuối: ${NumberUtils.formatCurrency(lastValue)}');
+      print(
+          '   📍 $sheetName: Ngày $targetDate - ${matchingRows.length} dòng, lấy dòng cuối: ${NumberUtils.formatCurrency(lastValue)}');
       return lastValue;
-
     } catch (e) {
       print('   ❌ Error reading $sheetName by date $targetDate: $e');
       return 0;
@@ -202,18 +209,18 @@ class BudgetCalculationService {
       // Tìm dòng cuối cùng có dữ liệu
       for (int i = rows.length - 1; i >= 3; i--) {
         final row = rows[i];
-        
+
         if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
         if (row.length <= columnIndex) continue;
-        
+
         final value = _parseSheetNumber(row[columnIndex]);
-        print('   📍 $sheetName: Dòng cuối cùng (dòng ${i + 1}): ${NumberUtils.formatCurrency(value)}');
+        print(
+            '   📍 $sheetName: Dòng cuối cùng (dòng ${i + 1}): ${NumberUtils.formatCurrency(value)}');
         return value;
       }
 
       print('   ⚠️ $sheetName: Không tìm thấy dòng dữ liệu');
       return 0;
-
     } catch (e) {
       print('   ❌ Error reading $sheetName whole sheet: $e');
       return 0;
@@ -223,20 +230,20 @@ class BudgetCalculationService {
   /// ✅ Calculate available budget với end date
   Future<AvailableBudgetResult> calculateAvailableBudgetByEndDate({
     required double totalCapital,
-    required String targetTable,  // 'tatca', 'trung', 'bac', 'xien'
+    required String targetTable, // 'tatca', 'trung', 'bac', 'xien'
     double? configBudget,
-    required DateTime endDate,    // Ngày kết thúc bảng đang tạo
+    required DateTime endDate, // Ngày kết thúc bảng đang tạo
   }) async {
     print('💰 Calculating available budget by end date...');
     print('   Target table: $targetTable');
     print('   End date: ${date_utils.DateUtils.formatDate(endDate)}');
-    
+
     // ✅ STEP 1: Tính reserved dựa trên end date
     final reserved = await calculateReservedByEndDate(
       targetTable: targetTable,
       endDate: endDate,
     );
-    
+
     if (reserved.hasError) {
       throw Exception('Lỗi tính dự trữ: ${reserved.errorMessage}');
     }
@@ -246,28 +253,31 @@ class BudgetCalculationService {
 
     // ✅ STEP 3: Xác định budgetMax
     double budgetMax;
-    
+
     if (targetTable.toLowerCase() == 'tatca') {
       budgetMax = totalCapital - totalReservedExcludingSelf;
-      print('   Budget max (Tất cả): ${NumberUtils.formatCurrency(budgetMax)} (no config limit)');
+      print(
+          '   Budget max (Tất cả): ${NumberUtils.formatCurrency(budgetMax)} (no config limit)');
     } else {
       if (configBudget == null) {
         throw Exception('Config budget is required for $targetTable');
       }
-      
+
       final available = totalCapital - totalReservedExcludingSelf;
       budgetMax = available < configBudget ? available : configBudget;
-      
+
       print('   Total capital: ${NumberUtils.formatCurrency(totalCapital)}');
-      print('   Reserved: ${NumberUtils.formatCurrency(totalReservedExcludingSelf)}');
+      print(
+          '   Reserved: ${NumberUtils.formatCurrency(totalReservedExcludingSelf)}');
       print('   Config budget: ${NumberUtils.formatCurrency(configBudget)}');
-      print('   Budget max: ${NumberUtils.formatCurrency(budgetMax)} (min of both)');
+      print(
+          '   Budget max: ${NumberUtils.formatCurrency(budgetMax)} (min of both)');
     }
 
     // ✅ STEP 4: Validate minimum
     const minimumRequired = 50000.0;
     final available = totalCapital - totalReservedExcludingSelf;
-    
+
     if (available < minimumRequired) {
       throw BudgetInsufficientException(
         tableName: targetTable,
@@ -296,7 +306,8 @@ class BudgetCalculationService {
     required String targetTable,
     double? configBudget,
     required DateTime endDate,
-    required Map<String, List<List<dynamic>>> allSheetsData, // 👈 Nhận dữ liệu thô
+    required Map<String, List<List<dynamic>>>
+        allSheetsData, // 👈 Nhận dữ liệu thô
   }) async {
     // 1. Tính số tiền bị giữ (Reserved) dựa trên data RAM
     final reserved = _calculateReservedInternal(
@@ -340,7 +351,7 @@ class BudgetCalculationService {
     required Map<String, List<List<dynamic>>> data,
   }) {
     final endDateStr = date_utils.DateUtils.formatDate(endDate);
-    
+
     // Hàm con: Tìm giá trị tiền trong mảng 2 chiều
     double getMoney(String key, int colIdx) {
       // Map tên key sang tên sheet thực tế trong data
@@ -354,7 +365,8 @@ class BudgetCalculationService {
       if (targetTable == key || targetTable == sheetName) return 0;
 
       final rows = data[sheetName];
-      if (rows == null || rows.length < 4) return 0; // Data chưa load hoặc trống
+      if (rows == null || rows.length < 4)
+        return 0; // Data chưa load hoặc trống
 
       // Duyệt qua các dòng (Từ dòng 4 trở đi)
       for (int i = 3; i < rows.length; i++) {
@@ -363,7 +375,7 @@ class BudgetCalculationService {
         if (row.length > 1 && row[1].toString().trim() == endDateStr) {
           // Lấy tiền (Cột index colIdx)
           if (row.length > colIdx) {
-             return _parseSheetNumber(row[colIdx]);
+            return _parseSheetNumber(row[colIdx]);
           }
         }
       }
@@ -372,10 +384,10 @@ class BudgetCalculationService {
 
     // Index 7 là cột "Tổng tiền" trong sheet (Cột H)
     // Index 5 là cột "Tổng tiền" trong sheet Xiên (Cột F) - Check lại file excel nếu cần
-    final tatCa = getMoney('tatca', 7); 
+    final tatCa = getMoney('tatca', 7);
     final trung = getMoney('trung', 7);
     final bac = getMoney('bac', 7);
-    final xien = getMoney('xien', 5); 
+    final xien = getMoney('xien', 5);
 
     return Reserved5DaysResult(
       tatCaReserved: tatCa,
@@ -390,14 +402,14 @@ class BudgetCalculationService {
   double _parseSheetNumber(dynamic value) {
     if (value == null) return 0.0;
     if (value is num) return value.toDouble();
-    
+
     String str = value.toString().trim();
     if (str.isEmpty) return 0.0;
-    
+
     // Handle Vietnamese number format
     int dotCount = '.'.allMatches(str).length;
     int commaCount = ','.allMatches(str).length;
-    
+
     if (dotCount > 0 && commaCount > 0) {
       str = str.replaceAll('.', '').replaceAll(',', '.');
     } else if (dotCount > 0) {
@@ -423,9 +435,9 @@ class BudgetCalculationService {
         }
       }
     }
-    
+
     str = str.replaceAll(' ', '');
-    
+
     try {
       return double.parse(str);
     } catch (e) {
@@ -478,28 +490,38 @@ class AvailableBudgetResult {
     required double minimumRequired,
   }) {
     final shortage = minimumRequired - available;
-    
+
     final buffer = StringBuffer();
     buffer.writeln('Không đủ vốn để tạo bảng $tableName!');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('📊 Phân tích:');
-    buffer.writeln('  • Tổng vốn: ${NumberUtils.formatCurrency(totalCapital)} VNĐ');
+    buffer.writeln(
+        '  • Tổng vốn: ${NumberUtils.formatCurrency(totalCapital)} VNĐ');
     buffer.writeln('  • Vốn đang dùng:');
-    buffer.writeln('    - Tất cả: ${NumberUtils.formatCurrency(reservedBreakdown.tatCaReserved)} VNĐ');
-    buffer.writeln('    - Trung: ${NumberUtils.formatCurrency(reservedBreakdown.trungReserved)} VNĐ');
-    buffer.writeln('    - Bắc: ${NumberUtils.formatCurrency(reservedBreakdown.bacReserved)} VNĐ');
-    buffer.writeln('    - Xiên: ${NumberUtils.formatCurrency(reservedBreakdown.xienReserved)} VNĐ');
-    buffer.writeln('  → Tổng vốn đang dùng: ${NumberUtils.formatCurrency(reservedBreakdown.totalReserved)} VNĐ');
-    buffer.writeln('  → Vốn khả dụng: ${NumberUtils.formatCurrency(available)} VNĐ');
+    buffer.writeln(
+        '    - Tất cả: ${NumberUtils.formatCurrency(reservedBreakdown.tatCaReserved)} VNĐ');
+    buffer.writeln(
+        '    - Trung: ${NumberUtils.formatCurrency(reservedBreakdown.trungReserved)} VNĐ');
+    buffer.writeln(
+        '    - Bắc: ${NumberUtils.formatCurrency(reservedBreakdown.bacReserved)} VNĐ');
+    buffer.writeln(
+        '    - Xiên: ${NumberUtils.formatCurrency(reservedBreakdown.xienReserved)} VNĐ');
+    buffer.writeln(
+        '  → Tổng vốn đang dùng: ${NumberUtils.formatCurrency(reservedBreakdown.totalReserved)} VNĐ');
+    buffer.writeln(
+        '  → Vốn khả dụng: ${NumberUtils.formatCurrency(available)} VNĐ');
     buffer.writeln('');
     buffer.writeln('💰 Nhu cầu:');
-    buffer.writeln('  • Cần tối thiểu: ${NumberUtils.formatCurrency(minimumRequired)} VNĐ');
-    buffer.writeln('  • Còn thiếu: ${NumberUtils.formatCurrency(shortage)} VNĐ');
+    buffer.writeln(
+        '  • Cần tối thiểu: ${NumberUtils.formatCurrency(minimumRequired)} VNĐ');
+    buffer
+        .writeln('  • Còn thiếu: ${NumberUtils.formatCurrency(shortage)} VNĐ');
     buffer.writeln('');
     buffer.writeln('💡 Giải pháp:');
     buffer.writeln('  - Tăng tổng vốn thêm');
-    buffer.writeln('  - Hoặc đợi đến khi một số bảng kết thúc để giải phóng vốn');
-    
+    buffer
+        .writeln('  - Hoặc đợi đến khi một số bảng kết thúc để giải phóng vốn');
+
     return buffer.toString();
   }
 
@@ -511,8 +533,10 @@ class AvailableBudgetResult {
     buffer.writeln('Không thể tạo bảng cược $tableName!');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('💰 Thông tin:');
-    buffer.writeln('  • Budget khả dụng: ${NumberUtils.formatCurrency(budgetMax)} VNĐ');
-    buffer.writeln('  • Tổng tiền ước tính: ${NumberUtils.formatCurrency(estimatedTotal)} VNĐ');
+    buffer.writeln(
+        '  • Budget khả dụng: ${NumberUtils.formatCurrency(budgetMax)} VNĐ');
+    buffer.writeln(
+        '  • Tổng tiền ước tính: ${NumberUtils.formatCurrency(estimatedTotal)} VNĐ');
     buffer.writeln('');
     buffer.writeln('⚠️ Nguyên nhân:');
     buffer.writeln('  Thuật toán tối ưu không tìm được cấu hình');
@@ -520,7 +544,7 @@ class AvailableBudgetResult {
     buffer.writeln('');
     buffer.writeln('💡 Giải pháp:');
     buffer.writeln('  - Điều chỉnh tăng budget nếu cần');
-    
+
     return buffer.toString();
   }
 }
