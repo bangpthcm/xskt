@@ -1,6 +1,10 @@
+// lib/data/services/google_sheets_service.dart
+
+import 'dart:async'; // ✅ Import để dùng Future.delayed
+
 import 'package:dio/dio.dart';
 import 'package:googleapis_auth/auth_io.dart';
-import 'package:http/http.dart' as http; // ✅ Thêm import này để dùng cho Auth
+import 'package:http/http.dart' as http;
 
 import '../models/app_config.dart';
 
@@ -47,16 +51,15 @@ class GoogleSheetsService {
       "token_uri": "https://oauth2.googleapis.com/token",
     });
 
-    // ✅ FIX: Tạo http.Client để truyền vào hàm obtainAccessCredentialsViaServiceAccount
     final client = http.Client();
     try {
       _credentials = await obtainAccessCredentialsViaServiceAccount(
         serviceAccountCredentials,
         _scopes,
-        client, // ✅ Tham số thứ 3 bắt buộc
+        client,
       );
     } finally {
-      client.close(); // Đóng client sau khi dùng xong
+      client.close();
     }
 
     return _credentials!.accessToken.data;
@@ -70,11 +73,45 @@ class GoogleSheetsService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
+      validateStatus: (status) {
+        // Cho phép xử lý 429 thủ công thay vì throw ngay ở tầng Dio
+        return status != null && status < 500;
+      },
     );
   }
 
+  // ============================================
+  // ✅ CƠ CHẾ RETRY (TỰ ĐỘNG THỬ LẠI KHI GẶP 429)
+  // ============================================
+  Future<T> _retryOperation<T>(Future<T> Function() operation) async {
+    int retries = 0;
+    const maxRetries = 5;
+
+    while (true) {
+      try {
+        return await operation();
+      } on DioException catch (e) {
+        // Kiểm tra lỗi 429 (Too Many Requests) hoặc 500/503 (Server Busy)
+        final statusCode = e.response?.statusCode;
+        if ((statusCode == 429 || statusCode == 500 || statusCode == 503) &&
+            retries < maxRetries) {
+          retries++;
+          // Backoff: Chờ 2s, 4s, 8s, 16s...
+          int delaySeconds = (1 << retries);
+          print(
+              '⚠️ Google Sheets API quá tải ($statusCode). Đang chờ ${delaySeconds}s để thử lại lần $retries/$maxRetries...');
+          await Future.delayed(Duration(seconds: delaySeconds));
+          continue;
+        }
+        rethrow; // Nếu lỗi khác hoặc hết lượt retry thì ném lỗi ra ngoài
+      } catch (e) {
+        rethrow;
+      }
+    }
+  }
+
   Future<bool> testConnection() async {
-    try {
+    return _retryOperation(() async {
       final token = await _getAccessToken();
       final url =
           'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}';
@@ -84,44 +121,40 @@ class GoogleSheetsService {
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
-      print(
-          '✅ Connection successful! Sheet: ${response.data['properties']['title']}');
-      return response.statusCode == 200;
-    } catch (e) {
-      print('❌ Connection test failed: $e');
+      if (response.statusCode == 200) {
+        print(
+            '✅ Connection successful! Sheet: ${response.data['properties']['title']}');
+        return true;
+      }
       return false;
-    }
+    });
   }
 
   // ============================================
-  // ✅ BATCH READ (REST API)
+  // ✅ BATCH READ (REST API) - Có Retry
   // ============================================
   Future<Map<String, List<List<dynamic>>>> batchGetValues(
       List<String> sheetNames) async {
-    try {
+    return _retryOperation(() async {
       // Gọi song song các request
       final futures = sheetNames.map((name) => getAllValues(name)).toList();
       final results = await Future.wait(futures);
 
       final Map<String, List<List<dynamic>>> dataMap = {};
       for (int i = 0; i < sheetNames.length; i++) {
-        // Ép kiểu kết quả về dynamic để tránh lỗi Type mismatch
         dataMap[sheetNames[i]] = results[i] as List<List<dynamic>>;
       }
       return dataMap;
-    } catch (e) {
-      print('❌ Batch get failed: $e');
-      rethrow;
-    }
+    });
   }
 
   // ============================================
-  // ✅ BATCH UPDATE (REST API)
+  // ✅ BATCH UPDATE (REST API) - Có Retry
   // ============================================
   Future<void> batchUpdateRanges(Map<String, BatchUpdateData> updates) async {
     if (updates.isEmpty) return;
 
-    try {
+    return _retryOperation(() async {
       final url =
           'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values:batchUpdate';
 
@@ -135,30 +168,43 @@ class GoogleSheetsService {
             .toList()
       };
 
-      await _dio.post(
+      final response = await _dio.post(
         url,
         data: body,
         options: await _getAuthOptions(),
       );
 
+      if (response.statusCode == 429) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          type: DioExceptionType.badResponse,
+        );
+      }
+
       // Invalidate cache
       for (final worksheetName in updates.keys) {
         _batchReadCache.remove(worksheetName);
       }
-    } catch (e) {
-      print('❌ Batch update error: $e');
-      rethrow;
-    }
+    });
   }
 
   // ============================================
-  // EXISTING METHODS (REST Implementation)
+  // EXISTING METHODS (REST Implementation) - Có Retry
   // ============================================
   Future<List<List<String>>> getAllValues(String worksheetName) async {
-    try {
+    return _retryOperation(() async {
       final url =
           'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!A:AD';
       final response = await _dio.get(url, options: await _getAuthOptions());
+
+      if (response.statusCode == 429) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          type: DioExceptionType.badResponse,
+        );
+      }
 
       final values = (response.data['values'] as List?)?.map((row) {
             return (row as List).map((cell) => cell.toString()).toList();
@@ -166,56 +212,68 @@ class GoogleSheetsService {
           [];
 
       return values;
-    } catch (e) {
-      print('Error getting values: $e');
-      rethrow;
-    }
+    });
   }
 
   Future<void> updateRange(
       String worksheetName, String range, List<List<String>> values) async {
-    try {
+    return _retryOperation(() async {
       final url =
           'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!$range';
 
-      await _dio.put(
+      final response = await _dio.put(
         url,
         queryParameters: {'valueInputOption': 'USER_ENTERED'},
         data: {"values": values},
         options: await _getAuthOptions(),
       );
-    } catch (e) {
-      print('Error updating range: $e');
-      rethrow;
-    }
+
+      if (response.statusCode == 429) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          type: DioExceptionType.badResponse,
+        );
+      }
+    });
   }
 
   Future<void> appendRows(String worksheetName, List<List<String>> rows) async {
-    try {
+    return _retryOperation(() async {
       final url =
           'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!A:AD:append';
 
-      await _dio.post(
+      final response = await _dio.post(
         url,
         queryParameters: {'valueInputOption': 'USER_ENTERED'},
         data: {"values": rows},
         options: await _getAuthOptions(),
       );
-    } catch (e) {
-      print('Error appending rows: $e');
-      rethrow;
-    }
+
+      if (response.statusCode == 429) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          type: DioExceptionType.badResponse,
+        );
+      }
+    });
   }
 
   Future<void> clearSheet(String worksheetName) async {
-    try {
+    return _retryOperation(() async {
       final url =
           'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!A:AD:clear';
-      await _dio.post(url, options: await _getAuthOptions());
-    } catch (e) {
-      print('Error clearing sheet: $e');
-      rethrow;
-    }
+      final response = await _dio.post(url, options: await _getAuthOptions());
+
+      if (response.statusCode == 429) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          type: DioExceptionType.badResponse,
+        );
+      }
+    });
   }
 
   void clearBatchCache() {
@@ -224,34 +282,36 @@ class GoogleSheetsService {
   }
 
   Future<List<List<String>>> getAnalysisCycleData() async {
-    try {
+    return _retryOperation(() async {
       if (_config == null) {
         throw Exception('Google Sheets Config chưa được khởi tạo');
       }
 
-      // Lấy dư ra một chút (J10) để chắc chắn không sót dữ liệu
       final url =
           'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/analysis_cycle!A1:J13';
       final response = await _dio.get(url, options: await _getAuthOptions());
 
-      // Kiểm tra data null
+      if (response.statusCode == 429) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          type: DioExceptionType.badResponse,
+        );
+      }
+
       if (response.data == null || response.data['values'] == null) {
         return [];
       }
 
       final rawValues = response.data['values'] as List;
 
-      // Parse an toàn: Chuyển mọi thứ thành String, nếu null thì thành ""
       final values = rawValues.map((row) {
         if (row == null || row is! List) return <String>[];
         return row.map((cell) => cell?.toString() ?? "").toList();
       }).toList();
 
       return values;
-    } catch (e) {
-      print('❌ Error getting analysis cycle data: $e');
-      rethrow;
-    }
+    });
   }
 }
 

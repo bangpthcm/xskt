@@ -771,12 +771,11 @@ class AnalysisService {
       try {
         final actualBettingDays = endDate.difference(currentStart).inDays;
         if (actualBettingDays <= 1) break;
-        final effectiveDurationBase = actualBettingDays + ganInfo.daysGan;
         final table = await bettingService.generateXienTable(
           ganInfo: ganInfo,
           startDate: currentStart,
           xienBudget: availableBudget,
-          durationBase: effectiveDurationBase,
+          endDate: endDate,
           fitBudgetOnly: true,
         );
         if (table.isNotEmpty) {

@@ -297,6 +297,10 @@ class AnalysisViewModel extends ChangeNotifier {
       _cachedSheetResults.clear();
       _ganPairInfo = null;
 
+      // ✅ THÊM: Biến tracking để chỉ tính 1 lần cho mỗi miền
+      final Set<String> processedRegions = {};
+      bool processedXien = false;
+
       print('📊 Danh sách các miền tìm thấy trong Sheet:');
 
       for (int i = 1; i < rawData.length; i++) {
@@ -305,25 +309,45 @@ class AnalysisViewModel extends ChangeNotifier {
           if (row.isEmpty) continue;
 
           final rawMien = row[0];
-          final mienName = rawMien.trim().toLowerCase();
+          final mienName = rawMien
+              .trim(); // Giữ nguyên case để hiển thị nếu cần, nhưng logic dùng lower
+          final mienKey = mienName.toLowerCase();
 
-          // ✅ BỎ QUA DÒNG HEADER PHỤ
-          if (mienName.contains('miền xét') || mienName.contains('mien xet')) {
+          // Bỏ qua dòng header phụ
+          if (mienKey.contains('miền xét') || mienKey.contains('mien xet')) {
             continue;
           }
 
-          // ✅ BẮT XIÊN
-          if (mienName.contains('xiên') || mienName.contains('xien')) {
-            print('      ✅ ĐÃ TÌM THẤY XIÊN -> Parsing...');
-            _parseXienRow(row, config);
+          // ✅ XỬ LÝ XIÊN (CHỈ 1 LẦN)
+          if (mienKey.contains('xiên') || mienKey.contains('xien')) {
+            if (!processedXien) {
+              print('      ✅ ĐÃ TÌM THẤY XIÊN -> Parsing...');
+              _parseXienRow(row, config);
+              processedXien = true; // Mark done
+            }
             continue;
           }
 
-          // Xử lý các miền khác
+          // Parse result dòng nào cũng cần để hiển thị List
           final result = _parseRowToResult(row);
           _cachedSheetResults.add(result);
 
-          await _calculatePlanForRegion(result, rawMien, config);
+          // ✅ TÍNH TOÁN PLAN (CHỈ 1 LẦN CHO MỖI MIỀN)
+          // Chỉ tính nếu miền này chưa được tính toán plan
+          String regionKey = "";
+          if (mienKey.contains('nam'))
+            regionKey = 'nam';
+          else if (mienKey.contains('trung'))
+            regionKey = 'trung';
+          else if (mienKey.contains('bắc') || mienKey.contains('bac'))
+            regionKey = 'bac';
+          else if (mienKey.contains('tất') || mienKey.contains('tat'))
+            regionKey = 'tatca';
+
+          if (regionKey.isNotEmpty && !processedRegions.contains(regionKey)) {
+            await _calculatePlanForRegion(result, rawMien, config);
+            processedRegions.add(regionKey); // Mark done
+          }
         } catch (e) {
           print('⚠️ Lỗi parse dòng ${i + 1}: $e');
         }
@@ -547,6 +571,7 @@ class AnalysisViewModel extends ChangeNotifier {
         endDate: finalEndDate,
       );
 
+      // Bước 4a: Tìm ngày Start Date lý thuyết khớp budget
       final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
         baseStartDate: startDate,
         endDate: finalEndDate,
@@ -563,15 +588,44 @@ class AnalysisViewModel extends ChangeNotifier {
 
       if (optimalStart != null) {
         startDate = optimalStart;
-        daysNeeded = finalEndDate.difference(startDate).inDays;
+        // daysNeeded = finalEndDate.difference(startDate).inDays; // Tạm bỏ dòng này
         print(
-            '   🚀 [Plan] Optimized Start Date: ${date_utils.DateUtils.formatDate(startDate)}');
+            '   🚀 [Plan] Optimized Start Date (Theory): ${date_utils.DateUtils.formatDate(startDate)}');
+      }
+
+      // 🌟 BƯỚC MỚI: TẠO BẢNG ẢO ĐỂ LẤY NGÀY THỰC TẾ 🌟
+      // Thay vì tin tưởng startDate lý thuyết, ta tạo thử bảng để xem dòng đầu tiên là ngày nào
+      final previewTable = await type.generateTable(
+        service: _bettingService,
+        result: result,
+        start: startDate,
+        end: finalEndDate,
+        startIdx: 0, // Mặc định
+        min: budgetResult.budgetMax * 0.8, // Giả lập min
+        max: budgetResult.budgetMax,
+        results: _allResults,
+        maxCount:
+            type == BettingTableTypeEnum.tatca ? 100 : 0, // Max count giả lập
+        durationLimit: finalEndDate.difference(startDate).inDays + 1,
+      );
+
+      if (previewTable.isNotEmpty) {
+        // Lấy ngày từ dòng đầu tiên của bảng
+        final realFirstDateStr = previewTable.first.ngay; // String dd/MM/yyyy
+        final realFirstDate = DateFormat('dd/MM/yyyy').parse(realFirstDateStr);
+
+        // Cập nhật lại startDate chuẩn xác
+        startDate = realFirstDate;
+        print('   ✅ [Plan] Real Start Date from Table: $realFirstDateStr');
+      } else {
+        print(
+            '   ⚠️ [Plan] Generated table is empty, keeping theoretical start date.');
       }
     } catch (e) {
       print('   ⚠️ [Plan] Lỗi tối ưu hiển thị ngày bắt đầu: $e');
     }
 
-    // ✅ TÁCH BIỆT DỮ LIỆU HIỂN THỊ
+    // ✅ TÁCH BIỆT DỮ LIỆU HIỂN THỊ (Giữ nguyên phần dưới)
     final startRegionStr = _getStartRegionName(mienName);
     final endRegionStr = _getEndRegionName(mienName);
 
@@ -627,15 +681,65 @@ class AnalysisViewModel extends ChangeNotifier {
     final simResult = await AnalysisService.findEndDateForXienThreshold(
         pairAnalysis, pPair, thresholdLn);
 
-    final start = DateTime.now().add(const Duration(days: 1));
+    DateTime start = DateTime.now().add(const Duration(days: 1)); // Default
 
     if (simResult != null) {
-      _dateXien = start;
-      _endDateXien = simResult.endDate;
-      _optimalXien = "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
-      _endPlanXien =
-          "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(simResult.endDate)} (Miền Bắc)";
+      final endDate = simResult.endDate;
+
+      // 🌟 BƯỚC MỚI: TẠO BẢNG ẢO CHO XIÊN 🌟
+      try {
+        final budgetRes =
+            await BudgetCalculationService(sheetsService: _sheetsService)
+                .calculateAvailableBudgetByEndDate(
+                    totalCapital: config.budget.totalCapital,
+                    targetTable: 'xien',
+                    configBudget: config.budget.xienBudget,
+                    endDate: endDate);
+
+        // Tìm ngày bắt đầu tối ưu (Lý thuyết)
+        final optimalStart = await AnalysisService.findOptimalStartDateForXien(
+          baseStartDate: start,
+          endDate: endDate,
+          availableBudget: budgetRes.budgetMax,
+          ganInfo: _ganPairInfo!,
+          bettingService: _bettingService,
+        );
+
+        if (optimalStart != null) {
+          start = optimalStart;
+        }
+
+        // Tạo bảng thật để lấy ngày đầu tiên
+        final previewTable = await _bettingService.generateXienTable(
+          ganInfo: _ganPairInfo!,
+          startDate: start,
+          endDate: endDate,
+          xienBudget: budgetRes.budgetMax,
+          fitBudgetOnly: true,
+        );
+
+        if (previewTable.isNotEmpty) {
+          final realFirstDateStr = previewTable.first.ngay;
+          start = DateFormat('dd/MM/yyyy').parse(realFirstDateStr);
+          print('   ✅ [Plan Xien] Real Start Date: $realFirstDateStr');
+        }
+
+        _dateXien = start;
+        _endDateXien = endDate;
+        _optimalXien = "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
+        _endPlanXien =
+            "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(endDate)} (Miền Bắc)";
+      } catch (e) {
+        print('Error calc xien plan: $e');
+        // Fallback cũ
+        _dateXien = start;
+        _endDateXien = endDate;
+        _optimalXien = "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
+        _endPlanXien =
+            "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(endDate)}";
+      }
     } else {
+      // ... (Giữ nguyên fallback khi simResult null)
       _dateXien = start;
       _endDateXien = start.add(const Duration(days: 5));
       _optimalXien = "Đang tính toán...";
@@ -915,9 +1019,6 @@ class AnalysisViewModel extends ChangeNotifier {
       final start = _dateXien ?? DateTime.now().add(const Duration(days: 1));
       final endDate = _endDateXien ?? start.add(const Duration(days: 3));
 
-      final actualBettingDays = endDate.difference(start).inDays;
-      final effectiveDurationBase = actualBettingDays + _ganPairInfo!.daysGan;
-
       final budgetRes =
           await BudgetCalculationService(sheetsService: _sheetsService)
               .calculateAvailableBudgetByEndDate(
@@ -932,7 +1033,7 @@ class AnalysisViewModel extends ChangeNotifier {
           ganInfo: _ganPairInfo!,
           startDate: start,
           xienBudget: budgetRes.budgetMax,
-          durationBase: effectiveDurationBase,
+          endDate: endDate,
         );
 
         table = rawTable.map<BettingRow>((row) {
