@@ -556,7 +556,8 @@ class AnalysisViewModel extends ChangeNotifier {
     }
 
     finalEndDate ??= DateTime.now().add(const Duration(days: 2));
-    DateTime startDate = DateTime.now().add(const Duration(days: 1));
+    DateTime startDate = DateFormat('dd/MM/yyyy').parse(_sheetHeaderDate);
+    startDate = startDate.add(const Duration(days: 1));
 
     // 4. ✅ TỐI ƯU HÓA NGÀY BẮT ĐẦU (Tăng dần Start Date để khớp Budget)
     try {
@@ -681,7 +682,8 @@ class AnalysisViewModel extends ChangeNotifier {
     final simResult = await AnalysisService.findEndDateForXienThreshold(
         pairAnalysis, pPair, thresholdLn);
 
-    DateTime start = DateTime.now().add(const Duration(days: 1)); // Default
+    DateTime start = DateFormat('dd/MM/yyyy').parse(_sheetHeaderDate);
+    start = start.add(const Duration(days: 1)); // Default
 
     if (simResult != null) {
       final endDate = simResult.endDate;
@@ -828,7 +830,8 @@ class AnalysisViewModel extends ChangeNotifier {
   }) async {
     final type = _mapMienToEnum(mien);
 
-    DateTime startDate = DateTime.now().add(const Duration(days: 1));
+    DateTime startDate = DateFormat('dd/MM/yyyy').parse(_sheetHeaderDate);
+    startDate = startDate.add(const Duration(days: 1));
     DateTime endDate;
 
     DateTime? cachedEndDate;

@@ -1,7 +1,9 @@
 // lib/presentation/screens/win_history/win_history_viewmodel.dart
 
-import 'package:flutter/material.dart';
 import 'dart:math'; // Import để dùng hàm max
+
+import 'package:flutter/material.dart';
+
 import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/xien_win_history.dart';
 import '../../../data/services/win_tracking_service.dart';
@@ -34,7 +36,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   List<XienWinHistory> get xienHistory => _xienHistory;
   List<CycleWinHistory> get trungHistory => _trungHistory;
   List<CycleWinHistory> get bacHistory => _bacHistory;
-  
+
   bool get hasMoreCycle => _hasMoreCycle;
   bool get hasMoreXien => _hasMoreXien;
   bool get hasMoreTrung => _hasMoreTrung;
@@ -43,7 +45,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   /// ✅ LAZY: Load initial data (chỉ page đầu)
   Future<void> loadHistory() async {
     print('📚 Loading win history (initial page)...');
-    
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -66,8 +68,9 @@ class WinHistoryViewModel extends ChangeNotifier {
       _hasMoreTrung = _trungHistory.length >= _pageSize;
       _hasMoreBac = _bacHistory.length >= _pageSize;
 
-      print('✅ Loaded initial: Cycle=${_cycleHistory.length}, Xien=${_xienHistory.length}, '
-            'Trung=${_trungHistory.length}, Bac=${_bacHistory.length}');
+      print(
+          '✅ Loaded initial: Cycle=${_cycleHistory.length}, Xien=${_xienHistory.length}, '
+          'Trung=${_trungHistory.length}, Bac=${_bacHistory.length}');
 
       _isLoading = false;
       notifyListeners();
@@ -82,7 +85,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   /// ✅ Load more cycle history
   Future<void> loadMoreCycle() async {
     if (!_hasMoreCycle || _isLoadingMore) return;
-    
+
     print('🔄 Loading more cycle history...');
     _isLoadingMore = true;
     notifyListeners();
@@ -90,10 +93,10 @@ class WinHistoryViewModel extends ChangeNotifier {
     try {
       final currentPage = (_cycleHistory.length / _pageSize).floor();
       final newData = await _loadCyclePage(currentPage);
-      
+
       _cycleHistory.addAll(newData);
       _hasMoreCycle = newData.length >= _pageSize;
-      
+
       print('✅ Loaded ${newData.length} more cycle records');
     } catch (e) {
       print('❌ Error loading more cycle: $e');
@@ -106,7 +109,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   /// ✅ Load more xien history
   Future<void> loadMoreXien() async {
     if (!_hasMoreXien || _isLoadingMore) return;
-    
+
     print('🔄 Loading more xien history...');
     _isLoadingMore = true;
     notifyListeners();
@@ -114,10 +117,10 @@ class WinHistoryViewModel extends ChangeNotifier {
     try {
       final currentPage = (_xienHistory.length / _pageSize).floor();
       final newData = await _loadXienPage(currentPage);
-      
+
       _xienHistory.addAll(newData);
       _hasMoreXien = newData.length >= _pageSize;
-      
+
       print('✅ Loaded ${newData.length} more xien records');
     } catch (e) {
       print('❌ Error loading more xien: $e');
@@ -130,7 +133,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   /// ✅ Load more trung history
   Future<void> loadMoreTrung() async {
     if (!_hasMoreTrung || _isLoadingMore) return;
-    
+
     print('🔄 Loading more trung history...');
     _isLoadingMore = true;
     notifyListeners();
@@ -138,10 +141,10 @@ class WinHistoryViewModel extends ChangeNotifier {
     try {
       final currentPage = (_trungHistory.length / _pageSize).floor();
       final newData = await _loadTrungPage(currentPage);
-      
+
       _trungHistory.addAll(newData);
       _hasMoreTrung = newData.length >= _pageSize;
-      
+
       print('✅ Loaded ${newData.length} more trung records');
     } catch (e) {
       print('❌ Error loading more trung: $e');
@@ -154,7 +157,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   /// ✅ Load more bac history
   Future<void> loadMoreBac() async {
     if (!_hasMoreBac || _isLoadingMore) return;
-    
+
     print('🔄 Loading more bac history...');
     _isLoadingMore = true;
     notifyListeners();
@@ -162,10 +165,10 @@ class WinHistoryViewModel extends ChangeNotifier {
     try {
       final currentPage = (_bacHistory.length / _pageSize).floor();
       final newData = await _loadBacPage(currentPage);
-      
+
       _bacHistory.addAll(newData);
       _hasMoreBac = newData.length >= _pageSize;
-      
+
       print('✅ Loaded ${newData.length} more bac records');
     } catch (e) {
       print('❌ Error loading more bac: $e');
@@ -178,15 +181,16 @@ class WinHistoryViewModel extends ChangeNotifier {
   /// Helper: Load một page của cycle history
   Future<List<CycleWinHistory>> _loadCyclePage(int page) async {
     try {
-      final values = await _trackingService.sheetsService.getAllValues('cycleWinHistory');
-      
+      final values =
+          await _trackingService.sheetsService.getAllValues('cycleWinHistory');
+
       if (values.length < 2) return [];
-      
+
       final startIndex = 1 + (page * _pageSize);
       final endIndex = (startIndex + _pageSize).clamp(0, values.length);
-      
+
       if (startIndex >= values.length) return [];
-      
+
       final histories = <CycleWinHistory>[];
       for (int i = startIndex; i < endIndex; i++) {
         try {
@@ -195,7 +199,7 @@ class WinHistoryViewModel extends ChangeNotifier {
           print('⚠️ Error parsing cycle row $i: $e');
         }
       }
-      
+
       histories.sort((a, b) => b.stt.compareTo(a.stt));
       return histories;
     } catch (e) {
@@ -207,15 +211,16 @@ class WinHistoryViewModel extends ChangeNotifier {
   /// Helper: Load một page của xien history
   Future<List<XienWinHistory>> _loadXienPage(int page) async {
     try {
-      final values = await _trackingService.sheetsService.getAllValues('xienWinHistory');
-      
+      final values =
+          await _trackingService.sheetsService.getAllValues('xienWinHistory');
+
       if (values.length < 2) return [];
-      
+
       final startIndex = 1 + (page * _pageSize);
       final endIndex = (startIndex + _pageSize).clamp(0, values.length);
-      
+
       if (startIndex >= values.length) return [];
-      
+
       final histories = <XienWinHistory>[];
       for (int i = startIndex; i < endIndex; i++) {
         try {
@@ -224,7 +229,7 @@ class WinHistoryViewModel extends ChangeNotifier {
           print('⚠️ Error parsing xien row $i: $e');
         }
       }
-      
+
       histories.sort((a, b) => b.stt.compareTo(a.stt));
       return histories;
     } catch (e) {
@@ -236,15 +241,16 @@ class WinHistoryViewModel extends ChangeNotifier {
   /// Helper: Load một page của trung history
   Future<List<CycleWinHistory>> _loadTrungPage(int page) async {
     try {
-      final values = await _trackingService.sheetsService.getAllValues('trungWinHistory');
-      
+      final values =
+          await _trackingService.sheetsService.getAllValues('trungWinHistory');
+
       if (values.length < 2) return [];
-      
+
       final startIndex = 1 + (page * _pageSize);
       final endIndex = (startIndex + _pageSize).clamp(0, values.length);
-      
+
       if (startIndex >= values.length) return [];
-      
+
       final histories = <CycleWinHistory>[];
       for (int i = startIndex; i < endIndex; i++) {
         try {
@@ -253,7 +259,7 @@ class WinHistoryViewModel extends ChangeNotifier {
           print('⚠️ Error parsing trung row $i: $e');
         }
       }
-      
+
       histories.sort((a, b) => b.stt.compareTo(a.stt));
       return histories;
     } catch (e) {
@@ -265,15 +271,16 @@ class WinHistoryViewModel extends ChangeNotifier {
   /// Helper: Load một page của bac history
   Future<List<CycleWinHistory>> _loadBacPage(int page) async {
     try {
-      final values = await _trackingService.sheetsService.getAllValues('bacWinHistory');
-      
+      final values =
+          await _trackingService.sheetsService.getAllValues('bacWinHistory');
+
       if (values.length < 2) return [];
-      
+
       final startIndex = 1 + (page * _pageSize);
       final endIndex = (startIndex + _pageSize).clamp(0, values.length);
-      
+
       if (startIndex >= values.length) return [];
-      
+
       final histories = <CycleWinHistory>[];
       for (int i = startIndex; i < endIndex; i++) {
         try {
@@ -282,7 +289,7 @@ class WinHistoryViewModel extends ChangeNotifier {
           print('⚠️ Error parsing bac row $i: $e');
         }
       }
-      
+
       histories.sort((a, b) => b.stt.compareTo(a.stt));
       return histories;
     } catch (e) {
@@ -354,14 +361,14 @@ class WinHistoryViewModel extends ChangeNotifier {
       if (h is XienWinHistory) return h.isWin;
       return false;
     }).toList();
-    
+
     // Tính tổng lợi nhuận
     final totalProfit = wins.fold<double>(0, (sum, h) {
       if (h is CycleWinHistory) return sum + h.loiLo;
       if (h is XienWinHistory) return sum + h.loiLo;
       return sum;
     });
-    
+
     // Tính tổng tiền cược (của các ván thắng)
     final totalBet = wins.fold<double>(0, (sum, h) {
       if (h is CycleWinHistory) return sum + h.tongTienCuoc;
@@ -400,7 +407,7 @@ class WinHistoryViewModel extends ChangeNotifier {
 
     try {
       final dates = <DateTime>[];
-      
+
       for (var h in histories) {
         String dateStr;
         if (h is CycleWinHistory) {
@@ -410,7 +417,7 @@ class WinHistoryViewModel extends ChangeNotifier {
         } else {
           continue;
         }
-        
+
         final parts = dateStr.split('/');
         if (parts.length == 3) {
           dates.add(DateTime(
@@ -428,7 +435,8 @@ class WinHistoryViewModel extends ChangeNotifier {
       final lastDate = dates.last;
 
       final months = (lastDate.year - firstDate.year) * 12 +
-          (lastDate.month - firstDate.month) + 1;
+          (lastDate.month - firstDate.month) +
+          1;
 
       return months > 0 ? months : 1;
     } catch (e) {
@@ -453,7 +461,7 @@ class WinHistoryViewModel extends ChangeNotifier {
     for (var history in allHistories) {
       String dateStr;
       double profit;
-      
+
       if (history is CycleWinHistory) {
         if (!history.isWin) continue;
         dateStr = history.ngayTrung;

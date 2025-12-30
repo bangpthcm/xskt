@@ -80,19 +80,37 @@ class AnalysisService {
   final Map<String, GanPairInfo> _ganPairCache = {};
   final Map<String, CycleAnalysisResult> _cycleCache = {};
 
-  // --- HẰNG SỐ CẤU HÌNH (Theo Python Script) ---
+  // --- HẰNG SỐ CẤU HÌNH ---
   static const double WINDOW_FREQ_SLOTS = 11816.0;
 
   static const double P_INDIV = 0.01;
   static final double LN_P_INDIV = log(P_INDIV);
   static final double LN_BASE = log(max(1.0 - P_INDIV, 1e-12));
 
+  // --- CẤU HÌNH TRỌNG SỐ (WEIGHTS) ĐỘNG ---
+  static ({double w1, double w2, double w3}) _getWeights(String mienScope) {
+    final s = mienScope.toLowerCase();
+
+    // 1. Nam
+    if (s.contains('nam')) {
+      return (w1: 2.555092079, w2: 2.293394751, w3: 2.214243472);
+    }
+    // 2. Trung
+    if (s.contains('trung')) {
+      return (w1: 2.409136838, w2: 2.413419441, w3: 2.20958825);
+    }
+    // 3. Bắc
+    if (s.contains('bắc') || s.contains('bac')) {
+      return (w1: 1.64434407, w2: 1.619753029, w3: 1.73493972);
+    }
+
+    // 4. Mặc định (Tất cả / Cycle / Xiên)
+    // CYCLE w & Xien w: [11.21363718 11.06843543 2.22240444]
+    return (w1: 11.02681365, w2: 10.88648246, w3: 2.182246245);
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers: Slot counting with "shifted boundary" logic (Nam -> Trung -> Bắc)
-  // Ý tưởng: Nếu session hit ở 1 miền thì:
-  //   - Start tính từ session kế tiếp (miền tiếp theo)
-  //   - End tính đến session trước đó (miền trước)
-  // Các helper này giúp tính x/y/z (P1/P2/P3) đúng theo rule của bạn.
   // ---------------------------------------------------------------------------
 
   static int? _nextIndex(int i, int len) => (i + 1 < len) ? (i + 1) : null;
@@ -112,7 +130,6 @@ class AnalysisService {
     return cumList[endIdx] - beforeStart;
   }
 
-  // Tính x/y/z theo rule "dịch mốc theo miền" giống logic Python bạn đang test.
   static ({int x, int y, int z}) _computeXYZShifted(
     List<int> hitIndices,
     List<int> cumList,
@@ -154,11 +171,6 @@ class AnalysisService {
     return (x: x, y: y, z: z);
   }
 
-  // Trọng số Best W
-  static const double W1 = 10.19588052;
-  static const double W2 = 9.28250979;
-  static const double W3 = 0.86177579;
-
   // --- SORTING HELPERS ---
   static int _getRegionPriority(String mien) {
     final s = mien.toLowerCase();
@@ -179,14 +191,6 @@ class AnalysisService {
     return _getRegionPriority(a.mien).compareTo(_getRegionPriority(b.mien));
   }
 
-  // ---------------------------------------------------------------------------
-  // IMPORTANT: Align session building with Python script
-  // Python groups results by (ngay, regionPriority) and merges numbers into
-  // 1 session per day per region before trimming + cumulative.
-  // If we treat each LotteryResult as a session directly (especially when one
-  // day has multiple stations/rows), x/y/z (P1/P2/P3) will drift.
-  // ---------------------------------------------------------------------------
-
   static List<LotteryResult> _mergeToDailyRegionSessions(
       List<LotteryResult> input) {
     final Map<String, LotteryResult> merged = {};
@@ -199,12 +203,9 @@ class AnalysisService {
       final key = '${dateKey.toIso8601String()}|$prio';
 
       if (!merged.containsKey(key)) {
-        // Create a shallow "session" copy
         merged[key] = LotteryResult(
           ngay: r.ngay,
           mien: r.mien,
-          // Preserve province/station info if your LotteryResult requires it.
-          // Keep the first encountered value for this (day, region) session.
           tinh: r.tinh,
           numbers: <String>[...r.numbers],
         );
@@ -238,6 +239,12 @@ class AnalysisService {
     final mienScope = params['mien'] as String;
 
     try {
+      // 0. Lấy trọng số (Weights)
+      final weights = _getWeights(mienScope);
+      final w1 = weights.w1;
+      final w2 = weights.w2;
+      final w3 = weights.w3;
+
       // 1. Filter Scope (Lọc miền)
       List<LotteryResult> scopedResults;
       if (mienScope.toLowerCase().contains('tất cả') ||
@@ -250,14 +257,12 @@ class AnalysisService {
             rawResults.where((r) => r.mien.contains(mienScope)).toList();
       }
 
-      // 2. Sort chuẩn Python (Date Asc -> Region Priority)
-      // IMPORTANT: Python first merges all rows of the same (day, region)
-      // into one "session" before trimming/cumulative.
+      // 2. Sort & Merge Sessions
       scopedResults = _mergeToDailyRegionSessions(scopedResults);
 
       if (scopedResults.isEmpty) return null;
 
-      // 3. Trim (Cắt dữ liệu) - Logic Python: Dừng ngay khi >= 11461
+      // 3. Trim (Cắt dữ liệu)
       int accumulated = 0;
       int cutIndex = 0;
       for (int i = scopedResults.length - 1; i >= 0; i--) {
@@ -278,8 +283,6 @@ class AnalysisService {
         cumList.add(runningSum);
       }
       final int totalSlotsActual = runningSum;
-
-      // Đã bỏ logic chuẩn bị P4 (nTheory, _ensureLogFact) tại đây
 
       final allAnalysis = <NumberAnalysisData>[];
 
@@ -310,17 +313,13 @@ class AnalysisService {
         final lnP2 = y * LN_BASE;
         final lnP3 = z * LN_BASE;
 
-        // --- BỎ TÍNH TOÁN P4 ---
-        // Không tính Binomial NLL nữa để tiết kiệm resource
         const double lnP4 = 0.0;
         final double cntReal = cntRealInt.toDouble();
         const double cntTheory = 0.0; // Placeholder
 
-        // --- TÍNH P_TOTAL (Log) MỚI ---
-        // Công thức: Constant + W1*P1 + W2*P2 + W3*P3
+        // --- TÍNH P_TOTAL (Log) VỚI TRỌNG SỐ ĐỘNG ---
         final lnPTotal =
-            (2.0 * LN_P_INDIV) + (W1 * lnP1) + (W2 * lnP2) + (W3 * lnP3);
-        // + (W4 * lnP4); // ĐÃ BỎ
+            (2.0 * LN_P_INDIV) + (w1 * lnP1) + (w2 * lnP2) + (w3 * lnP3);
 
         allAnalysis.add(NumberAnalysisData(
           number: number,
@@ -347,8 +346,10 @@ class AnalysisService {
       final minResult =
           allAnalysis.reduce((a, b) => a.lnPTotal < b.lnPTotal ? a : b);
 
-      // --- DEBUG LOGGING (Cập nhật để không in rác P4) ---
-      print('\n🔍 [MIN LOG P] Số: ${minResult.number}');
+      // --- DEBUG LOGGING ---
+      print('\n🔍 [MIN LOG P] Scope: $mienScope');
+      print('   ⚖️ Weights Applied: W1=$w1, W2=$w2, W3=$w3');
+      print('   🎯 Số: ${minResult.number}');
       print(
           '   📊 Tổng Slots: ${minResult.totalSlotsActual} (Target: ${WINDOW_FREQ_SLOTS.toInt()})');
       print(
@@ -369,14 +370,11 @@ class AnalysisService {
   }
 
   // --- HÀM THỐNG KÊ CHI TIẾT (DÙNG CHO UI) ---
-  // Sử dụng Cumulative Array để đảm bảo logic thống nhất với core
   static Map<String, dynamic>? _getNumberStats(
       List<LotteryResult> rawResults, String targetNumber) {
-    // Keep stats consistent with core: merge (day, region) into 1 session
     var results =
         _mergeToDailyRegionSessions(List<LotteryResult>.from(rawResults));
 
-    // Build cumulative
     List<int> cumList = [];
     int runningSum = 0;
     List<int> hitIndices = [];
@@ -442,18 +440,22 @@ class AnalysisService {
     final currentLnP2 = params['currentLnP2'] as double;
     final currentLnP3 = params['currentLnP3'] as double;
     final lnThreshold = params['lnThreshold'] as double;
-    final maxIterations =
-        params['maxIterations'] as int; // Giờ là max slots giới hạn
+    final maxIterations = params['maxIterations'] as int;
     final mienFilter = params['mien'] as String;
 
     try {
+      // 0. Lấy trọng số
+      final weights = _getWeights(mienFilter);
+      final w1 = weights.w1;
+      final w2 = weights.w2;
+      final w3 = weights.w3;
+
       // 1. Tính P_Total hiện tại
       final currentLnPTotal = (2.0 * LN_P_INDIV) +
-          (W1 * currentLnP1) +
-          (W2 * currentLnP2) +
-          (W3 * currentLnP3);
+          (w1 * currentLnP1) +
+          (w2 * currentLnP2) +
+          (w3 * currentLnP3);
 
-      // Nếu đã đạt ngưỡng rồi thì trả về ngay
       if (currentLnPTotal < lnThreshold) {
         return (
           endDate: DateTime.now().add(const Duration(days: 1)),
@@ -462,27 +464,18 @@ class AnalysisService {
       }
 
       // 2. Tính Delta cần giảm
-      // Mục tiêu: currentLnPTotal + (W1 * deltaP1) < lnThreshold
-      // deltaP1 = addedSlots * LN_BASE
-      // => currentLnPTotal + W1 * addedSlots * LN_BASE < lnThreshold
-      // => addedSlots * (W1 * LN_BASE) < lnThreshold - currentLnPTotal
-      // Vì (W1 * LN_BASE) là số ÂM (do LN_BASE < 0), nên khi chia phải đổi chiều bất đẳng thức:
-      // => addedSlots > (lnThreshold - currentLnPTotal) / (W1 * LN_BASE)
-
-      final double denominator = W1 * LN_BASE;
-      if (denominator == 0) return null; // Tránh chia cho 0
+      // addedSlots > (lnThreshold - currentLnPTotal) / (w1 * LN_BASE)
+      final double denominator = w1 * LN_BASE;
+      if (denominator == 0) return null;
 
       final double gapNeeded = lnThreshold - currentLnPTotal;
       final double slotsNeededDouble = gapNeeded / denominator;
 
-      // Làm tròn lên để đảm bảo < threshold
       int addedSlots = slotsNeededDouble.ceil();
 
-      // Nếu số slots cần thiết âm (do sai logic nào đó) hoặc quá lớn thì chặn lại
       if (addedSlots <= 0) addedSlots = 1;
       if (addedSlots > maxIterations) return null;
 
-      // 3. Map từ số slots ra ngày (Giữ nguyên logic map ngày vì nó phụ thuộc lịch quay)
       final simulationResult = _mapSlotsToDateAndMien(
         slotsNeeded: addedSlots,
         startDate: DateTime.now(),
@@ -672,18 +665,9 @@ class AnalysisService {
         continue;
       }
 
-      // TỐI ƯU: Cần implement hàm estimateCost trong BettingTableService
-      // để không phải tạo toàn bộ List<BettingRow>.
-      // Hiện tại nếu chưa có, code này vẫn đúng logic nhưng chậm.
-      // Anh CẦN vào BettingTableService viết hàm calculateTotalCost(...) trả về double.
-
       double totalCost = 0;
       try {
         if (isNam) {
-          // Ví dụ gọi hàm tối ưu (giả định anh sẽ viết)
-          // totalCost = await bettingService.estimateNamCost(...);
-
-          // Tạm thời dùng hàm cũ nhưng chỉ lấy dòng cuối (vẫn chậm, nhưng đỡ hơn xử lý list dài)
           final table = await bettingService.generateNamGanTable(
             cycleResult: cycleResult,
             startDate: currentStart,
@@ -1119,7 +1103,7 @@ class AnalysisService {
     }
   }
 
-  // --- THÊM MỚI: Lấy dữ liệu phân tích cho 1 số cụ thể (Dùng cho Simulation) ---
+  // --- LẤY DỮ LIỆU PHÂN TÍCH CHO 1 SỐ CỤ THỂ (Dùng Weights) ---
   static Future<NumberAnalysisData?> getAnalysisData(
     String targetNumber,
     List<LotteryResult> results,
@@ -1139,7 +1123,13 @@ class AnalysisService {
     final mienScope = params['mien'] as String;
 
     try {
-      // 1. Filter & Merge (Giống logic tìm Min P)
+      // 0. Lấy trọng số
+      final weights = _getWeights(mienScope);
+      final w1 = weights.w1;
+      final w2 = weights.w2;
+      final w3 = weights.w3;
+
+      // 1. Filter & Merge
       List<LotteryResult> scopedResults;
       if (mienScope.toLowerCase().contains('tất cả') ||
           mienScope == 'tatca' ||
@@ -1195,8 +1185,9 @@ class AnalysisService {
       final lnP3 = z * LN_BASE;
       const double lnP4 = 0.0;
 
+      // Áp dụng trọng số động
       final lnPTotal =
-          (2.0 * LN_P_INDIV) + (W1 * lnP1) + (W2 * lnP2) + (W3 * lnP3);
+          (2.0 * LN_P_INDIV) + (w1 * lnP1) + (w2 * lnP2) + (w3 * lnP3);
 
       return NumberAnalysisData(
         number: targetNumber,
