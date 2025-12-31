@@ -12,7 +12,7 @@ class ProbabilityConfig {
     this.thresholdLnNam = -43.83499527, // ✅ THÊM (Giá trị mặc định cho Nam)
     this.thresholdLnTrung = -46.60426712,
     this.thresholdLnBac = -33.01141548,
-    this.thresholdLnXien = -13.14,
+    this.thresholdLnXien = -349.9847258,
   });
 
   bool get isValid {
@@ -72,7 +72,8 @@ class ProbabilityConfig {
           (json['thresholdLnTrung'] as num?)?.toDouble() ?? -46.60426712,
       thresholdLnBac:
           (json['thresholdLnBac'] as num?)?.toDouble() ?? -33.01141548,
-      thresholdLnXien: (json['thresholdLnXien'] as num?)?.toDouble() ?? -13.14,
+      thresholdLnXien:
+          (json['thresholdLnXien'] as num?)?.toDouble() ?? -349.9847258,
     );
   }
 

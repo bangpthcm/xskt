@@ -667,84 +667,116 @@ class AnalysisViewModel extends ChangeNotifier {
 
   Future<void> _calculatePlanForXien(AppConfig? config) async {
     if (_ganPairInfo == null || config == null) return;
+    if (_allResults.isEmpty) return;
 
-    final thresholdLn = config.probability.thresholdLnXien;
-    final pairAnalysis = PairAnalysisData(
-      firstNumber: _ganPairInfo!.pairs[0].pair.first,
-      secondNumber: _ganPairInfo!.pairs[0].pair.second,
-      lnP1Pair: 0,
-      lnPTotalXien: 0,
-      daysSinceLastSeen: _ganPairInfo!.daysGan.toDouble(),
-      lastSeenDate: _ganPairInfo!.lastSeen,
-    );
+    print('\n========== TÍNH TOÁN KẾ HOẠCH CHO XIÊN ==========');
 
-    const pPair = 0.055;
-    final simResult = await AnalysisService.findEndDateForXienThreshold(
-        pairAnalysis, pPair, thresholdLn);
+    try {
+      final thresholdLn = config.probability.thresholdLnXien;
 
-    DateTime start = DateFormat('dd/MM/yyyy').parse(_sheetHeaderDate);
-    start = start.add(const Duration(days: 1)); // Default
+      // ✅ BƯỚC 1: Gọi lại phân tích để lấy PairAnalysisData THỰC TẾ
+      print('🔄 Running full pair analysis...');
+      final pairAnalysis =
+          await AnalysisService.findPairWithMinPTotal(_allResults);
 
-    if (simResult != null) {
-      final endDate = simResult.endDate;
-
-      // 🌟 BƯỚC MỚI: TẠO BẢNG ẢO CHO XIÊN 🌟
-      try {
-        final budgetRes =
-            await BudgetCalculationService(sheetsService: _sheetsService)
-                .calculateAvailableBudgetByEndDate(
-                    totalCapital: config.budget.totalCapital,
-                    targetTable: 'xien',
-                    configBudget: config.budget.xienBudget,
-                    endDate: endDate);
-
-        // Tìm ngày bắt đầu tối ưu (Lý thuyết)
-        final optimalStart = await AnalysisService.findOptimalStartDateForXien(
-          baseStartDate: start,
-          endDate: endDate,
-          availableBudget: budgetRes.budgetMax,
-          ganInfo: _ganPairInfo!,
-          bettingService: _bettingService,
-        );
-
-        if (optimalStart != null) {
-          start = optimalStart;
-        }
-
-        // Tạo bảng thật để lấy ngày đầu tiên
-        final previewTable = await _bettingService.generateXienTable(
-          ganInfo: _ganPairInfo!,
-          startDate: start,
-          endDate: endDate,
-          xienBudget: budgetRes.budgetMax,
-          fitBudgetOnly: true,
-        );
-
-        if (previewTable.isNotEmpty) {
-          final realFirstDateStr = previewTable.first.ngay;
-          start = DateFormat('dd/MM/yyyy').parse(realFirstDateStr);
-          print('   ✅ [Plan Xien] Real Start Date: $realFirstDateStr');
-        }
-
-        _dateXien = start;
-        _endDateXien = endDate;
-        _optimalXien = "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
-        _endPlanXien =
-            "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(endDate)} (Miền Bắc)";
-      } catch (e) {
-        print('Error calc xien plan: $e');
-        // Fallback cũ
-        _dateXien = start;
-        _endDateXien = endDate;
-        _optimalXien = "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
-        _endPlanXien =
-            "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(endDate)}";
+      if (pairAnalysis == null) {
+        print('⚠️ No pair analysis result');
+        _dateXien = DateTime.now().add(const Duration(days: 1));
+        _endDateXien = DateTime.now().add(const Duration(days: 5));
+        _optimalXien = "Không có dữ liệu";
+        _endPlanXien = "...";
+        return;
       }
-    } else {
-      // ... (Giữ nguyên fallback khi simResult null)
+
+      print('   ✅ Got pair analysis:');
+      print('      Pair: ${pairAnalysis.pairDisplay}');
+      print('      P1: ${pairAnalysis.lnP1Pair.toStringAsFixed(4)}');
+      print('      P_total: ${pairAnalysis.lnPTotalXien.toStringAsFixed(4)}');
+
+      // ✅ BƯỚC 2: Tìm ngày kết thúc dựa trên P_total thực tế
+      final simResult = await AnalysisService.findEndDateForXienThreshold(
+        pairAnalysis, // ✅ Pass object có đầy đủ data
+        0.055, // Unused legacy param
+        thresholdLn,
+      );
+
+      DateTime start = DateFormat('dd/MM/yyyy').parse(_sheetHeaderDate);
+      start = start.add(const Duration(days: 1));
+
+      if (simResult != null) {
+        final endDate = simResult.endDate;
+
+        // ✅ BƯỚC 3: Tối ưu hóa ngày bắt đầu
+        try {
+          final budgetRes =
+              await BudgetCalculationService(sheetsService: _sheetsService)
+                  .calculateAvailableBudgetByEndDate(
+            totalCapital: config.budget.totalCapital,
+            targetTable: 'xien',
+            configBudget: config.budget.xienBudget,
+            endDate: endDate,
+          );
+
+          final optimalStart =
+              await AnalysisService.findOptimalStartDateForXien(
+            baseStartDate: start,
+            endDate: endDate,
+            availableBudget: budgetRes.budgetMax,
+            ganInfo: _ganPairInfo!,
+            bettingService: _bettingService,
+          );
+
+          if (optimalStart != null) {
+            start = optimalStart;
+          }
+
+          // ✅ BƯỚC 4: Tạo bảng thử để lấy ngày thực tế
+          final previewTable = await _bettingService.generateXienTable(
+            ganInfo: _ganPairInfo!,
+            startDate: start,
+            endDate: endDate,
+            xienBudget: budgetRes.budgetMax,
+            fitBudgetOnly: true,
+          );
+
+          if (previewTable.isNotEmpty) {
+            final realFirstDateStr = previewTable.first.ngay;
+            start = DateFormat('dd/MM/yyyy').parse(realFirstDateStr);
+            print('   ✅ Real Start Date: $realFirstDateStr');
+          }
+
+          _dateXien = start;
+          _endDateXien = endDate;
+          _optimalXien = "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
+          _endPlanXien =
+              "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(endDate)} (Miền Bắc)";
+
+          print('✅ Xiên plan calculated successfully');
+        } catch (e) {
+          print('⚠️ Error optimizing xien plan: $e');
+          // Fallback
+          _dateXien = start;
+          _endDateXien = endDate;
+          _optimalXien = "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
+          _endPlanXien =
+              "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(endDate)}";
+        }
+      } else {
+        print('⚠️ Could not calculate end date for xien');
+        // Fallback
+        _dateXien = start;
+        _endDateXien = start.add(const Duration(days: 5));
+        _optimalXien = "Đang tính toán...";
+        _endPlanXien = "...";
+      }
+    } catch (e, stack) {
+      print('❌ Error in _calculatePlanForXien: $e');
+      print(stack);
+      // Fallback values
+      final start = DateTime.now().add(const Duration(days: 1));
       _dateXien = start;
       _endDateXien = start.add(const Duration(days: 5));
-      _optimalXien = "Đang tính toán...";
+      _optimalXien = "Lỗi tính toán";
       _endPlanXien = "...";
     }
   }

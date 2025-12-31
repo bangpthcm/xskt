@@ -104,8 +104,12 @@ class AnalysisService {
       return (w1: 1.64434407, w2: 1.619753029, w3: 1.73493972);
     }
 
-    // 4. Mặc định (Tất cả / Cycle / Xiên)
-    // CYCLE w & Xien w: [11.21363718 11.06843543 2.22240444]
+    // ✅ 4. XIÊN - TRỌNG SỐ RIÊNG
+    if (s.contains('xien') || s.contains('xiên')) {
+      return (w1: 5.1220234, w2: 2.1834644, w3: 3.78302343);
+    }
+
+    // 5. Mặc định (Tất cả / Cycle)
     return (w1: 11.02681365, w2: 10.88648246, w3: 2.182246245);
   }
 
@@ -502,66 +506,128 @@ class AnalysisService {
     List<LotteryResult> allResults,
   ) {
     try {
+      // ✅ BƯỚC 1: Lấy trọng số riêng cho Xiên
+      final weights = _getWeights('xien');
+      final w1 = weights.w1;
+      final w2 = weights.w2;
+      final w3 = weights.w3;
+
+      print('\n🔍 [XIEN ANALYSIS] Using Xien-specific weights:');
+      print('   W1=$w1, W2=$w2, W3=$w3');
+
       var bacResults = allResults.where((r) => r.mien == 'Bắc').toList();
       if (bacResults.isEmpty) return null;
 
+      // Trim to last 368 days
       const int limit = 368;
-      if (bacResults.length > limit)
+      if (bacResults.length > limit) {
         bacResults = bacResults.sublist(bacResults.length - limit);
-      final resultsByDate = <DateTime, Set<String>>{};
-      final pairLastSeen = <String, DateTime>{};
-
-      for (final r in bacResults) {
-        final date = date_utils.DateUtils.parseDate(r.ngay);
-        if (date == null) continue;
-        resultsByDate.putIfAbsent(date, () => {}).addAll(r.numbers);
       }
 
-      final sortedDates = resultsByDate.keys.toList()..sort();
-      for (final date in sortedDates) {
-        final nums = resultsByDate[date]!.toList()..sort();
+      // ✅ BƯỚC 2: Build cumulative slots list (giống Cycle)
+      List<int> cumList = [];
+      int runningSum = 0;
+      for (var result in bacResults) {
+        runningSum += result.numbers.length;
+        cumList.add(runningSum);
+      }
+
+      final totalSlots = cumList.isEmpty ? 0 : cumList.last;
+      print('   📊 Total slots in window: $totalSlots');
+
+      // ✅ BƯỚC 3: Track hit indices cho từng cặp số
+      final pairHitIndices = <String, List<int>>{};
+      final pairLastSeen = <String, DateTime>{};
+
+      for (int idx = 0; idx < bacResults.length; idx++) {
+        final result = bacResults[idx];
+        final date = date_utils.DateUtils.parseDate(result.ngay);
+        if (date == null) continue;
+
+        final nums = result.numbers.toList()..sort();
         if (nums.length < 2) continue;
+
+        // Generate all pairs in this session
         for (int i = 0; i < nums.length - 1; i++) {
           for (int j = i + 1; j < nums.length; j++) {
-            pairLastSeen['${nums[i]}-${nums[j]}'] = date;
+            final pairKey = '${nums[i]}-${nums[j]}';
+
+            // Track hit index (only add if new or different from last)
+            if (!pairHitIndices.containsKey(pairKey)) {
+              pairHitIndices[pairKey] = [];
+            }
+            if (pairHitIndices[pairKey]!.isEmpty ||
+                pairHitIndices[pairKey]!.last != idx) {
+              pairHitIndices[pairKey]!.add(idx);
+            }
+
+            // Track last seen date
+            if (!pairLastSeen.containsKey(pairKey) ||
+                date.isAfter(pairLastSeen[pairKey]!)) {
+              pairLastSeen[pairKey] = date;
+            }
           }
         }
       }
 
       if (pairLastSeen.isEmpty) return null;
 
-      final pPair = estimatePairProbability(
-        pairLastSeen.length,
-        bacResults.map((r) => r.ngay).toSet().length,
-      );
-
       final now = DateTime.now();
       final allPairAnalysis = <PairAnalysisData>[];
 
-      for (final entry in pairLastSeen.entries) {
-        final pairKey = entry.key;
-        final lastSeenDate = entry.value;
-        final daysSince = now.difference(lastSeenDate).inDays.toDouble();
+      print('   🔢 Analyzing ${pairLastSeen.length} unique pairs...');
 
-        // Xiên: ln(P1) = days * ln(1 - pPair)
-        final lnP1Pair = daysSince * log(1 - pPair);
-        final lnPTotalXien = lnP1Pair;
+      // ✅ BƯỚC 4: Tính toán cho từng cặp số
+      for (final pairKey in pairLastSeen.keys) {
+        final lastSeenDate = pairLastSeen[pairKey]!;
+        final hitIndices = pairHitIndices[pairKey] ?? [];
+
+        if (hitIndices.isEmpty) continue;
+
+        // ✅ Calculate x, y, z using shifted boundary logic (GIỐNG CYCLE)
+        final xyz = _computeXYZShifted(hitIndices, cumList);
+        final double x = xyz.x.toDouble();
+        final double y = xyz.y.toDouble();
+        final double z = xyz.z.toDouble();
+
+        // ✅ Calculate ln probabilities
+        final lnP1 = x * LN_BASE;
+        final lnP2 = y * LN_BASE;
+        final lnP3 = z * LN_BASE;
+
+        // ✅ Calculate P_total with Xien-specific weights
+        final lnPTotalXien =
+            (2.0 * LN_P_INDIV) + (w1 * lnP1) + (w2 * lnP2) + (w3 * lnP3);
 
         final parts = pairKey.split('-');
         allPairAnalysis.add(PairAnalysisData(
           firstNumber: parts[0],
           secondNumber: parts[1],
-          lnP1Pair: lnP1Pair,
+          lnP1Pair: lnP1,
           lnPTotalXien: lnPTotalXien,
-          daysSinceLastSeen: daysSince,
+          daysSinceLastSeen: now.difference(lastSeenDate).inDays.toDouble(),
           lastSeenDate: lastSeenDate,
         ));
       }
 
       if (allPairAnalysis.isEmpty) return null;
-      return allPairAnalysis
+
+      // ✅ BƯỚC 5: Tìm cặp có P_total nhỏ nhất
+      final minResult = allPairAnalysis
           .reduce((a, b) => a.lnPTotalXien < b.lnPTotalXien ? a : b);
-    } catch (e) {
+
+      // ✅ DEBUG LOGGING
+      print('\n🎯 [XIEN MIN P_TOTAL RESULT]');
+      print('   Cặp số: ${minResult.pairDisplay}');
+      print('   🔹 P1 (Current gap): ${minResult.lnP1Pair.toStringAsFixed(4)}');
+      print('   🔹 LN_TOTAL: ${minResult.lnPTotalXien.toStringAsFixed(4)}');
+      print('   Days since last: ${minResult.daysSinceLastSeen.toInt()} days');
+      print('--------------------------------------------------\n');
+
+      return minResult;
+    } catch (e, stack) {
+      print('❌ Error in _findPairWithMinPTotalCompute: $e');
+      print(stack);
       return null;
     }
   }
@@ -1060,11 +1126,14 @@ class AnalysisService {
 
   static Future<({DateTime endDate, int daysNeeded})?>
       findEndDateForXienThreshold(
-          PairAnalysisData targetPair, double pPair, double lnThreshold,
-          {int maxIterations = 10000}) async {
+    PairAnalysisData targetPair,
+    double pUnused, // Deprecated, giữ lại để tương thích API
+    double lnThreshold, {
+    int maxIterations = 10000,
+  }) async {
     return await compute(_findEndDateForXienThresholdCompute, {
-      'pPair': pPair,
-      'currentDaysGan': targetPair.daysSinceLastSeen,
+      'currentLnP1': targetPair.lnP1Pair,
+      'currentLnPTotal': targetPair.lnPTotalXien, // ✅ Pass full P_total
       'lnThreshold': lnThreshold,
       'maxIterations': maxIterations,
     });
@@ -1074,31 +1143,59 @@ class AnalysisService {
       _findEndDateForXienThresholdCompute(
     Map<String, dynamic> params,
   ) {
-    final pPair = params['pPair'] as double;
-    final currentDaysGan = params['currentDaysGan'] as double;
+    // ✅ Lấy trọng số Xiên
+    final weights = _getWeights('xien');
+    final w1 = weights.w1;
+
+    final currentLnP1 = params['currentLnP1'] as double?;
+    final currentLnPTotal =
+        params['currentLnPTotal'] as double?; // ✅ Sử dụng P_total đã tính
     final lnThreshold = params['lnThreshold'] as double;
     final maxIterations = params['maxIterations'] as int;
 
     try {
-      // ln(P1) = days * ln(1-p)
-      var currentLnP1 = currentDaysGan * log(1 - pPair);
-      final lnDecayPerDay = log(1 - pPair);
+      // ✅ Sử dụng P_total đã được tính từ phân tích (bao gồm P1, P2, P3)
+      final lnPTotal = currentLnPTotal ??
+          ((currentLnP1 != null)
+              ? ((2.0 * LN_P_INDIV) + (w1 * currentLnP1))
+              : 0.0);
 
-      if (currentLnP1 < lnThreshold) {
+      print('\n🔍 [XIEN END DATE CALC]');
+      print('   Current P_total: ${lnPTotal.toStringAsFixed(4)}');
+      print('   Threshold: ${lnThreshold.toStringAsFixed(4)}');
+
+      if (lnPTotal < lnThreshold) {
+        print('   ✅ Already below threshold!');
         return (
           endDate: DateTime.now().add(const Duration(days: 1)),
           daysNeeded: 1
         );
       }
-      int daysNeeded = 0;
-      while (currentLnP1 >= lnThreshold && daysNeeded < maxIterations) {
-        daysNeeded++;
-        currentLnP1 += lnDecayPerDay;
+
+      // Tính slots cần thêm để đạt threshold
+      final double denominator = w1 * LN_BASE;
+      if (denominator == 0) return null;
+
+      final double gapNeeded = lnThreshold - lnPTotal;
+      final double slotsNeededDouble = gapNeeded / denominator;
+
+      int addedSlots = slotsNeededDouble.ceil();
+      if (addedSlots <= 0) addedSlots = 1;
+      if (addedSlots > maxIterations) {
+        print('   ⚠️ Exceeded max iterations');
+        return null;
       }
-      if (daysNeeded >= maxIterations) return null;
+
+      // Map slots to date (Bắc only, 27 slots/day)
+      final daysNeeded = (addedSlots / 27).ceil();
       final endDate = DateTime.now().add(Duration(days: daysNeeded));
+
+      print('   📅 Days needed: $daysNeeded');
+      print('   🏁 End date: ${date_utils.DateUtils.formatDate(endDate)}');
+
       return (endDate: endDate, daysNeeded: daysNeeded);
     } catch (e) {
+      print('   ❌ Error: $e');
       return null;
     }
   }

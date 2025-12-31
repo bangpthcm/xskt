@@ -693,7 +693,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         double.tryParse(_probabilityThresholdBacController.text) ??
             -33.01141548;
     double thresholdXien =
-        double.tryParse(_probabilityThresholdXienController.text) ?? -13.14;
+        double.tryParse(_probabilityThresholdXienController.text) ??
+            -349.9847258;
 
     // ✅ CẬP NHẬT: Tạo ProbabilityConfig với các trường Ln mới
     final probabilityConfig = ProbabilityConfig(

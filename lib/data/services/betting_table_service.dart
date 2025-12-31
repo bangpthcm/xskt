@@ -12,25 +12,23 @@ import '../models/lottery_result.dart';
 
 class BettingTableService {
   /// Generate Xien Table
-  /// [FIX] Thêm tham số endDate để chặn đúng ngày, không bị trôi
+  /// [UPDATED] Cho phép cược nhỏ nhất là 1đ để phù hợp với ngân sách siêu nhỏ
   Future<List<BettingRow>> generateXienTable({
     required GanPairInfo ganInfo,
     required DateTime startDate,
-    required DateTime endDate, // Thêm tham số này
+    required DateTime endDate,
     required double xienBudget,
-    // required int durationBase, // Bỏ tham số này vì dễ gây lỗi
     bool fitBudgetOnly = false,
   }) async {
-    // 1. Chuẩn hóa ngày về 00:00:00 để tính toán chính xác
+    // 1. Chuẩn hóa ngày
     DateTime startNorm =
         DateTime(startDate.year, startDate.month, startDate.day);
     DateTime endNorm = DateTime(endDate.year, endDate.month, endDate.day);
 
-    // 2. Tính lại số ngày thực tế nuôi
+    // 2. Tính số ngày nuôi
     int daysRemaining = endNorm.difference(startNorm).inDays + 1;
 
     if (daysRemaining <= 1) {
-      // Nếu optimize xong mà ngày còn lại quá ít -> Return rỗng hoặc throw
       return [];
     }
 
@@ -39,18 +37,19 @@ class BettingTableService {
 
     double tongTien = 0.0;
 
-    // Tính profit step dựa trên số ngày thực tế còn lại
+    // Tính profit step
     final profitStep =
         (AppConstants.finalProfit - AppConstants.startingProfit) /
             (daysRemaining - 1);
 
     double tienCuocMien =
         AppConstants.startingProfit / (AppConstants.winMultiplierXien - 1);
+
     if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
       tienCuocMien = 100.0;
     }
 
-    // Bước 1: Tính toán thô (Dùng vòng lặp theo daysRemaining)
+    // Bước 1: Tính toán thô
     final tempRows = <Map<String, dynamic>>[];
     for (int i = 0; i < daysRemaining; i++) {
       final currentProfitTarget =
@@ -74,7 +73,8 @@ class BettingTableService {
       if (tienCuocMien.isFinite) {
         tongTien += tienCuocMien;
       } else {
-        throw Exception('Invalid tienCuocMien: $tienCuocMien');
+        tienCuocMien = 100; // Fallback nhỏ
+        tongTien += tienCuocMien;
       }
 
       tempRows.add({
@@ -90,33 +90,50 @@ class BettingTableService {
     if (fitBudgetOnly && scalingFactor > 1.0) {
       scalingFactor = 1.0;
     }
-    // ... (Giữ nguyên logic chuẩn hóa budget) ...
-    if (rawTotalCost <= 0) {
-      // Tránh crash nếu cost <= 0
-      scalingFactor = 1.0;
-    }
 
+    if (rawTotalCost <= 0) scalingFactor = 1.0;
     if (scalingFactor.isNaN || scalingFactor.isInfinite || scalingFactor <= 0) {
-      // Fallback an toàn thay vì throw Exception làm crash app
       scalingFactor = 1.0;
     }
 
+    // Bước 3: Tạo bảng chi tiết & Đảm bảo lợi nhuận dương
     for (int i = 0; i < tempRows.length; i++) {
       final row = tempRows[i];
 
+      // a. Scale theo ngân sách
       double cuocMien = (row['cuoc_mien'] as double? ?? 100.0) * scalingFactor;
       cuocMien = cuocMien.ceilToDouble();
-      if (cuocMien < 1000) cuocMien = 1000; // Mức cược tối thiểu an toàn
 
-      double tongTienRow =
-          i == 0 ? cuocMien : rawTable[i - 1].tongTien + cuocMien;
+      // b. Lấy tổng tiền tích lũy của các ngày trước
+      double prevTotal = i == 0 ? 0 : rawTable[i - 1].tongTien;
+
+      // c. [QUAN TRỌNG] Ép Min Bet là 1đ (thay vì 1000đ)
+      if (cuocMien < 1) cuocMien = 1;
+
+      // d. Kiểm tra điểm hòa vốn (Break-even check)
+      // Cược * (Multiplier - 1) > Vốn cũ
+      double minBetToBreakEven =
+          prevTotal / (AppConstants.winMultiplierXien - 1);
+
+      // Nếu cược hiện tại vẫn lỗ hoặc hòa -> Tăng cược lên
+      if (cuocMien <= minBetToBreakEven) {
+        // Tăng thêm để có lời tối thiểu 1đ
+        double targetProfit = 1.0;
+        cuocMien =
+            (prevTotal + targetProfit) / (AppConstants.winMultiplierXien - 1);
+        cuocMien = cuocMien.ceilToDouble();
+
+        if (cuocMien < 1) cuocMien = 1;
+      }
+
+      // e. Tính toán lại tổng và lợi nhuận
+      double tongTienRow = prevTotal + cuocMien;
       double loi = (cuocMien * AppConstants.winMultiplierXien) - tongTienRow;
 
       rawTable.add(BettingRow.forXien(
         stt: i + 1,
         ngay: row['ngay'] as String,
-        mien:
-            'Bắc', // Lưu ý: Xiên thường mặc định miền Bắc, nếu cần đổi thì pass tham số
+        mien: 'Bắc',
         so: capSoMucTieu.display,
         cuocMien: cuocMien,
         tongTien: tongTienRow,
@@ -297,7 +314,6 @@ class BettingTableService {
     int profitSearchRange = 12,
     int betSearchRange = 11,
   }) async {
-    // ... (Giữ nguyên logic optimize) ...
     double lowProfit = 100.0;
     double highProfit = 100000.0;
     List<BettingRow>? bestTable;
@@ -332,8 +348,7 @@ class BettingTableService {
     }
 
     if (bestTable == null) {
-      // Logic fallback khẩn cấp nếu không tìm thấy bảng tối ưu
-      // Thay vì throw ngay, thử tạo bảng rẻ nhất có thể (startBet=1)
+      // Logic fallback khẩn cấp
       final testResult = await calculator(50.0, 1.0);
       final actualTotal = testResult['tong_tien'] as double;
 
@@ -343,7 +358,6 @@ class BettingTableService {
             'Max: ${NumberUtils.formatCurrency(budgetMax)}\n'
             'Cần Min: ${NumberUtils.formatCurrency(actualTotal)}');
       }
-      // Nếu rẻ nhất ok (nhưng logic optimize bên trên bị miss), trả về bảng rẻ nhất này luôn
       return testResult['table'] as List<BettingRow>;
     }
 
@@ -364,16 +378,14 @@ class BettingTableService {
     double tongTien = 0.0;
     int stt = 1;
 
-    // [FIX] Chuẩn hóa ngày về 00:00:00 để so sánh chính xác
     DateTime currentDate =
         DateTime(startDate.year, startDate.month, startDate.day);
     DateTime endNorm = DateTime(endDate.year, endDate.month, endDate.day);
 
-    // Dùng vòng lặp vô hạn kết hợp break, an toàn hơn đếm dayCount khi skip ngày
     int loops = 0;
     while (true) {
-      if (loops > 100) break; // Circuit breaker
-      if (currentDate.isAfter(endNorm)) break; // [FIX] So sánh Date chuẩn xác
+      if (loops > 100) break;
+      if (currentDate.isAfter(endNorm)) break;
 
       final weekday = date_utils.DateUtils.getWeekday(currentDate);
       final soLo = NumberUtils.calculateSoLo(mien, weekday);
@@ -420,7 +432,6 @@ class BettingTableService {
     final tableData = <BettingRow>[];
     double tongTien = 0.0;
 
-    // [FIX] Chuẩn hóa ngày
     DateTime currentDate =
         DateTime(startDate.year, startDate.month, startDate.day);
     DateTime endNorm = DateTime(endDate.year, endDate.month, endDate.day);
@@ -479,7 +490,6 @@ class BettingTableService {
     return {'table': tableData, 'tong_tien': tongTien};
   }
 
-  // ... (Giữ nguyên các hàm _calculateOneRow, _countTargetMienOccurrences, _formatDateWith2Digits) ...
   _RowCalculationResult _calculateOneRow({
     required int stt,
     required DateTime currentDate,
