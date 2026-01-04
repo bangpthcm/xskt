@@ -603,51 +603,6 @@ class AnalysisViewModel extends ChangeNotifier {
     );
   }
 
-  void _parseXienRow(List<String> row, AppConfig? config) {
-    try {
-      String getVal(int idx) => (idx < row.length) ? row[idx] : "";
-      int parseInt(String s) =>
-          int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-
-      final pairStr = getVal(1);
-      final ganCurDays = parseInt(getVal(4));
-      final lastSeenStr = getVal(5);
-
-      if (pairStr.isEmpty) return;
-
-      DateTime lastSeen;
-      try {
-        if (lastSeenStr.contains('/'))
-          lastSeen = DateFormat('dd/MM/yyyy').parse(lastSeenStr);
-        else if (lastSeenStr.contains('-'))
-          lastSeen = DateTime.parse(lastSeenStr);
-        else
-          lastSeen = DateTime.now();
-      } catch (_) {
-        lastSeen = DateTime.now();
-      }
-
-      final parts =
-          pairStr.split(RegExp(r'[-,\s]+')).where((e) => e.isNotEmpty).toList();
-      String first = parts.isNotEmpty ? parts[0] : '00';
-      String second = parts.length > 1 ? parts[1] : '00';
-
-      final pairObj = PairWithDays(
-          pair: NumberPair(first, second),
-          daysGan: ganCurDays,
-          lastSeen: lastSeen);
-
-      _ganPairInfo = GanPairInfo(
-        pairs: [pairObj],
-        daysGan: ganCurDays,
-        lastSeen: lastSeen,
-      );
-      _calculatePlanForXien(config);
-    } catch (e) {
-      print('❌ Lỗi parse dòng Xiên: $e');
-    }
-  }
-
   void _updateCurrentCycleResult() {
     String searchKey = '';
     switch (_selectedMien) {
@@ -789,35 +744,6 @@ class AnalysisViewModel extends ChangeNotifier {
         print(
             '   🚀 [Plan] Optimized Start Date (Theory): ${date_utils.DateUtils.formatDate(startDate)}');
       }
-
-      // 🌟 BƯỚC MỚI: TẠO BẢNG ẢO ĐỂ LẤY NGÀY THỰC TẾ 🌟
-      // Thay vì tin tưởng startDate lý thuyết, ta tạo thử bảng để xem dòng đầu tiên là ngày nào
-      final previewTable = await type.generateTable(
-        service: _bettingService,
-        result: result,
-        start: startDate,
-        end: finalEndDate,
-        startIdx: 0, // Mặc định
-        min: budgetResult.budgetMax * 0.8, // Giả lập min
-        max: budgetResult.budgetMax,
-        results: _allResults,
-        maxCount:
-            type == BettingTableTypeEnum.tatca ? 100 : 0, // Max count giả lập
-        durationLimit: finalEndDate.difference(startDate).inDays + 1,
-      );
-
-      if (previewTable.isNotEmpty) {
-        // Lấy ngày từ dòng đầu tiên của bảng
-        final realFirstDateStr = previewTable.first.ngay; // String dd/MM/yyyy
-        final realFirstDate = DateFormat('dd/MM/yyyy').parse(realFirstDateStr);
-
-        // Cập nhật lại startDate chuẩn xác
-        startDate = realFirstDate;
-        print('   ✅ [Plan] Real Start Date from Table: $realFirstDateStr');
-      } else {
-        print(
-            '   ⚠️ [Plan] Generated table is empty, keeping theoretical start date.');
-      }
     } catch (e) {
       print('   ⚠️ [Plan] Lỗi tối ưu hiển thị ngày bắt đầu: $e');
     }
@@ -924,21 +850,6 @@ class AnalysisViewModel extends ChangeNotifier {
 
           if (optimalStart != null) {
             start = optimalStart;
-          }
-
-          // ✅ BƯỚC 4: Tạo bảng thử để lấy ngày thực tế
-          final previewTable = await _bettingService.generateXienTable(
-            ganInfo: _ganPairInfo!,
-            startDate: start,
-            endDate: endDate,
-            xienBudget: budgetRes.budgetMax,
-            fitBudgetOnly: true,
-          );
-
-          if (previewTable.isNotEmpty) {
-            final realFirstDateStr = previewTable.first.ngay;
-            start = DateFormat('dd/MM/yyyy').parse(realFirstDateStr);
-            print('   ✅ Real Start Date: $realFirstDateStr');
           }
 
           _dateXien = start;
@@ -1057,12 +968,13 @@ class AnalysisViewModel extends ChangeNotifier {
     required String targetNumber,
   }) async {
     final type = _mapMienToEnum(mien);
-
-    DateTime startDate = DateFormat('dd/MM/yyyy').parse(_sheetHeaderDate);
-    startDate = startDate.add(const Duration(days: 1));
-    DateTime endDate;
-
+    DateTime? cachedStartDate;
     DateTime? cachedEndDate;
+    DateTime startDate = cachedStartDate ??
+        DateFormat('dd/MM/yyyy')
+            .parse(_sheetHeaderDate)
+            .add(const Duration(days: 1));
+    DateTime endDate;
     bool isMatchingTarget =
         _cycleResult != null && _cycleResult!.targetNumber == targetNumber;
 

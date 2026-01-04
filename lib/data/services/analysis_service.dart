@@ -723,6 +723,7 @@ class AnalysisService {
     final isBac = mienLower.contains('bắc') || mienLower.contains('bac');
 
     while (attempt < maxDaysToTry && currentStart.isBefore(endDate)) {
+      await Future.delayed(Duration.zero);
       final durationLimit = endDate.difference(currentStart).inDays;
 
       if (durationLimit <= 0) {
