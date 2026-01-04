@@ -97,8 +97,8 @@ class TelegramService {
     buffer.writeln('<b>Lần cuối:</b> $lanCuoiVe\n');
     buffer.writeln('<pre>');
 
-    buffer.writeln('Ngày |Miền | Cược  |  Tổng | Lời ');
-    buffer.writeln('-----|-----|-------|-------|-----');
+    buffer.writeln('Ngày |Miền | Cược |  Tổng | Lời  ');
+    buffer.writeln('-----|-----|------|-------|------');
 
     for (final row in table) {
       final ngay = row.ngay.substring(0, 5);

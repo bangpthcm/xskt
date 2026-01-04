@@ -196,7 +196,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildProbabilityThresholdField(
                   controller: _probabilityThresholdNamController,
                   label: 'Miền Nam',
-                  hint: '-43.83499527',
+                  hint: '-44.75945663',
                   helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
                 ),
                 const SizedBox(height: 16),
@@ -685,13 +685,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             -167.5848846;
     double thresholdNam =
         double.tryParse(_probabilityThresholdNamController.text) ??
-            -43.83499527;
+            -44.75945663;
     double thresholdTrung =
         double.tryParse(_probabilityThresholdTrungController.text) ??
-            -46.60426712;
+            -47.91175079;
     double thresholdBac =
         double.tryParse(_probabilityThresholdBacController.text) ??
-            -33.01141548;
+            -27.41528511;
     double thresholdXien =
         double.tryParse(_probabilityThresholdXienController.text) ??
             -349.9847258;

@@ -313,6 +313,55 @@ class GoogleSheetsService {
       return values;
     });
   }
+  // ============================================
+  // ✅ CACHE SYSTEM (Lưu vào Sheet 'analysis')
+  // ============================================
+
+  /// Đọc cache từ ô A1 sheet analysis
+  Future<String?> getAnalysisCache() async {
+    return _retryOperation(() async {
+      // Đọc ô A1 của sheet 'analysis'. Giả sử sheet này đã được tạo.
+      // Nếu chưa có, bạn cần tạo sheet tên 'analysis' trên file Google Sheet.
+      final url =
+          'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/analysis!A1';
+      try {
+        final response = await _dio.get(url, options: await _getAuthOptions());
+        if (response.statusCode == 200) {
+          final values = response.data['values'] as List?;
+          if (values != null && values.isNotEmpty && values[0].isNotEmpty) {
+            return values[0][0].toString();
+          }
+        }
+        return null;
+      } catch (e) {
+        // Nếu lỗi 400 (có thể do sheet chưa tồn tại), bỏ qua
+        return null;
+      }
+    });
+  }
+
+  /// Ghi cache vào ô A1 sheet analysis
+  Future<void> saveAnalysisCache(String jsonString) async {
+    return _retryOperation(() async {
+      final url =
+          'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/analysis!A1';
+
+      final body = {
+        "values": [
+          [jsonString]
+        ]
+      };
+
+      await _dio.put(
+        url,
+        queryParameters: {
+          'valueInputOption': 'RAW'
+        }, // RAW để tránh parse sai format ngày
+        data: body,
+        options: await _getAuthOptions(),
+      );
+    });
+  }
 }
 
 class BatchUpdateData {

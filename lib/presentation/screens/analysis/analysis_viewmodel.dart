@@ -1,5 +1,7 @@
 // lib/presentation/screens/analysis/analysis_viewmodel.dart
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -253,17 +255,15 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Load Config (Fallback mặc định)
+      // 1. Init (Giữ nguyên)
       var config = await _storageService.loadConfig();
       if (config == null) {
         config = AppConfig.defaultConfig();
         await _storageService.saveConfig(config);
       }
-
-      // 2. Init Service
       await _sheetsService.initialize(config.googleSheets);
 
-      // ✅ Load KQXS nền TRƯỚC để có dữ liệu tính toán Plan
+      // 2. Load KQXS nền (Giữ nguyên)
       if (_allResults.isEmpty || !useCache) {
         print('🔄 [ViewModel] Fetching KQXS data first...');
         _allResults = await _cachedDataService.loadKQXS(
@@ -272,19 +272,15 @@ class AnalysisViewModel extends ChangeNotifier {
         );
       }
 
-      print('🔄 [ViewModel] Fetching Analysis Data...');
-
-      // 3. Get Data (Service đã được update range lên 30 dòng)
+      // 3. Get Raw Analysis Data (Giữ nguyên)
       final rawData = await _sheetsService.getAnalysisCycleData();
-
       if (rawData.isEmpty) {
-        print('⚠️ Data analysis_cycle trống');
         _isLoading = false;
         notifyListeners();
         return;
       }
 
-      // 4. Parse Header (Dòng 1 trong Sheet)
+      // 4. Parse Header để lấy Date/Region thực tế
       if (rawData.isNotEmpty) {
         final headerRow = rawData[0];
         if (headerRow.length > 3) {
@@ -293,75 +289,275 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
-      // 5. Parse Data Loop
-      _cachedSheetResults.clear();
-      _ganPairInfo = null;
-
-      // ✅ THÊM: Biến tracking để chỉ tính 1 lần cho mỗi miền
-      final Set<String> processedRegions = {};
-      bool processedXien = false;
-
-      print('📊 Danh sách các miền tìm thấy trong Sheet:');
-
-      for (int i = 1; i < rawData.length; i++) {
+      // ============================================================
+      // 🚀 BƯỚC MỚI: KIỂM TRA CACHE TRƯỚC KHI TÍNH TOÁN
+      // ============================================================
+      bool cacheHit = false;
+      if (useCache) {
         try {
-          final row = rawData[i];
-          if (row.isEmpty) continue;
-
-          final rawMien = row[0];
-          final mienName = rawMien
-              .trim(); // Giữ nguyên case để hiển thị nếu cần, nhưng logic dùng lower
-          final mienKey = mienName.toLowerCase();
-
-          // Bỏ qua dòng header phụ
-          if (mienKey.contains('miền xét') || mienKey.contains('mien xet')) {
-            continue;
-          }
-
-          // ✅ XỬ LÝ XIÊN (CHỈ 1 LẦN)
-          if (mienKey.contains('xiên') || mienKey.contains('xien')) {
-            if (!processedXien) {
-              print('      ✅ ĐÃ TÌM THẤY XIÊN -> Parsing...');
-              _parseXienRow(row, config);
-              processedXien = true; // Mark done
+          print('🔍 Checking Cache from Sheet analysis...');
+          final cacheJson = await _sheetsService.getAnalysisCache();
+          if (cacheJson != null) {
+            final cache = jsonDecode(cacheJson);
+            // So sánh Header
+            if (cache['date'] == _sheetHeaderDate &&
+                cache['region'] == _sheetHeaderRegion) {
+              print('✅ Cache HIT! Using saved plans.');
+              _applyCacheData(cache);
+              cacheHit = true;
+            } else {
+              print('⚠️ Cache MISS (Date/Region mismatch). Recalculating...');
             }
-            continue;
-          }
-
-          // Parse result dòng nào cũng cần để hiển thị List
-          final result = _parseRowToResult(row);
-          _cachedSheetResults.add(result);
-
-          // ✅ TÍNH TOÁN PLAN (CHỈ 1 LẦN CHO MỖI MIỀN)
-          // Chỉ tính nếu miền này chưa được tính toán plan
-          String regionKey = "";
-          if (mienKey.contains('nam'))
-            regionKey = 'nam';
-          else if (mienKey.contains('trung'))
-            regionKey = 'trung';
-          else if (mienKey.contains('bắc') || mienKey.contains('bac'))
-            regionKey = 'bac';
-          else if (mienKey.contains('tất') || mienKey.contains('tat'))
-            regionKey = 'tatca';
-
-          if (regionKey.isNotEmpty && !processedRegions.contains(regionKey)) {
-            await _calculatePlanForRegion(result, rawMien, config);
-            processedRegions.add(regionKey); // Mark done
           }
         } catch (e) {
-          print('⚠️ Lỗi parse dòng ${i + 1}: $e');
+          print('⚠️ Cache Read Error: $e');
         }
       }
 
+      // Parse sơ bộ dữ liệu Cycle (để có _cachedSheetResults dùng cho việc tính toán)
+      _parseRawDataToResults(rawData); // Tách logic parse ra hàm riêng cho gọn
       _updateCurrentCycleResult();
 
-      _isLoading = false;
+      if (cacheHit) {
+        _isLoading = false;
+        notifyListeners();
+        return; // ✅ DỪNG TẠI ĐÂY NẾU CÓ CACHE
+      }
+
+      // ============================================================
+      // 🚀 NẾU KHÔNG CÓ CACHE: TÍNH TOÁN THEO THỨ TỰ ƯU TIÊN
+      // ============================================================
+
+      // Reset trạng thái về "Đang tính..."
+      _resetPlanStates();
+      _isLoading = false; // Tắt loading toàn màn hình để hiện UI từng phần
       notifyListeners();
+
+      // Priority 1: Chu kỳ TẤT CẢ (Quan trọng nhất)
+      final tatCaResult = _findResultByMien('Tất cả');
+      if (tatCaResult != null) {
+        await _calculatePlanForRegion(tatCaResult, 'Tất cả', config);
+        notifyListeners(); // ⚡ Update UI ngay sau khi xong Tất cả
+      }
+
+      // Priority 2: XIÊN BẮC
+      if (_ganPairInfo != null) {
+        // _ganPairInfo đã được parse trong _parseRawDataToResults
+        await _calculatePlanForXien(config);
+        notifyListeners(); // ⚡ Update UI ngay sau khi xong Xiên
+      }
+
+      // Priority 3: NAM -> TRUNG -> BẮC
+      final regions = ['Nam', 'Trung', 'Bắc'];
+      for (var region in regions) {
+        final res = _findResultByMien(region);
+        if (res != null) {
+          await _calculatePlanForRegion(res, region, config);
+          notifyListeners(); // ⚡ Update UI sau mỗi miền
+        }
+      }
+
+      // ============================================================
+      // 💾 LƯU CACHE SAU KHI TÍNH XONG HẾT
+      // ============================================================
+      await _saveCurrentStateToCache();
     } catch (e) {
       _errorMessage = 'Lỗi tải dữ liệu: $e';
       print('❌ Fatal Error: $e');
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  void _parseRawDataToResults(List<List<String>> rawData) {
+    _cachedSheetResults.clear();
+    _ganPairInfo = null;
+
+    for (int i = 1; i < rawData.length; i++) {
+      try {
+        final row = rawData[i];
+        if (row.isEmpty) continue;
+        final rawMien = row[0];
+        final mienKey = rawMien.trim().toLowerCase();
+
+        if (mienKey.contains('miền xét') || mienKey.contains('mien xet'))
+          continue;
+
+        // Parse Xiên (chỉ để lấy info, chưa tính plan)
+        if (mienKey.contains('xiên') || mienKey.contains('xien')) {
+          if (_ganPairInfo == null) {
+            // Logic parse xiên cũ của bạn, tôi tách ra cho gọn
+            _parseXienRowOnly(row);
+          }
+          continue;
+        }
+
+        // Parse Cycle Result
+        final result = _parseRowToResult(row);
+        _cachedSheetResults.add(result);
+      } catch (e) {
+        print('Error parsing row $i: $e');
+      }
+    }
+  }
+
+  // Tách logic parse Xiên từ hàm cũ ra để tái sử dụng
+  void _parseXienRowOnly(List<String> row) {
+    // (Copy logic parse row xiên từ code cũ vào đây, bỏ phần gọi _calculatePlanForXien)
+    // ... Xem phần implementation chi tiết bên dưới
+    try {
+      String getVal(int idx) => (idx < row.length) ? row[idx] : "";
+      int parseInt(String s) =>
+          int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      final pairStr = getVal(1);
+      final ganCurDays = parseInt(getVal(4));
+      final lastSeenStr = getVal(5);
+      if (pairStr.isEmpty) return;
+      DateTime lastSeen;
+      try {
+        if (lastSeenStr.contains('/'))
+          lastSeen = DateFormat('dd/MM/yyyy').parse(lastSeenStr);
+        else if (lastSeenStr.contains('-'))
+          lastSeen = DateTime.parse(lastSeenStr);
+        else
+          lastSeen = DateTime.now();
+      } catch (_) {
+        lastSeen = DateTime.now();
+      }
+
+      final parts =
+          pairStr.split(RegExp(r'[-,\s]+')).where((e) => e.isNotEmpty).toList();
+      String first = parts.isNotEmpty ? parts[0] : '00';
+      String second = parts.length > 1 ? parts[1] : '00';
+      final pairObj = PairWithDays(
+          pair: NumberPair(first, second),
+          daysGan: ganCurDays,
+          lastSeen: lastSeen);
+
+      _ganPairInfo = GanPairInfo(
+          pairs: [pairObj], daysGan: ganCurDays, lastSeen: lastSeen);
+    } catch (e) {
+      print('Error parsing xien row: $e');
+    }
+  }
+
+  CycleAnalysisResult? _findResultByMien(String key) {
+    try {
+      return _cachedSheetResults.firstWhere((e) =>
+          e.mienGroups.keys.first.toLowerCase().contains(key.toLowerCase()));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  void _resetPlanStates() {
+    _optimalTatCa = "Đang tính...";
+    _endPlanTatCa = "...";
+    _optimalNam = "Đang chờ...";
+    _endPlanNam = "..."; // Chờ priority thấp hơn
+    _optimalTrung = "Đang chờ...";
+    _endPlanTrung = "...";
+    _optimalBac = "Đang chờ...";
+    _endPlanBac = "...";
+    _optimalXien = "Đang tính...";
+    _endPlanXien = "...";
+  }
+
+  void _applyCacheData(Map<String, dynamic> cache) {
+    final plans = cache['plans'] ?? {};
+
+    void apply(
+        String key,
+        Function(String opt, String end, DateTime? dStart, DateTime? dEnd)
+            setFunc) {
+      if (plans[key] != null) {
+        setFunc(
+          plans[key]['optimal'] ?? "Lỗi cache",
+          plans[key]['end'] ?? "...",
+          plans[key]['dStart'] != null
+              ? DateTime.parse(plans[key]['dStart'])
+              : null,
+          plans[key]['dEnd'] != null
+              ? DateTime.parse(plans[key]['dEnd'])
+              : null,
+        );
+      }
+    }
+
+    apply('tatca', (o, e, s, d) {
+      _optimalTatCa = o;
+      _endPlanTatCa = e;
+      _dateTatCa = s;
+      _endDateTatCa = d;
+    });
+    apply('nam', (o, e, s, d) {
+      _optimalNam = o;
+      _endPlanNam = e;
+      _dateNam = s;
+      _endDateNam = d;
+    });
+    apply('trung', (o, e, s, d) {
+      _optimalTrung = o;
+      _endPlanTrung = e;
+      _dateTrung = s;
+      _endDateTrung = d;
+    });
+    apply('bac', (o, e, s, d) {
+      _optimalBac = o;
+      _endPlanBac = e;
+      _dateBac = s;
+      _endDateBac = d;
+    });
+    apply('xien', (o, e, s, d) {
+      _optimalXien = o;
+      _endPlanXien = e;
+      _dateXien = s;
+      _endDateXien = d;
+    });
+  }
+
+  Future<void> _saveCurrentStateToCache() async {
+    try {
+      final cacheData = {
+        "date": _sheetHeaderDate,
+        "region": _sheetHeaderRegion,
+        "plans": {
+          "tatca": {
+            "optimal": _optimalTatCa,
+            "end": _endPlanTatCa,
+            "dStart": _dateTatCa?.toIso8601String(),
+            "dEnd": _endDateTatCa?.toIso8601String()
+          },
+          "nam": {
+            "optimal": _optimalNam,
+            "end": _endPlanNam,
+            "dStart": _dateNam?.toIso8601String(),
+            "dEnd": _endDateNam?.toIso8601String()
+          },
+          "trung": {
+            "optimal": _optimalTrung,
+            "end": _endPlanTrung,
+            "dStart": _dateTrung?.toIso8601String(),
+            "dEnd": _endDateTrung?.toIso8601String()
+          },
+          "bac": {
+            "optimal": _optimalBac,
+            "end": _endPlanBac,
+            "dStart": _dateBac?.toIso8601String(),
+            "dEnd": _endDateBac?.toIso8601String()
+          },
+          "xien": {
+            "optimal": _optimalXien,
+            "end": _endPlanXien,
+            "dStart": _dateXien?.toIso8601String(),
+            "dEnd": _endDateXien?.toIso8601String()
+          },
+        }
+      };
+      await _sheetsService.saveAnalysisCache(jsonEncode(cacheData));
+      print('💾 Cache saved to Sheet successfully.');
+    } catch (e) {
+      print('❌ Failed to save cache: $e');
     }
   }
 

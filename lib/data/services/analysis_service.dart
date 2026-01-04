@@ -101,7 +101,7 @@ class AnalysisService {
     }
     // 3. Bắc
     if (s.contains('bắc') || s.contains('bac')) {
-      return (w1: 1.64434407, w2: 1.619753029, w3: 1.73493972);
+      return (w1: 1.22222222, w2: 1.21666789, w3: 1.2054321);
     }
 
     // ✅ 4. XIÊN - TRỌNG SỐ RIÊNG
