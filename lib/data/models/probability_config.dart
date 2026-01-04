@@ -12,7 +12,7 @@ class ProbabilityConfig {
     this.thresholdLnNam = -44.75945663, // ✅ THÊM (Giá trị mặc định cho Nam)
     this.thresholdLnTrung = -47.91175079,
     this.thresholdLnBac = -27.41528511,
-    this.thresholdLnXien = -349.9847258,
+    this.thresholdLnXien = -566.6681911,
   });
 
   bool get isValid {
@@ -24,7 +24,7 @@ class ProbabilityConfig {
   }
 
   static bool _isValidLnThreshold(double thresholdLn) {
-    return thresholdLn >= -500.0 && thresholdLn <= -2.0;
+    return thresholdLn >= -700.0 && thresholdLn <= -2.0;
   }
 
   double getThresholdLn(String mien) {
@@ -73,7 +73,7 @@ class ProbabilityConfig {
       thresholdLnBac:
           (json['thresholdLnBac'] as num?)?.toDouble() ?? -27.41528511,
       thresholdLnXien:
-          (json['thresholdLnXien'] as num?)?.toDouble() ?? -349.9847258,
+          (json['thresholdLnXien'] as num?)?.toDouble() ?? -566.6681911,
     );
   }
 

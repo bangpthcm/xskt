@@ -300,15 +300,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return 'Vui lòng nhập giá trị';
         }
 
-        // ✅ CẬP NHẬT: Validate số Log (thường là số âm từ -500 đến -2)
+        // ✅ CẬP NHẬT: Validate số Log (thường là số âm từ -700 đến -2)
         final val = double.tryParse(value);
         if (val == null) {
           return 'Phải là số thực (ví dụ: -167.5848846)';
         }
 
         // Range an toàn cho Log xác suất
-        if (val < -500 || val > -2) {
-          return 'Giá trị Log nên từ -500 đến -2';
+        if (val < -700 || val > -2) {
+          return 'Giá trị Log nên từ -700 đến -2';
         }
         return null;
       },
@@ -694,7 +694,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             -27.41528511;
     double thresholdXien =
         double.tryParse(_probabilityThresholdXienController.text) ??
-            -349.9847258;
+            -566.6681911;
 
     // ✅ CẬP NHẬT: Tạo ProbabilityConfig với các trường Ln mới
     final probabilityConfig = ProbabilityConfig(

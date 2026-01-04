@@ -106,7 +106,7 @@ class AnalysisService {
 
     // ✅ 4. XIÊN - TRỌNG SỐ RIÊNG
     if (s.contains('xien') || s.contains('xiên')) {
-      return (w1: 5.1220234, w2: 2.1834644, w3: 3.78302343);
+      return (w1: 9.42822302, w2: 2.71988714, w3: 4.10588736);
     }
 
     // 5. Mặc định (Tất cả / Cycle)
@@ -688,17 +688,19 @@ class AnalysisService {
   static int _getSlotsForMien(String mien, DateTime date) {
     final weekday = date.weekday;
     switch (mien) {
-      case 'Bắc':
-        return 27;
       case 'Trung':
-        if (weekday == DateTime.thursday || weekday == DateTime.saturday)
+        if (weekday == DateTime.thursday ||
+            weekday == DateTime.saturday ||
+            weekday == DateTime.sunday) {
           return 54;
+        }
         return 36;
       case 'Nam':
         if (weekday == DateTime.saturday) return 72;
+        if (weekday == DateTime.tuesday) return 36;
         return 54;
       default:
-        return 18;
+        return 27;
     }
   }
 
