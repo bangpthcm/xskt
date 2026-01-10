@@ -1,12 +1,13 @@
 // lib/presentation/screens/betting/select_account_screen.dart
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
+import '../../../core/utils/number_utils.dart';
 import '../../../data/models/api_account.dart';
 import '../../../data/models/betting_row.dart';
 import '../../../data/services/betting_api_service.dart';
 import 'betting_viewmodel.dart';
-import '../../../core/utils/number_utils.dart';
 
 class SelectAccountScreen extends StatefulWidget {
   final List<ApiAccount> accounts;
@@ -39,7 +40,8 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
     super.dispose();
   }
 
-  Future<void> _handleAccountSelect(int index) async {  // ✅ REMOVE parameter domain
+  Future<void> _handleAccountSelect(int index) async {
+    // ✅ REMOVE parameter domain
     final account = widget.accounts[index];
 
     setState(() {
@@ -49,9 +51,10 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
 
     try {
       print('🔐 Authenticating account: ${account.username}');
-      print('   Domain: ${widget.domain}');  // ✅ Dùng widget.domain
+      print('   Domain: ${widget.domain}'); // ✅ Dùng widget.domain
 
-      final token = await _apiService.authenticateAndGetToken(account, widget.domain);  // ✅ Truyền domain
+      final token = await _apiService.authenticateAndGetToken(
+          account, widget.domain); // ✅ Truyền domain
 
       if (!mounted) return;
 
@@ -64,13 +67,14 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
             builder: (context) => BettingWebViewScreen(
               token: token,
               accountUsername: account.username,
-              domain: widget.domain,  // ✅ Truyền domain
+              domain: widget.domain, // ✅ Truyền domain
             ),
           ),
         );
       } else {
         print('❌ Failed to get token');
-        _showErrorDialog('Xác thực thất bại', 'Không thể lấy token. Vui lòng thử lại.');
+        _showErrorDialog(
+            'Xác thực thất bại', 'Không thể lấy token. Vui lòng thử lại.');
       }
     } catch (e) {
       print('❌ Error: $e');
@@ -107,7 +111,9 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
   Widget build(BuildContext context) {
     if (widget.accounts.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Chọn tài khoản', style: TextStyle(color: Colors.white))),
+        appBar: AppBar(
+            title: const Text('Chọn tài khoản',
+                style: TextStyle(color: Colors.white))),
         body: const Center(
           child: Text('Chưa có tài khoản được cấu hình trong Settings'),
         ),
@@ -116,7 +122,8 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chọn tài khoản Betting', style: TextStyle(color: Colors.white)),
+        title: const Text('Chọn tài khoản Betting',
+            style: TextStyle(color: Colors.white)),
         elevation: 0,
       ),
       body: ListView(
@@ -203,7 +210,9 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
                         color: Colors.grey.shade600,
                         size: 18,
                       ),
-                onTap: _isAuthenticating ? null : () => _handleAccountSelect(index),
+                onTap: _isAuthenticating
+                    ? null
+                    : () => _handleAccountSelect(index),
               ),
             );
           }),
@@ -226,13 +235,13 @@ class _SelectAccountScreenState extends State<SelectAccountScreen> {
 class BettingWebViewScreen extends StatefulWidget {
   final String token;
   final String accountUsername;
-  final String domain;  // ✅ THÊM
+  final String domain; // ✅ THÊM
 
   const BettingWebViewScreen({
     super.key,
     required this.token,
     required this.accountUsername,
-    required this.domain,  // ✅ THÊM
+    required this.domain, // ✅ THÊM
   });
 
   @override
@@ -250,8 +259,9 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
   }
 
   void _initializeWebView() {
-    final url = 'https://m-web-sg.quayso.live/?style=blue&token=${widget.token}';
-    
+    final url =
+        'https://m-web-sg.quayso.live/?style=blue&token=${widget.token}';
+
     print('🌐 Loading WebView: $url');
 
     _webViewController = WebViewController()
@@ -278,13 +288,13 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
 
   void _showSummaryTable(BuildContext context, BettingViewModel viewModel) {
     final now = DateTime.now();
-    final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
-    
+    final today =
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
+
     // Lấy dữ liệu chu kỳ + xiên hôm nay
     final todayCycleRows = _getTodayCycleRows(viewModel, today);
-    final todayXienRows = viewModel.xienTable
-        ?.where((r) => r.ngay == today)
-        .toList() ?? [];
+    final todayXienRows =
+        viewModel.xienTable?.where((r) => r.ngay == today).toList() ?? [];
 
     // ✅ KẾT HỢP 2 BẢNG THÀNH 1
     final allRows = <BettingRow>[...todayCycleRows, ...todayXienRows];
@@ -314,7 +324,7 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              
+
               // Content - BẢNG KẾT HỢP
               Expanded(
                 child: allRows.isEmpty
@@ -356,7 +366,8 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
     );
   }
 
-  List<BettingRow> _getTodayCycleRows(BettingViewModel viewModel, String today) {
+  List<BettingRow> _getTodayCycleRows(
+      BettingViewModel viewModel, String today) {
     final todayCycleRows = <BettingRow>[
       ...viewModel.cycleTable?.where((r) => r.ngay == today) ?? [],
       ...viewModel.trungTable?.where((r) => r.ngay == today) ?? [],
@@ -365,7 +376,8 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
 
     todayCycleRows.sort((a, b) {
       const mienOrder = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
-      final mienCompare = (mienOrder[a.mien] ?? 0).compareTo(mienOrder[b.mien] ?? 0);
+      final mienCompare =
+          (mienOrder[a.mien] ?? 0).compareTo(mienOrder[b.mien] ?? 0);
       return mienCompare;
     });
 
@@ -440,13 +452,13 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
               ],
             ),
           ),
-          
+
           // Rows
           ...rows.asMap().entries.map((entry) {
             final index = entry.key;
             final row = entry.value;
             final isEven = index % 2 == 0;
-            
+
             // ✅ Xác định loại cược: Chu kỳ (có cuocSo và > 0) hoặc Xiên (cuocSo null hoặc = 0)
             final isCycleRow = row.cuocSo > 0;
             final cuocValue = isCycleRow ? row.cuocSo : row.cuocMien;
@@ -512,27 +524,32 @@ class _BettingWebViewScreenState extends State<BettingWebViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Betting - ${widget.accountUsername}', style: const TextStyle(color: Colors.white)),
+        title: Text('Betting - ${widget.accountUsername}',
+            style: const TextStyle(color: Colors.white)),
         actions: [
           // ✅ NÚT XEM BẢNG TÓM TẮT
           Consumer<BettingViewModel>(
             builder: (context, viewModel, child) {
               final now = DateTime.now();
-              final today = '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
-              
+              final today =
+                  '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
+
               final todayCycleRows = _getTodayCycleRows(viewModel, today);
-              final todayXienRows = viewModel.xienTable
-                  ?.where((r) => r.ngay == today)
-                  .toList() ?? [];
-              
+              final todayXienRows =
+                  viewModel.xienTable?.where((r) => r.ngay == today).toList() ??
+                      [];
+
               final totalRows = todayCycleRows.length + todayXienRows.length;
-              
+
               return Stack(
                 children: [
                   IconButton(
-                    icon: Icon(Icons.table_chart, color: totalRows > 0 ? Theme.of(context).primaryColor.withOpacity(0.5) : Theme.of(context).primaryColor.withOpacity(0.1)),
+                    icon: Icon(Icons.table_chart,
+                        color: totalRows > 0
+                            ? Theme.of(context).primaryColor.withOpacity(0.5)
+                            : Theme.of(context).primaryColor.withOpacity(0.1)),
                     tooltip: 'Xem bảng tóm tắt',
-                    onPressed: totalRows > 0 
+                    onPressed: totalRows > 0
                         ? () => _showSummaryTable(context, viewModel)
                         : null,
                   ),

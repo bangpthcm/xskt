@@ -519,7 +519,7 @@ class AnalysisService {
       if (bacResults.isEmpty) return null;
 
       // Trim to last 368 days
-      const int limit = 368;
+      const int limit = 500;
       if (bacResults.length > limit) {
         bacResults = bacResults.sublist(bacResults.length - limit);
       }

@@ -246,7 +246,7 @@ class _BettingScreenState extends State<BettingScreen> {
 
     final now = DateTime.now();
     final today =
-        '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
     final todayCycleRows = _getTodayCycleRows(viewModel, today);
     final todayXienRows =
         viewModel.xienTable?.where((r) => r.ngay == today).toList() ?? [];

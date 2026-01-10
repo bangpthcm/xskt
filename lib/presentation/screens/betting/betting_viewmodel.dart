@@ -47,12 +47,13 @@ class BettingViewModel extends ChangeNotifier {
   // 1. Getter lấy danh sách cược Chu kỳ hôm nay (đã gộp và sắp xếp)
   List<BettingRow> get todayCycleRows {
     final now = DateTime.now();
+    // [FIX] Thêm .padLeft(2, '0') cho tháng
     final today =
-        '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
 
     final rows = <BettingRow>[
       ...cycleTable?.where((r) => r.ngay == today) ?? [],
-      ...namTable?.where((r) => r.ngay == today) ?? [], // ✅ MỚI
+      ...namTable?.where((r) => r.ngay == today) ?? [],
       ...trungTable?.where((r) => r.ngay == today) ?? [],
       ...bacTable?.where((r) => r.ngay == today) ?? [],
     ];
@@ -68,8 +69,9 @@ class BettingViewModel extends ChangeNotifier {
   // 2. Getter lấy danh sách cược Xiên hôm nay
   List<BettingRow> get todayXienRows {
     final now = DateTime.now();
+    // [FIX] Thêm .padLeft(2, '0') cho tháng
     final today =
-        '${now.day.toString().padLeft(2, '0')}/${now.month}/${now.year}';
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
     return xienTable?.where((r) => r.ngay == today).toList() ?? [];
   }
 
