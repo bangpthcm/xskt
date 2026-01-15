@@ -57,6 +57,7 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
     required CycleAnalysisResult result,
     required DateTime start,
     required DateTime end,
+    required String endMien, // 👈 THÊM
     required int startIdx,
     required double min,
     required double max,
@@ -69,6 +70,7 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
           cycleResult: result,
           startDate: start,
           endDate: end,
+          endMien: endMien, // 👈 THÊM
           startMienIndex: startIdx,
           budgetMin: min,
           budgetMax: max,
@@ -109,6 +111,7 @@ class BettingTableParams {
   final String targetNumber;
   final DateTime startDate;
   final DateTime endDate;
+  final String endMien; // 👈 THÊM
   final int startMienIndex;
   final int durationLimit;
   final int soNgayGan;
@@ -120,6 +123,7 @@ class BettingTableParams {
     required this.targetNumber,
     required this.startDate,
     required this.endDate,
+    required this.endMien, // 👈 THÊM
     required this.startMienIndex,
     required this.durationLimit,
     required this.soNgayGan,
@@ -695,8 +699,9 @@ class AnalysisViewModel extends ChangeNotifier {
     );
 
     DateTime? finalEndDate;
+    String endMien = _getEndRegionName(mienName); // Default
     int daysNeeded = 0;
-    String? budgetErrorStatus; // Dùng để đánh dấu trạng thái lỗi vốn
+    String? budgetErrorStatus;
 
     if (analysisData != null) {
       final simResult = await AnalysisService.findEndDateForCycleThreshold(
@@ -709,6 +714,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
       if (simResult != null) {
         finalEndDate = simResult.endDate;
+        endMien = simResult.endMien; // 👈 Cập nhật endMien từ simulation
         daysNeeded = simResult.daysNeeded;
         if (normalizedMien.contains('tất cả') || normalizedMien == 'tatca') {
           _endMienTatCa = simResult.endMien;
@@ -730,11 +736,13 @@ class AnalysisViewModel extends ChangeNotifier {
         targetTable: type.budgetTableName,
         configBudget: type.getBudgetConfig(config),
         endDate: finalEndDate,
+        endMien: endMien, // 👈 THÊM
       );
 
       final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
         baseStartDate: startDate,
         endDate: finalEndDate,
+        endMien: endMien, // 👈 THÊM
         availableBudget: budgetResult.budgetMax,
         mien: type == BettingTableTypeEnum.tatca ? 'Tất cả' : type.displayName,
         targetNumber: result.targetNumber,
@@ -749,15 +757,13 @@ class AnalysisViewModel extends ChangeNotifier {
       if (optimalStart != null) startDate = optimalStart;
     } catch (e) {
       if (e is BudgetInsufficientException) {
-        budgetErrorStatus =
-            "⚠️ Thiếu vốn"; // Chuỗi thuần, không có ký tự định dạng
+        budgetErrorStatus = "⚠️ Thiếu vốn";
       }
     }
 
     final startRegionStr = _getStartRegionName(mienName);
-    final endRegionStr = _getEndRegionName(mienName);
+    final endRegionStr = endMien; // Dùng endMien thực tế
 
-    // Summary Info: Trả về chuỗi lỗi hoặc ngày tháng
     String startInfoString = budgetErrorStatus ??
         "${date_utils.DateUtils.formatDate(startDate)} ($startRegionStr)";
 
@@ -824,6 +830,7 @@ class AnalysisViewModel extends ChangeNotifier {
             targetTable: 'xien',
             configBudget: config.budget.xienBudget,
             endDate: endDate,
+            endMien: 'Miền Bắc', // 👈 Xiên luôn kết thúc ở Bắc
           );
 
           final optimalStart =
@@ -933,84 +940,49 @@ class AnalysisViewModel extends ChangeNotifier {
     required String targetNumber,
   }) async {
     final type = _mapMienToEnum(mien);
-    DateTime? cachedStartDate;
-    DateTime? cachedEndDate;
-    DateTime startDate = cachedStartDate ??
-        DateFormat('dd/MM/yyyy')
-            .parse(_sheetHeaderDate)
-            .add(const Duration(days: 1));
+    DateTime startDate = DateFormat('dd/MM/yyyy')
+        .parse(_sheetHeaderDate)
+        .add(const Duration(days: 1));
     DateTime endDate;
+    String endMien = _getEndRegionName(mien);
+
     bool isMatchingTarget =
         _cycleResult != null && _cycleResult!.targetNumber == targetNumber;
 
     if (isMatchingTarget) {
       switch (type) {
         case BettingTableTypeEnum.tatca:
-          cachedEndDate = _endDateTatCa;
+          endDate = _endDateTatCa ?? startDate.add(const Duration(days: 3));
+          endMien = _endMienTatCa ?? 'Miền Bắc';
           break;
         case BettingTableTypeEnum.nam:
-          cachedEndDate = _endDateNam;
+          endDate = _endDateNam ?? startDate.add(const Duration(days: 3));
+          endMien = 'Miền Nam';
           break;
         case BettingTableTypeEnum.trung:
-          cachedEndDate = _endDateTrung;
+          endDate = _endDateTrung ?? startDate.add(const Duration(days: 3));
+          endMien = 'Miền Trung';
           break;
         case BettingTableTypeEnum.bac:
-          cachedEndDate = _endDateBac;
+          endDate = _endDateBac ?? startDate.add(const Duration(days: 3));
+          endMien = 'Miền Bắc';
           break;
       }
-    }
-
-    if (cachedEndDate != null) {
-      print(
-          '✅ Using cached EndDate for $mien: ${date_utils.DateUtils.formatDate(cachedEndDate)}');
-      endDate = cachedEndDate;
     } else {
-      print(
-          '⚠️ Cached EndDate mismatch or null. Recalculating for $targetNumber ($mien)...');
-      final double threshold = _getThresholdForMien(mien, config);
-      final analysisData = await AnalysisService.getAnalysisData(
-        targetNumber,
-        _allResults,
-        mien,
-      );
-
+      // Logic dự phòng nếu không khớp cache
       endDate = startDate.add(const Duration(days: 3));
-
-      if (analysisData != null) {
-        final simResult = await AnalysisService.findEndDateForCycleThreshold(
-          analysisData,
-          0.01,
-          _allResults,
-          threshold,
-          mien: mien,
-        );
-        if (simResult != null) {
-          endDate = simResult.endDate;
-        }
-      }
     }
 
-    if (endDate.difference(startDate).inDays < 1) {
-      endDate = startDate.add(const Duration(days: 1));
-    }
-
-    final actualDuration = endDate.difference(startDate).inDays;
-    final durationLimit = actualDuration > 0 ? actualDuration : 1;
-
-    print('\n========== CHUẨN BỊ TẠO BẢNG CƯỢC ($mien) ==========');
-    print('   🎯 Số mục tiêu: $targetNumber');
-    print(
-        '   🏁 Ngày kết thúc (Cố định): ${date_utils.DateUtils.formatDate(endDate)}');
-    print(
-        '   🚀 Ngày bắt đầu (Gốc): ${date_utils.DateUtils.formatDate(startDate)} -> Sẽ được tối ưu ngay sau đây...');
+    final durationLimit = endDate.difference(startDate).inDays;
 
     return BettingTableParams(
       type: type,
       targetNumber: targetNumber,
       startDate: startDate,
       endDate: endDate,
+      endMien: endMien, // 👈 THÊM
       startMienIndex: 0,
-      durationLimit: durationLimit,
+      durationLimit: durationLimit > 0 ? durationLimit : 1,
       soNgayGan: _cycleResult?.maxGanDays ?? 0,
       cycleResult: _cycleResult!,
       allResults: _allResults,
@@ -1021,10 +993,7 @@ class AnalysisViewModel extends ChangeNotifier {
     BettingTableParams params,
     AppConfig config,
   ) async {
-    print(
-        '🚀 [Generic] Starting table creation for ${params.type.displayName}...');
     try {
-      // STEP 1: Calculate budget
       final budgetService =
           BudgetCalculationService(sheetsService: _sheetsService);
       final budgetResult =
@@ -1033,16 +1002,16 @@ class AnalysisViewModel extends ChangeNotifier {
         targetTable: params.type.budgetTableName,
         configBudget: params.type.getBudgetConfig(config),
         endDate: params.endDate,
+        endMien: params.endMien, // 👈 THÊM
       );
 
-      // STEP 2: Optimize start date
-      print('🔍 Optimizing start date (Budget: ${budgetResult.budgetMax})...');
       DateTime finalStartDate = params.startDate;
 
       try {
         final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
           baseStartDate: params.startDate,
           endDate: params.endDate,
+          endMien: params.endMien, // 👈 THÊM
           availableBudget: budgetResult.budgetMax,
           mien: params.type == BettingTableTypeEnum.tatca
               ? 'Tất cả'
@@ -1056,23 +1025,15 @@ class AnalysisViewModel extends ChangeNotifier {
               : 0,
         );
 
-        if (optimalStart != null) {
-          finalStartDate = optimalStart;
-          print(
-              '✅ Optimized start date: ${date_utils.DateUtils.formatDate(finalStartDate)}');
-        } else {
-          print('⚠️ Could not optimize start date, using default');
-        }
-      } catch (e) {
-        print('⚠️ Error optimizing start date: $e');
-      }
+        if (optimalStart != null) finalStartDate = optimalStart;
+      } catch (_) {}
 
-      // STEP 3: Generate table
       final table = await params.type.generateTable(
         service: _bettingService,
         result: params.cycleResult,
         start: finalStartDate,
         end: params.endDate,
+        endMien: params.endMien, // 👈 THÊM
         startIdx: params.startMienIndex,
         min: budgetResult.budgetMax * 0.9,
         max: budgetResult.budgetMax,
@@ -1083,7 +1044,6 @@ class AnalysisViewModel extends ChangeNotifier {
         durationLimit: params.endDate.difference(finalStartDate).inDays,
       );
 
-      // STEP 4: Save to sheet
       await _saveTableToSheet(params.type, table, params.cycleResult);
 
       _isLoading = false;
@@ -1133,31 +1093,15 @@ class AnalysisViewModel extends ChangeNotifier {
                   totalCapital: config.budget.totalCapital,
                   targetTable: 'xien',
                   configBudget: config.budget.xienBudget,
-                  endDate: endDate);
+                  endDate: endDate,
+                  endMien: 'Miền Bắc'); // 👈 THÊM
 
-      List<BettingRow> table;
-      try {
-        final rawTable = await _bettingService.generateXienTable(
-          ganInfo: _ganPairInfo!,
-          startDate: start,
-          xienBudget: budgetRes.budgetMax,
-          endDate: endDate,
-        );
-
-        table = rawTable.map<BettingRow>((row) {
-          return BettingRow.forXien(
-            stt: row.stt,
-            ngay: row.ngay,
-            mien: 'Bắc',
-            so: row.so,
-            cuocMien: row.cuocMien,
-            tongTien: row.tongTien,
-            loi: row.loi1So,
-          );
-        }).toList();
-      } catch (e) {
-        rethrow;
-      }
+      final table = await _bettingService.generateXienTable(
+        ganInfo: _ganPairInfo!,
+        startDate: start,
+        xienBudget: budgetRes.budgetMax,
+        endDate: endDate,
+      );
 
       await _saveXienTable(table);
       _isLoading = false;

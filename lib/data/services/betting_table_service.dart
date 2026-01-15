@@ -151,6 +151,7 @@ class BettingTableService {
     required CycleAnalysisResult cycleResult,
     required DateTime startDate,
     required DateTime endDate,
+    required String endMien, // 👈 THÊM: Miền kết thúc dự kiến
     required int startMienIndex,
     required double budgetMin,
     required double budgetMax,
@@ -174,6 +175,7 @@ class BettingTableService {
         targetMien: targetMien,
         startDate: startDate,
         endDate: endDate,
+        endMien: endMien, // 👈 THÊM
         startMienIndex: startMienIndex,
         startBetValue: startBet,
         profitTarget: profitTarget,
@@ -422,6 +424,7 @@ class BettingTableService {
     required String targetMien,
     required DateTime startDate,
     required DateTime endDate,
+    required String endMien, // 👈 THÊM
     required int startMienIndex,
     required double startBetValue,
     required double profitTarget,
@@ -445,9 +448,11 @@ class BettingTableService {
 
     int stt = 1;
     bool isFirstDay = true;
-    const mienOrder = AppConstants.mienOrder;
-    int loops = 0;
+    const mienOrder = AppConstants.mienOrder; // ['Nam', 'Trung', 'Bắc']
+    final mOrder = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
+    int targetEndMienVal = mOrder[endMien] ?? 3;
 
+    int loops = 0;
     outerLoop:
     while (mienCount < maxMienCount) {
       if (currentDate.isAfter(endNorm)) break;
@@ -458,8 +463,15 @@ class BettingTableService {
 
       for (int i = initialMienIdx; i < mienOrder.length; i++) {
         final mien = mienOrder[i];
-        final soLo = NumberUtils.calculateSoLo(mien, weekday);
+        int currentMienVal = mOrder[mien] ?? 0;
 
+        // 🛑 ĐIỀU KIỆN DỪNG 1: Nếu là ngày cuối và đã vượt quá miền kết thúc
+        if (currentDate.isAtSameMomentAs(endNorm) &&
+            currentMienVal > targetEndMienVal) {
+          break outerLoop;
+        }
+
+        final soLo = NumberUtils.calculateSoLo(mien, weekday);
         if (AppConstants.winMultiplier - soLo <= 0) continue;
 
         final rowData = _calculateOneRow(
@@ -480,7 +492,14 @@ class BettingTableService {
 
         if (mien == targetMien) {
           mienCount++;
-          if (mienCount >= maxMienCount) break outerLoop;
+        }
+
+        // 🛑 ĐIỀU KIỆN DỪNG 2: Đã đủ số chu kỳ mục tiêu
+        if (mienCount >= maxMienCount) break outerLoop;
+
+        // 🛑 ĐIỀU KIỆN DỪNG 3: Chạm đúng ngày và miền kết thúc
+        if (currentDate.isAtSameMomentAs(endNorm) && mien == endMien) {
+          break outerLoop;
         }
       }
       isFirstDay = false;

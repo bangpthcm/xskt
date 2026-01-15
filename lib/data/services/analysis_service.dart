@@ -700,22 +700,6 @@ class AnalysisService {
     }
   }
 
-  static List<String> _getLotterySchedule(DateTime date, String filter) {
-    final list = <String>[];
-    final f = filter.toLowerCase().trim();
-    bool isBac = f.contains('bắc') || f.contains('bac');
-    bool isTrung = f.contains('trung');
-    bool isNam = f.contains('nam');
-    bool isAll =
-        f.contains('tất cả') || f.contains('tatca') || f.isEmpty || f == 'all';
-    if (!isBac && !isTrung && !isNam && !isAll) isAll = true;
-
-    if (isAll || isNam) list.add('Nam');
-    if (isAll || isTrung) list.add('Trung');
-    if (isAll || isBac) list.add('Bắc');
-    return list;
-  }
-
   static int _getSlotsForMien(String mien, DateTime date) {
     final weekday = date.weekday;
     switch (mien) {
@@ -753,6 +737,7 @@ class AnalysisService {
   static Future<DateTime?> findOptimalStartDateForCycle({
     required DateTime baseStartDate,
     required DateTime endDate,
+    required String endMien, // 👈 THÊM
     required double availableBudget,
     required String mien,
     required String targetNumber,
@@ -779,8 +764,7 @@ class AnalysisService {
       if (!currentDate.isBefore(endDate)) break;
       await Future.delayed(Duration.zero);
 
-      // Nếu đánh miền riêng, chỉ kiểm tra nếu đúng session miền đó. Nếu đánh Tất cả, kiểm tra mọi session.
-      bool shouldCheck = !isSpecific || (isSpecific);
+      bool shouldCheck = true;
 
       if (shouldCheck) {
         double totalCost = 0;
@@ -814,10 +798,12 @@ class AnalysisService {
                 durationLimit: durationLimit);
             if (table.isNotEmpty) totalCost = table.last.tongTien;
           } else {
+            // ✅ ĐÃ SỬA: Truyền endMien vào đây
             final table = await bettingService.generateCycleTable(
                 cycleResult: cycleResult,
                 startDate: currentDate,
                 endDate: endDate,
+                endMien: endMien, // 👈 THÊM
                 startMienIndex: _getMienIndex(currentMien),
                 budgetMin: availableBudget * 0.8,
                 budgetMax: availableBudget,
@@ -831,7 +817,6 @@ class AnalysisService {
         } catch (_) {}
       }
 
-      // Nhảy session
       if (isSpecific) {
         currentDate = currentDate.add(const Duration(days: 1));
       } else {
