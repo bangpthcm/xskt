@@ -229,6 +229,15 @@ class AnalysisViewModel extends ChangeNotifier {
   DateTime? get endDateXien => _endDateXien;
   String get endMienTatCa => _endMienTatCa ?? 'Miền Bắc';
 
+  DateTime? get sheetHeaderDateTime {
+    if (_sheetHeaderDate.isEmpty) return null;
+    try {
+      return DateFormat('dd/MM/yyyy').parse(_sheetHeaderDate);
+    } catch (e) {
+      return null;
+    }
+  }
+
   String get latestDataInfo {
     if (_sheetHeaderDate.isNotEmpty && _sheetHeaderRegion.isNotEmpty) {
       return "$_sheetHeaderRegion ngày $_sheetHeaderDate";
@@ -679,10 +688,6 @@ class AnalysisViewModel extends ChangeNotifier {
     String normalizedMien = mienName.toLowerCase();
     double thresholdLn = _getThresholdForMien(mienName, config);
 
-    print(
-        '\n========== TÍNH TOÁN KẾ HOẠCH CHO $mienName (Số: ${result.targetNumber}) ==========');
-
-    // 2. Lấy dữ liệu phân tích chi tiết
     final analysisData = await AnalysisService.getAnalysisData(
       result.targetNumber,
       _allResults,
@@ -691,9 +696,9 @@ class AnalysisViewModel extends ChangeNotifier {
 
     DateTime? finalEndDate;
     int daysNeeded = 0;
+    String? budgetErrorStatus; // Dùng để đánh dấu trạng thái lỗi vốn
 
     if (analysisData != null) {
-      // 3. ✅ Chạy mô phỏng tìm ngày kết thúc (P_total < threshold)
       final simResult = await AnalysisService.findEndDateForCycleThreshold(
         analysisData,
         0.01,
@@ -705,35 +710,28 @@ class AnalysisViewModel extends ChangeNotifier {
       if (simResult != null) {
         finalEndDate = simResult.endDate;
         daysNeeded = simResult.daysNeeded;
-
-        // ⚡ LƯU MIỀN KẾT THÚC (chỉ cho Tất cả)
         if (normalizedMien.contains('tất cả') || normalizedMien == 'tatca') {
           _endMienTatCa = simResult.endMien;
         }
-
-        print(
-            '   ✅ [Plan] Target End Date: ${date_utils.DateUtils.formatDate(finalEndDate)}');
       }
     }
 
     finalEndDate ??= DateTime.now().add(const Duration(days: 2));
-    DateTime startDate = DateFormat('dd/MM/yyyy').parse(_sheetHeaderDate);
-    startDate = startDate.add(const Duration(days: 1));
+    DateTime startDate = DateFormat('dd/MM/yyyy')
+        .parse(_sheetHeaderDate)
+        .add(const Duration(days: 1));
 
-    // 4. ✅ TỐI ƯU HÓA NGÀY BẮT ĐẦU (Tăng dần Start Date để khớp Budget)
     try {
       final type = _mapMienToEnum(mienName);
-      final budgetService =
-          BudgetCalculationService(sheetsService: _sheetsService);
       final budgetResult =
-          await budgetService.calculateAvailableBudgetByEndDate(
+          await BudgetCalculationService(sheetsService: _sheetsService)
+              .calculateAvailableBudgetByEndDate(
         totalCapital: config.budget.totalCapital,
         targetTable: type.budgetTableName,
         configBudget: type.getBudgetConfig(config),
         endDate: finalEndDate,
       );
 
-      // Bước 4a: Tìm ngày Start Date lý thuyết khớp budget
       final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
         baseStartDate: startDate,
         endDate: finalEndDate,
@@ -748,32 +746,29 @@ class AnalysisViewModel extends ChangeNotifier {
             : 0,
       );
 
-      if (optimalStart != null) {
-        startDate = optimalStart;
-        // daysNeeded = finalEndDate.difference(startDate).inDays; // Tạm bỏ dòng này
-        print(
-            '   🚀 [Plan] Optimized Start Date (Theory): ${date_utils.DateUtils.formatDate(startDate)}');
-      }
+      if (optimalStart != null) startDate = optimalStart;
     } catch (e) {
-      print('   ⚠️ [Plan] Lỗi tối ưu hiển thị ngày bắt đầu: $e');
+      if (e is BudgetInsufficientException) {
+        budgetErrorStatus =
+            "⚠️ Thiếu vốn"; // Chuỗi thuần, không có ký tự định dạng
+      }
     }
 
-    // ✅ TÁCH BIỆT DỮ LIỆU HIỂN THỊ (Giữ nguyên phần dưới)
     final startRegionStr = _getStartRegionName(mienName);
     final endRegionStr = _getEndRegionName(mienName);
 
-    // 1. Summary String: CHỈ hiện Bắt đầu (cho thẻ Summary)
-    String startInfoString =
+    // Summary Info: Trả về chuỗi lỗi hoặc ngày tháng
+    String startInfoString = budgetErrorStatus ??
         "${date_utils.DateUtils.formatDate(startDate)} ($startRegionStr)";
-    if (daysNeeded > 60) {
+
+    if (budgetErrorStatus == null && daysNeeded > 60) {
       startInfoString += " (⚠️ >60 ngày)";
     }
 
-    // 2. Detail String: Hiện Kết thúc (cho tab Chi tiết)
-    String endInfoString =
-        "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(finalEndDate)} ($endRegionStr)";
+    String endInfoString = budgetErrorStatus != null
+        ? "❌ Vốn không đủ"
+        : "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(finalEndDate)} ($endRegionStr)";
 
-    // Gán vào State
     if (normalizedMien.contains('nam')) {
       _dateNam = startDate;
       _endDateNam = finalEndDate;
@@ -801,44 +796,26 @@ class AnalysisViewModel extends ChangeNotifier {
     if (_ganPairInfo == null || config == null) return;
     if (_allResults.isEmpty) return;
 
-    print('\n========== TÍNH TOÁN KẾ HOẠCH CHO XIÊN ==========');
-
     try {
       final thresholdLn = config.probability.thresholdLnXien;
-
-      // ✅ BƯỚC 1: Gọi lại phân tích để lấy PairAnalysisData THỰC TẾ
-      print('🔄 Running full pair analysis...');
       final pairAnalysis =
           await AnalysisService.findPairWithMinPTotal(_allResults);
 
       if (pairAnalysis == null) {
-        print('⚠️ No pair analysis result');
-        _dateXien = DateTime.now().add(const Duration(days: 1));
-        _endDateXien = DateTime.now().add(const Duration(days: 5));
         _optimalXien = "Không có dữ liệu";
         _endPlanXien = "...";
         return;
       }
 
-      print('   ✅ Got pair analysis:');
-      print('      Pair: ${pairAnalysis.pairDisplay}');
-      print('      P1: ${pairAnalysis.lnP1Pair.toStringAsFixed(4)}');
-      print('      P_total: ${pairAnalysis.lnPTotalXien.toStringAsFixed(4)}');
-
-      // ✅ BƯỚC 2: Tìm ngày kết thúc dựa trên P_total thực tế
       final simResult = await AnalysisService.findEndDateForXienThreshold(
-        pairAnalysis, // ✅ Pass object có đầy đủ data
-        0.055, // Unused legacy param
-        thresholdLn,
-      );
-
-      DateTime start = DateFormat('dd/MM/yyyy').parse(_sheetHeaderDate);
-      start = start.add(const Duration(days: 1));
+          pairAnalysis, 0.055, thresholdLn);
+      DateTime start = DateFormat('dd/MM/yyyy')
+          .parse(_sheetHeaderDate)
+          .add(const Duration(days: 1));
+      String? xienError;
 
       if (simResult != null) {
         final endDate = simResult.endDate;
-
-        // ✅ BƯỚC 3: Tối ưu hóa ngày bắt đầu
         try {
           final budgetRes =
               await BudgetCalculationService(sheetsService: _sheetsService)
@@ -857,42 +834,20 @@ class AnalysisViewModel extends ChangeNotifier {
             ganInfo: _ganPairInfo!,
             bettingService: _bettingService,
           );
-
-          if (optimalStart != null) {
-            start = optimalStart;
-          }
-
-          _dateXien = start;
-          _endDateXien = endDate;
-          _optimalXien = "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
-          _endPlanXien =
-              "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(endDate)} (Miền Bắc)";
-
-          print('✅ Xiên plan calculated successfully');
+          if (optimalStart != null) start = optimalStart;
         } catch (e) {
-          print('⚠️ Error optimizing xien plan: $e');
-          // Fallback
-          _dateXien = start;
-          _endDateXien = endDate;
-          _optimalXien = "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
-          _endPlanXien =
-              "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(endDate)}";
+          if (e is BudgetInsufficientException) xienError = "⚠️ Thiếu vốn";
         }
-      } else {
-        print('⚠️ Could not calculate end date for xien');
-        // Fallback
+
         _dateXien = start;
-        _endDateXien = start.add(const Duration(days: 5));
-        _optimalXien = "Đang tính toán...";
-        _endPlanXien = "...";
+        _endDateXien = endDate;
+        _optimalXien =
+            xienError ?? "${date_utils.DateUtils.formatDate(start)} (Miền Bắc)";
+        _endPlanXien = xienError != null
+            ? "❌ Thiếu vốn"
+            : "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(endDate)} (Miền Bắc)";
       }
-    } catch (e, stack) {
-      print('❌ Error in _calculatePlanForXien: $e');
-      print(stack);
-      // Fallback values
-      final start = DateTime.now().add(const Duration(days: 1));
-      _dateXien = start;
-      _endDateXien = start.add(const Duration(days: 5));
+    } catch (e) {
       _optimalXien = "Lỗi tính toán";
       _endPlanXien = "...";
     }

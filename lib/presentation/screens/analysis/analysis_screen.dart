@@ -109,55 +109,97 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ... (Header giữ nguyên)
+            // Đoạn Header mới cho thẻ Summary
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12, top: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Bên trái: Ngày hiện tại định dạng dd/MM/yyyy
+                  Text(
+                    'Ngày hiện tại',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  Text(
+                    date_utils.DateUtils.formatDate(DateTime.now()),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ],
+              ),
+            ),
             const Divider(color: Colors.grey),
             _buildSummaryRow('Tất cả', viewModel.optimalTatCa,
-                date: viewModel.dateTatCa),
+                date: viewModel.dateTatCa,
+                dataDate: viewModel.sheetHeaderDateTime),
 
             // ✅ THÊM DÒNG NÀY
             _buildSummaryRow(
                 'Nam', viewModel.optimalNam, // Cần thêm field này vào ViewModel
-                date: viewModel.dateNam), // Cần thêm field này vào ViewModel
+                date: viewModel.dateNam,
+                dataDate: viewModel
+                    .sheetHeaderDateTime), // Cần thêm field này vào ViewModel
 
             _buildSummaryRow('Trung', viewModel.optimalTrung,
-                date: viewModel.dateTrung),
+                date: viewModel.dateTrung,
+                dataDate: viewModel.sheetHeaderDateTime),
             _buildSummaryRow('Bắc', viewModel.optimalBac,
-                date: viewModel.dateBac),
+                date: viewModel.dateBac,
+                dataDate: viewModel.sheetHeaderDateTime),
             _buildSummaryRow('Xiên', viewModel.optimalXien,
-                date: viewModel.dateXien),
+                date: viewModel.dateXien,
+                dataDate: viewModel.sheetHeaderDateTime),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value, {DateTime? date}) {
-    bool isHighlight = false;
-    if (date != null) {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final targetDate = DateTime(date.year, date.month, date.day);
-      if (targetDate.compareTo(today) >= 0) {
-        isHighlight = true;
+  Widget _buildSummaryRow(String label, String value,
+      {DateTime? date, DateTime? dataDate}) {
+    bool isSpecialValue = value.contains("Đang tính") ||
+        value.contains("Thiếu vốn") ||
+        value.contains("Lỗi");
+
+    bool isTargetNextDay = false;
+
+    // Logic: Nếu ngày bắt đầu (date) = ngày dữ liệu (dataDate) + 1 ngày
+    if (date != null && dataDate != null && !isSpecialValue) {
+      final nextDay = dataDate.add(const Duration(days: 1));
+      if (date.year == nextDay.year &&
+          date.month == nextDay.month &&
+          date.day == nextDay.day) {
+        isTargetNextDay = true;
       }
     }
-    if (value.contains("Đang tính") ||
-        value.contains("Thiếu vốn") ||
-        value.contains("Lỗi")) {
-      isHighlight = false;
+
+    // Quy định style:
+    // 1. In đậm (Bold) CHỈ khi là ngày kế tiếp (Cơ hội vào tiền ngay)
+    // 2. Màu sắc: Trắng khi in đậm, Xám khi bình thường, Đỏ khi thiếu vốn
+    FontWeight fontWeight =
+        isTargetNextDay ? FontWeight.bold : FontWeight.normal;
+    Color textColor = isTargetNextDay ? Colors.white : Colors.grey;
+
+    if (value.contains("Thiếu vốn")) {
+      textColor = Colors.grey;
+      fontWeight =
+          FontWeight.normal; // Đảm bảo bỏ in đậm khi thiếu vốn như bạn muốn
     }
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('$label:',
               style: const TextStyle(color: Colors.grey, fontSize: 16)),
-          Text(value,
-              style: TextStyle(
-                  color: isHighlight ? Colors.grey : Colors.white,
-                  fontWeight: isHighlight ? FontWeight.normal : FontWeight.bold,
-                  fontSize: 16)),
+          Text(
+            value,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: fontWeight,
+              fontSize: 16,
+            ),
+          ),
         ],
       ),
     );
