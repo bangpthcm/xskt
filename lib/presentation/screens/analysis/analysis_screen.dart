@@ -244,7 +244,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               if (currentEndDate != null)
                 _buildInfoRow(
                   'Kết thúc dự kiến:',
-                  date_utils.DateUtils.formatDate(currentEndDate),
+                  viewModel.selectedMien == 'Tất cả'
+                      ? '${date_utils.DateUtils.formatDate(currentEndDate)} (${viewModel.endMienTatCa})' // ⚡ Hiển thị miền
+                      : date_utils.DateUtils.formatDate(currentEndDate),
                   textColor: const Color(0xFFFF5252),
                 )
               else ...[

@@ -188,6 +188,7 @@ class AnalysisViewModel extends ChangeNotifier {
   DateTime? _dateBac;
   DateTime? _dateXien;
 
+  String? _endMienTatCa;
   DateTime? _endDateTatCa;
   DateTime? _endDateNam;
   DateTime? _endDateTrung;
@@ -226,6 +227,7 @@ class AnalysisViewModel extends ChangeNotifier {
   DateTime? get endDateTrung => _endDateTrung;
   DateTime? get endDateBac => _endDateBac;
   DateTime? get endDateXien => _endDateXien;
+  String get endMienTatCa => _endMienTatCa ?? 'Miền Bắc';
 
   String get latestDataInfo {
     if (_sheetHeaderDate.isNotEmpty && _sheetHeaderRegion.isNotEmpty) {
@@ -650,8 +652,9 @@ class AnalysisViewModel extends ChangeNotifier {
     final normalized = mienName.toLowerCase();
     if (normalized.contains('nam')) return 'Miền Nam';
     if (normalized.contains('trung')) return 'Miền Trung';
-    if (normalized.contains('bắc') || normalized.contains('bac'))
+    if (normalized.contains('bắc') || normalized.contains('bac')) {
       return 'Miền Bắc';
+    }
     return 'Miền Bắc';
   }
 
@@ -659,8 +662,9 @@ class AnalysisViewModel extends ChangeNotifier {
     final normalized = mienName.toLowerCase();
     if (normalized.contains('nam')) return 'Miền Nam';
     if (normalized.contains('trung')) return 'Miền Trung';
-    if (normalized.contains('bắc') || normalized.contains('bac'))
+    if (normalized.contains('bắc') || normalized.contains('bac')) {
       return 'Miền Bắc';
+    }
     return 'Miền Nam';
   }
 
@@ -701,6 +705,12 @@ class AnalysisViewModel extends ChangeNotifier {
       if (simResult != null) {
         finalEndDate = simResult.endDate;
         daysNeeded = simResult.daysNeeded;
+
+        // ⚡ LƯU MIỀN KẾT THÚC (chỉ cho Tất cả)
+        if (normalizedMien.contains('tất cả') || normalizedMien == 'tatca') {
+          _endMienTatCa = simResult.endMien;
+        }
+
         print(
             '   ✅ [Plan] Target End Date: ${date_utils.DateUtils.formatDate(finalEndDate)}');
       }

@@ -1,4 +1,6 @@
 // lib/data/services/analysis_service.dart
+// ignore_for_file: constant_identifier_names, non_constant_identifier_names
+
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -421,7 +423,7 @@ class AnalysisService {
   }
 
   // --- TÌM NGÀY KẾT THÚC (LOGARITHM SIMULATION) ---
-  static Future<({DateTime endDate, int daysNeeded})?>
+  static Future<({DateTime endDate, String endMien, int daysNeeded})?>
       findEndDateForCycleThreshold(NumberAnalysisData targetNumber,
           double pUnused, List<LotteryResult> results, double lnThreshold,
           {int maxIterations = 20000, String mien = 'Tất cả'}) async {
@@ -436,7 +438,7 @@ class AnalysisService {
     });
   }
 
-  static ({DateTime endDate, int daysNeeded})?
+  static ({DateTime endDate, String endMien, int daysNeeded})?
       _findEndDateForCycleThresholdCompute(
     Map<String, dynamic> params,
   ) {
@@ -463,6 +465,7 @@ class AnalysisService {
       if (currentLnPTotal < lnThreshold) {
         return (
           endDate: DateTime.now().add(const Duration(days: 1)),
+          endMien: 'Miền Nam', // ⚡ Thêm field
           daysNeeded: 1
         );
       }
@@ -488,6 +491,7 @@ class AnalysisService {
 
       return (
         endDate: simulationResult.date,
+        endMien: simulationResult.endMien, // ⚡ Thêm field từ simulation
         daysNeeded: simulationResult.daysFromStart
       );
     } catch (e) {
@@ -638,6 +642,7 @@ class AnalysisService {
     return 0.055;
   }
 
+  // ✅ LOGIC MỚI: Tính slots tuần tự theo session (Nam → Trung → Bắc)
   static ({DateTime date, String endMien, int daysFromStart})
       _mapSlotsToDateAndMien({
     required int slotsNeeded,
@@ -646,27 +651,53 @@ class AnalysisService {
   }) {
     DateTime currentDate = startDate;
     int slotsRemaining = slotsNeeded;
+    String currentMien = 'Nam'; // ⚡ Bắt đầu từ Nam
+    int sessionCount = 0;
     int daysCount = 0;
-    int safetyLoop = 0;
-    const int maxLookAheadDays = 365;
+    const int maxSessions = 365 * 3; // An toàn: 365 ngày × 3 miền
 
-    while (slotsRemaining > 0 && safetyLoop < maxLookAheadDays) {
-      safetyLoop++;
-      currentDate = currentDate.add(const Duration(days: 1));
-      daysCount++;
-      final schedule = _getLotterySchedule(currentDate, mienFilter);
-      if (schedule.isEmpty) continue;
+    print('\n🔄 [Session-based Calculation]');
+    print('   Slots needed: $slotsNeeded');
+    print('   Start date: ${date_utils.DateUtils.formatDate(startDate)}');
 
-      for (final mien in schedule) {
-        final slotsInMien = _getSlotsForMien(mien, currentDate);
-        if (slotsRemaining <= slotsInMien) {
-          return (date: currentDate, endMien: mien, daysFromStart: daysCount);
-        } else {
-          slotsRemaining -= slotsInMien;
-        }
+    while (slotsRemaining > 0 && sessionCount < maxSessions) {
+      sessionCount++;
+
+      // 1. Lấy slots của session hiện tại
+      final slotsInSession = _getSlotsForMien(currentMien, currentDate);
+
+      print(
+          '   Session $sessionCount: ${date_utils.DateUtils.formatDate(currentDate)} ($currentMien) → $slotsInSession slots');
+
+      // 2. Kiểm tra đủ slots chưa
+      if (slotsRemaining <= slotsInSession) {
+        print(
+            '   ✅ Đủ slots! Kết thúc tại: ${date_utils.DateUtils.formatDate(currentDate)} ($currentMien)');
+        return (
+          date: currentDate,
+          endMien: currentMien,
+          daysFromStart: daysCount
+        );
       }
+
+      // 3. Trừ slots và chuyển session
+      slotsRemaining -= slotsInSession;
+
+      // 4. Chuyển sang miền tiếp theo
+      final nextMien = _getNextMien(currentMien);
+
+      // 5. Nếu quay về Nam → Sang ngày mới
+      if (nextMien == 'Nam') {
+        currentDate = currentDate.add(const Duration(days: 1));
+        daysCount++;
+      }
+
+      currentMien = nextMien;
     }
-    return (date: currentDate, endMien: 'Unknown', daysFromStart: daysCount);
+
+    // Fallback nếu vượt quá giới hạn
+    print('   ⚠️ Reached max sessions. Using last known state.');
+    return (date: currentDate, endMien: currentMien, daysFromStart: daysCount);
   }
 
   static List<String> _getLotterySchedule(DateTime date, String filter) {
@@ -704,6 +735,21 @@ class AnalysisService {
     }
   }
 
+  // ✅ Helper: Lấy miền tiếp theo trong chu trình Nam → Trung → Bắc → Nam (ngày mới)
+  static String _getNextMien(String currentMien) {
+    switch (currentMien) {
+      case 'Nam':
+        return 'Trung';
+      case 'Trung':
+        return 'Bắc';
+      case 'Bắc':
+        return 'Nam'; // Reset về Nam → Ngày mới
+      default:
+        return 'Nam';
+    }
+  }
+
+  // ✅ LOGIC MỚI: Tối ưu Start Date theo session (thay vì theo ngày)
   static Future<DateTime?> findOptimalStartDateForCycle({
     required DateTime baseStartDate,
     required DateTime endDate,
@@ -716,30 +762,38 @@ class AnalysisService {
     required int maxMienCount,
     int maxDaysToTry = 15,
   }) async {
-    DateTime currentStart = baseStartDate;
-    int attempt = 0;
+    DateTime currentDate = baseStartDate;
+    String currentMien = 'Nam'; // ⚡ Bắt đầu từ Nam
+    int sessionAttempt = 0;
+    const int maxSessions = 15 * 3; // 15 ngày × 3 miền = 45 sessions
+
+    print('\n🔍 [Optimal Start Search - Session-based]');
+    print('   Base start: ${date_utils.DateUtils.formatDate(baseStartDate)}');
+    print('   End date: ${date_utils.DateUtils.formatDate(endDate)}');
+    print('   Available budget: ${availableBudget.toStringAsFixed(0)}');
 
     final mienLower = mien.toLowerCase();
     final isNam = mienLower.contains('nam');
     final isTrung = mienLower.contains('trung');
     final isBac = mienLower.contains('bắc') || mienLower.contains('bac');
 
-    while (attempt < maxDaysToTry && currentStart.isBefore(endDate)) {
+    while (sessionAttempt < maxSessions && currentDate.isBefore(endDate)) {
+      sessionAttempt++;
       await Future.delayed(Duration.zero);
-      final durationLimit = endDate.difference(currentStart).inDays;
 
-      if (durationLimit <= 0) {
-        currentStart = currentStart.add(const Duration(days: 1));
-        attempt++;
-        continue;
-      }
+      final durationLimit = endDate.difference(currentDate).inDays;
+      if (durationLimit <= 0) break;
+
+      print(
+          '   🔄 Session $sessionAttempt: ${date_utils.DateUtils.formatDate(currentDate)} ($currentMien)');
 
       double totalCost = 0;
       try {
+        // ⚡ Generate bảng từ (currentDate, currentMien)
         if (isNam) {
           final table = await bettingService.generateNamGanTable(
             cycleResult: cycleResult,
-            startDate: currentStart,
+            startDate: currentDate,
             endDate: endDate,
             budgetMin: availableBudget * 0.8,
             budgetMax: availableBudget,
@@ -749,7 +803,7 @@ class AnalysisService {
         } else if (isTrung) {
           final table = await bettingService.generateTrungGanTable(
             cycleResult: cycleResult,
-            startDate: currentStart,
+            startDate: currentDate,
             endDate: endDate,
             budgetMin: availableBudget * 0.8,
             budgetMax: availableBudget,
@@ -759,7 +813,7 @@ class AnalysisService {
         } else if (isBac) {
           final table = await bettingService.generateBacGanTable(
             cycleResult: cycleResult,
-            startDate: currentStart,
+            startDate: currentDate,
             endDate: endDate,
             budgetMin: availableBudget * 0.8,
             budgetMax: availableBudget,
@@ -767,11 +821,14 @@ class AnalysisService {
           );
           if (table.isNotEmpty) totalCost = table.last.tongTien;
         } else {
+          // ⚡ Chu kỳ Tất cả: Cần tính startMienIndex dựa trên currentMien
+          final startMienIndex = _getMienIndex(currentMien);
+
           final table = await bettingService.generateCycleTable(
             cycleResult: cycleResult,
-            startDate: currentStart,
+            startDate: currentDate,
             endDate: endDate,
-            startMienIndex: _getMienIndex(mien),
+            startMienIndex: startMienIndex, // ⚡ Dùng index động
             budgetMin: availableBudget * 0.8,
             budgetMax: availableBudget,
             allResults: allResults,
@@ -781,16 +838,28 @@ class AnalysisService {
           if (table.isNotEmpty) totalCost = table.last.tongTien;
         }
 
+        // ✅ Check budget
         if (totalCost > 0 && totalCost <= availableBudget) {
-          return currentStart;
+          print(
+              '   ✅ Found optimal! Cost: ${totalCost.toStringAsFixed(0)} <= $availableBudget');
+          return currentDate;
         }
       } catch (e) {
-        // Log error if needed
+        print('   ⚠️ Error generating table: $e');
       }
 
-      currentStart = currentStart.add(const Duration(days: 1));
-      attempt++;
+      // 🔄 Chuyển sang session tiếp theo
+      final nextMien = _getNextMien(currentMien);
+
+      // Nếu quay về Nam → Sang ngày mới
+      if (nextMien == 'Nam') {
+        currentDate = currentDate.add(const Duration(days: 1));
+      }
+
+      currentMien = nextMien;
     }
+
+    print('   ❌ No optimal start found within session limit');
     return null;
   }
 
