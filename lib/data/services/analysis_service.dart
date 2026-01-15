@@ -492,7 +492,7 @@ class AnalysisService {
       return (
         endDate: simulationResult.date,
         endMien: simulationResult.endMien, // ⚡ Thêm field từ simulation
-        daysNeeded: simulationResult.daysFromStart
+        daysNeeded: simulationResult.daysFromStart,
       );
     } catch (e) {
       return null;
@@ -651,53 +651,53 @@ class AnalysisService {
   }) {
     DateTime currentDate = startDate;
     int slotsRemaining = slotsNeeded;
-    String currentMien = 'Nam'; // ⚡ Bắt đầu từ Nam
-    int sessionCount = 0;
     int daysCount = 0;
-    const int maxSessions = 365 * 3; // An toàn: 365 ngày × 3 miền
 
-    print('\n🔄 [Session-based Calculation]');
-    print('   Slots needed: $slotsNeeded');
-    print('   Start date: ${date_utils.DateUtils.formatDate(startDate)}');
+    final filter = mienFilter.toLowerCase().trim();
+    // Kiểm tra xem là cược tất cả hay cược 1 miền cụ thể
+    final isSpecific = filter.contains('nam') ||
+        filter.contains('trung') ||
+        filter.contains('bắc') ||
+        filter.contains('bac');
 
-    while (slotsRemaining > 0 && sessionCount < maxSessions) {
-      sessionCount++;
+    if (isSpecific) {
+      // 🎯 TRƯỜNG HỢP 1 MIỀN: Mỗi ngày chỉ có đúng 1 session của miền đó
+      String targetMien = filter.contains('nam')
+          ? 'Nam'
+          : (filter.contains('trung') ? 'Trung' : 'Bắc');
 
-      // 1. Lấy slots của session hiện tại
-      final slotsInSession = _getSlotsForMien(currentMien, currentDate);
+      while (slotsRemaining > 0) {
+        final slots = _getSlotsForMien(targetMien, currentDate);
+        if (slotsRemaining <= slots) break;
 
-      print(
-          '   Session $sessionCount: ${date_utils.DateUtils.formatDate(currentDate)} ($currentMien) → $slotsInSession slots');
-
-      // 2. Kiểm tra đủ slots chưa
-      if (slotsRemaining <= slotsInSession) {
-        print(
-            '   ✅ Đủ slots! Kết thúc tại: ${date_utils.DateUtils.formatDate(currentDate)} ($currentMien)');
-        return (
-          date: currentDate,
-          endMien: currentMien,
-          daysFromStart: daysCount
-        );
-      }
-
-      // 3. Trừ slots và chuyển session
-      slotsRemaining -= slotsInSession;
-
-      // 4. Chuyển sang miền tiếp theo
-      final nextMien = _getNextMien(currentMien);
-
-      // 5. Nếu quay về Nam → Sang ngày mới
-      if (nextMien == 'Nam') {
+        slotsRemaining -= slots;
         currentDate = currentDate.add(const Duration(days: 1));
         daysCount++;
       }
+      return (date: currentDate, endMien: targetMien, daysFromStart: daysCount);
+    } else {
+      // 🎯 TRƯỜNG HỢP TẤT CẢ: Chạy vòng lặp 3 session Nam -> Trung -> Bắc mỗi ngày
+      String currentMien = 'Nam';
+      while (slotsRemaining > 0) {
+        final slots = _getSlotsForMien(currentMien, currentDate);
+        if (slotsRemaining <= slots) {
+          return (
+            date: currentDate,
+            endMien: currentMien,
+            daysFromStart: daysCount
+          );
+        }
 
-      currentMien = nextMien;
+        slotsRemaining -= slots;
+        final nextMien = _getNextMien(currentMien);
+        if (nextMien == 'Nam') {
+          currentDate = currentDate.add(const Duration(days: 1));
+          daysCount++;
+        }
+        currentMien = nextMien;
+      }
+      return (date: currentDate, endMien: 'Bắc', daysFromStart: daysCount);
     }
-
-    // Fallback nếu vượt quá giới hạn
-    print('   ⚠️ Reached max sessions. Using last known state.');
-    return (date: currentDate, endMien: currentMien, daysFromStart: daysCount);
   }
 
   static List<String> _getLotterySchedule(DateTime date, String filter) {
@@ -763,103 +763,84 @@ class AnalysisService {
     int maxDaysToTry = 15,
   }) async {
     DateTime currentDate = baseStartDate;
-    String currentMien = 'Nam'; // ⚡ Bắt đầu từ Nam
-    int sessionAttempt = 0;
-    const int maxSessions = 15 * 3; // 15 ngày × 3 miền = 45 sessions
-
-    print('\n🔍 [Optimal Start Search - Session-based]');
-    print('   Base start: ${date_utils.DateUtils.formatDate(baseStartDate)}');
-    print('   End date: ${date_utils.DateUtils.formatDate(endDate)}');
-    print('   Available budget: ${availableBudget.toStringAsFixed(0)}');
-
     final mienLower = mien.toLowerCase();
-    final isNam = mienLower.contains('nam');
-    final isTrung = mienLower.contains('trung');
-    final isBac = mienLower.contains('bắc') || mienLower.contains('bac');
+    final isSpecific = mienLower.contains('nam') ||
+        mienLower.contains('trung') ||
+        mienLower.contains('bắc') ||
+        mienLower.contains('bac');
 
-    while (sessionAttempt < maxSessions && currentDate.isBefore(endDate)) {
-      sessionAttempt++;
+    String currentMien = isSpecific
+        ? (mienLower.contains('nam')
+            ? 'Nam'
+            : (mienLower.contains('trung') ? 'Trung' : 'Bắc'))
+        : 'Nam';
+
+    for (int i = 0; i < maxDaysToTry * 3; i++) {
+      if (!currentDate.isBefore(endDate)) break;
       await Future.delayed(Duration.zero);
 
-      final durationLimit = endDate.difference(currentDate).inDays;
-      if (durationLimit <= 0) break;
+      // Nếu đánh miền riêng, chỉ kiểm tra nếu đúng session miền đó. Nếu đánh Tất cả, kiểm tra mọi session.
+      bool shouldCheck = !isSpecific || (isSpecific);
 
-      print(
-          '   🔄 Session $sessionAttempt: ${date_utils.DateUtils.formatDate(currentDate)} ($currentMien)');
+      if (shouldCheck) {
+        double totalCost = 0;
+        final durationLimit = endDate.difference(currentDate).inDays;
+        try {
+          if (mienLower.contains('nam')) {
+            final table = await bettingService.generateNamGanTable(
+                cycleResult: cycleResult,
+                startDate: currentDate,
+                endDate: endDate,
+                budgetMin: availableBudget * 0.8,
+                budgetMax: availableBudget,
+                durationLimit: durationLimit);
+            if (table.isNotEmpty) totalCost = table.last.tongTien;
+          } else if (mienLower.contains('trung')) {
+            final table = await bettingService.generateTrungGanTable(
+                cycleResult: cycleResult,
+                startDate: currentDate,
+                endDate: endDate,
+                budgetMin: availableBudget * 0.8,
+                budgetMax: availableBudget,
+                durationLimit: durationLimit);
+            if (table.isNotEmpty) totalCost = table.last.tongTien;
+          } else if (mienLower.contains('bắc') || mienLower.contains('bac')) {
+            final table = await bettingService.generateBacGanTable(
+                cycleResult: cycleResult,
+                startDate: currentDate,
+                endDate: endDate,
+                budgetMin: availableBudget * 0.8,
+                budgetMax: availableBudget,
+                durationLimit: durationLimit);
+            if (table.isNotEmpty) totalCost = table.last.tongTien;
+          } else {
+            final table = await bettingService.generateCycleTable(
+                cycleResult: cycleResult,
+                startDate: currentDate,
+                endDate: endDate,
+                startMienIndex: _getMienIndex(currentMien),
+                budgetMin: availableBudget * 0.8,
+                budgetMax: availableBudget,
+                allResults: allResults,
+                maxMienCount: maxMienCount,
+                durationLimit: durationLimit);
+            if (table.isNotEmpty) totalCost = table.last.tongTien;
+          }
 
-      double totalCost = 0;
-      try {
-        // ⚡ Generate bảng từ (currentDate, currentMien)
-        if (isNam) {
-          final table = await bettingService.generateNamGanTable(
-            cycleResult: cycleResult,
-            startDate: currentDate,
-            endDate: endDate,
-            budgetMin: availableBudget * 0.8,
-            budgetMax: availableBudget,
-            durationLimit: durationLimit,
-          );
-          if (table.isNotEmpty) totalCost = table.last.tongTien;
-        } else if (isTrung) {
-          final table = await bettingService.generateTrungGanTable(
-            cycleResult: cycleResult,
-            startDate: currentDate,
-            endDate: endDate,
-            budgetMin: availableBudget * 0.8,
-            budgetMax: availableBudget,
-            durationLimit: durationLimit,
-          );
-          if (table.isNotEmpty) totalCost = table.last.tongTien;
-        } else if (isBac) {
-          final table = await bettingService.generateBacGanTable(
-            cycleResult: cycleResult,
-            startDate: currentDate,
-            endDate: endDate,
-            budgetMin: availableBudget * 0.8,
-            budgetMax: availableBudget,
-            durationLimit: durationLimit,
-          );
-          if (table.isNotEmpty) totalCost = table.last.tongTien;
-        } else {
-          // ⚡ Chu kỳ Tất cả: Cần tính startMienIndex dựa trên currentMien
-          final startMienIndex = _getMienIndex(currentMien);
-
-          final table = await bettingService.generateCycleTable(
-            cycleResult: cycleResult,
-            startDate: currentDate,
-            endDate: endDate,
-            startMienIndex: startMienIndex, // ⚡ Dùng index động
-            budgetMin: availableBudget * 0.8,
-            budgetMax: availableBudget,
-            allResults: allResults,
-            maxMienCount: maxMienCount,
-            durationLimit: durationLimit,
-          );
-          if (table.isNotEmpty) totalCost = table.last.tongTien;
-        }
-
-        // ✅ Check budget
-        if (totalCost > 0 && totalCost <= availableBudget) {
-          print(
-              '   ✅ Found optimal! Cost: ${totalCost.toStringAsFixed(0)} <= $availableBudget');
-          return currentDate;
-        }
-      } catch (e) {
-        print('   ⚠️ Error generating table: $e');
+          if (totalCost > 0 && totalCost <= availableBudget) return currentDate;
+        } catch (_) {}
       }
 
-      // 🔄 Chuyển sang session tiếp theo
-      final nextMien = _getNextMien(currentMien);
-
-      // Nếu quay về Nam → Sang ngày mới
-      if (nextMien == 'Nam') {
+      // Nhảy session
+      if (isSpecific) {
         currentDate = currentDate.add(const Duration(days: 1));
+      } else {
+        final next = _getNextMien(currentMien);
+        if (next == 'Nam')
+          currentDate = currentDate.add(const Duration(days: 1));
+        currentMien = next;
       }
-
-      currentMien = nextMien;
     }
-
-    print('   ❌ No optimal start found within session limit');
     return null;
   }
 
