@@ -699,7 +699,7 @@ class AnalysisViewModel extends ChangeNotifier {
     );
 
     DateTime? finalEndDate;
-    String endMien = _getEndRegionName(mienName); // Default
+    String endMien = _getEndRegionName(mienName);
     int daysNeeded = 0;
     String? budgetErrorStatus;
 
@@ -714,7 +714,7 @@ class AnalysisViewModel extends ChangeNotifier {
 
       if (simResult != null) {
         finalEndDate = simResult.endDate;
-        endMien = simResult.endMien; // 👈 Cập nhật endMien từ simulation
+        endMien = simResult.endMien;
         daysNeeded = simResult.daysNeeded;
         if (normalizedMien.contains('tất cả') || normalizedMien == 'tatca') {
           _endMienTatCa = simResult.endMien;
@@ -736,14 +736,17 @@ class AnalysisViewModel extends ChangeNotifier {
         targetTable: type.budgetTableName,
         configBudget: type.getBudgetConfig(config),
         endDate: finalEndDate,
-        endMien: endMien, // 👈 THÊM
+        endMien: endMien,
       );
 
+      // ✅ ĐỒNG BỘ: Sử dụng ngưỡng 0.9 thay vì 0.8
       final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
         baseStartDate: startDate,
         endDate: finalEndDate,
-        endMien: endMien, // 👈 THÊM
+        endMien: endMien,
         availableBudget: budgetResult.budgetMax,
+        // Dùng 0.9 để Summary không hiển thị những ngày mà khi bấm tạo bảng lại báo lỗi
+        budgetMin: budgetResult.budgetMax * 0.9,
         mien: type == BettingTableTypeEnum.tatca ? 'Tất cả' : type.displayName,
         targetNumber: result.targetNumber,
         cycleResult: result,
@@ -762,7 +765,7 @@ class AnalysisViewModel extends ChangeNotifier {
     }
 
     final startRegionStr = _getStartRegionName(mienName);
-    final endRegionStr = endMien; // Dùng endMien thực tế
+    final endRegionStr = endMien;
 
     String startInfoString = budgetErrorStatus ??
         "${date_utils.DateUtils.formatDate(startDate)} ($startRegionStr)";
@@ -994,25 +997,34 @@ class AnalysisViewModel extends ChangeNotifier {
     AppConfig config,
   ) async {
     try {
+      // ✅ BƯỚC 1: XÓA SHEET TRƯỚC để giải phóng ngân sách trong tính toán
+      // Điều này giúp hàm tính budget phía dưới không trừ tiền của chính cái bảng sắp bị thay thế này.
+      await _sheetsService.clearSheet(params.type.sheetName);
+
       final budgetService =
           BudgetCalculationService(sheetsService: _sheetsService);
+
+      // ✅ BƯỚC 2: Tính toán ngân sách khả dụng thực tế
       final budgetResult =
           await budgetService.calculateAvailableBudgetByEndDate(
         totalCapital: config.budget.totalCapital,
         targetTable: params.type.budgetTableName,
         configBudget: params.type.getBudgetConfig(config),
         endDate: params.endDate,
-        endMien: params.endMien, // 👈 THÊM
+        endMien: params.endMien,
       );
 
       DateTime finalStartDate = params.startDate;
 
       try {
+        // ✅ BƯỚC 3: Tìm ngày bắt đầu tối ưu (Dùng 0.9 giống Summary)
         final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
           baseStartDate: params.startDate,
           endDate: params.endDate,
-          endMien: params.endMien, // 👈 THÊM
+          endMien: params.endMien,
           availableBudget: budgetResult.budgetMax,
+          // Thống nhất ngưỡng tối thiểu để khớp với Summary
+          budgetMin: budgetResult.budgetMax * 0.9,
           mien: params.type == BettingTableTypeEnum.tatca
               ? 'Tất cả'
               : params.type.displayName,
@@ -1026,14 +1038,17 @@ class AnalysisViewModel extends ChangeNotifier {
         );
 
         if (optimalStart != null) finalStartDate = optimalStart;
-      } catch (_) {}
+      } catch (_) {
+        // Nếu không tìm được ngày tối ưu, vẫn dùng startDate mặc định
+      }
 
+      // ✅ BƯỚC 4: Tạo bảng chi tiết
       final table = await params.type.generateTable(
         service: _bettingService,
         result: params.cycleResult,
         start: finalStartDate,
         end: params.endDate,
-        endMien: params.endMien, // 👈 THÊM
+        endMien: params.endMien,
         startIdx: params.startMienIndex,
         min: budgetResult.budgetMax * 0.9,
         max: budgetResult.budgetMax,
@@ -1044,6 +1059,7 @@ class AnalysisViewModel extends ChangeNotifier {
         durationLimit: params.endDate.difference(finalStartDate).inDays,
       );
 
+      // ✅ BƯỚC 5: Lưu vào Sheet (Lúc này sheet đã trống sẵn từ Bước 1)
       await _saveTableToSheet(params.type, table, params.cycleResult);
 
       _isLoading = false;

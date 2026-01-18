@@ -734,11 +734,13 @@ class AnalysisService {
   }
 
   // ✅ LOGIC MỚI: Tối ưu Start Date theo session (thay vì theo ngày)
+
   static Future<DateTime?> findOptimalStartDateForCycle({
     required DateTime baseStartDate,
     required DateTime endDate,
-    required String endMien, // 👈 THÊM
+    required String endMien,
     required double availableBudget,
+    required double budgetMin, // ✅ Thêm tham số này
     required String mien,
     required String targetNumber,
     required CycleAnalysisResult cycleResult,
@@ -764,58 +766,53 @@ class AnalysisService {
       if (!currentDate.isBefore(endDate)) break;
       await Future.delayed(Duration.zero);
 
-      bool shouldCheck = true;
+      double totalCost = 0;
+      final durationLimit = endDate.difference(currentDate).inDays;
+      try {
+        if (mienLower.contains('nam')) {
+          final table = await bettingService.generateNamGanTable(
+              cycleResult: cycleResult,
+              startDate: currentDate,
+              endDate: endDate,
+              budgetMin: budgetMin, // ✅ Dùng tham số truyền vào thay vì * 0.8
+              budgetMax: availableBudget,
+              durationLimit: durationLimit);
+          if (table.isNotEmpty) totalCost = table.last.tongTien;
+        } else if (mienLower.contains('trung')) {
+          final table = await bettingService.generateTrungGanTable(
+              cycleResult: cycleResult,
+              startDate: currentDate,
+              endDate: endDate,
+              budgetMin: budgetMin, // ✅ Dùng tham số truyền vào
+              budgetMax: availableBudget,
+              durationLimit: durationLimit);
+          if (table.isNotEmpty) totalCost = table.last.tongTien;
+        } else if (mienLower.contains('bắc') || mienLower.contains('bac')) {
+          final table = await bettingService.generateBacGanTable(
+              cycleResult: cycleResult,
+              startDate: currentDate,
+              endDate: endDate,
+              budgetMin: budgetMin, // ✅ Dùng tham số truyền vào
+              budgetMax: availableBudget,
+              durationLimit: durationLimit);
+          if (table.isNotEmpty) totalCost = table.last.tongTien;
+        } else {
+          final table = await bettingService.generateCycleTable(
+              cycleResult: cycleResult,
+              startDate: currentDate,
+              endDate: endDate,
+              endMien: endMien,
+              startMienIndex: _getMienIndex(currentMien),
+              budgetMin: budgetMin, // ✅ Dùng tham số truyền vào
+              budgetMax: availableBudget,
+              allResults: allResults,
+              maxMienCount: maxMienCount,
+              durationLimit: durationLimit);
+          if (table.isNotEmpty) totalCost = table.last.tongTien;
+        }
 
-      if (shouldCheck) {
-        double totalCost = 0;
-        final durationLimit = endDate.difference(currentDate).inDays;
-        try {
-          if (mienLower.contains('nam')) {
-            final table = await bettingService.generateNamGanTable(
-                cycleResult: cycleResult,
-                startDate: currentDate,
-                endDate: endDate,
-                budgetMin: availableBudget * 0.8,
-                budgetMax: availableBudget,
-                durationLimit: durationLimit);
-            if (table.isNotEmpty) totalCost = table.last.tongTien;
-          } else if (mienLower.contains('trung')) {
-            final table = await bettingService.generateTrungGanTable(
-                cycleResult: cycleResult,
-                startDate: currentDate,
-                endDate: endDate,
-                budgetMin: availableBudget * 0.8,
-                budgetMax: availableBudget,
-                durationLimit: durationLimit);
-            if (table.isNotEmpty) totalCost = table.last.tongTien;
-          } else if (mienLower.contains('bắc') || mienLower.contains('bac')) {
-            final table = await bettingService.generateBacGanTable(
-                cycleResult: cycleResult,
-                startDate: currentDate,
-                endDate: endDate,
-                budgetMin: availableBudget * 0.8,
-                budgetMax: availableBudget,
-                durationLimit: durationLimit);
-            if (table.isNotEmpty) totalCost = table.last.tongTien;
-          } else {
-            // ✅ ĐÃ SỬA: Truyền endMien vào đây
-            final table = await bettingService.generateCycleTable(
-                cycleResult: cycleResult,
-                startDate: currentDate,
-                endDate: endDate,
-                endMien: endMien, // 👈 THÊM
-                startMienIndex: _getMienIndex(currentMien),
-                budgetMin: availableBudget * 0.8,
-                budgetMax: availableBudget,
-                allResults: allResults,
-                maxMienCount: maxMienCount,
-                durationLimit: durationLimit);
-            if (table.isNotEmpty) totalCost = table.last.tongTien;
-          }
-
-          if (totalCost > 0 && totalCost <= availableBudget) return currentDate;
-        } catch (_) {}
-      }
+        if (totalCost > 0 && totalCost <= availableBudget) return currentDate;
+      } catch (_) {}
 
       if (isSpecific) {
         currentDate = currentDate.add(const Duration(days: 1));

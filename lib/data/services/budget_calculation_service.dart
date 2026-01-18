@@ -20,16 +20,17 @@ class BudgetCalculationService {
   Future<Reserved5DaysResult> calculateReservedByEndDate({
     required String targetTable,
     required DateTime endDate,
-    required String endMien, // 👈 THÊM: Miền kết thúc (Nam, Trung, hoặc Bắc)
+    required String endMien,
   }) async {
     double tatCaReserved = 0;
+    double namReserved = 0; // ✅ MỚI
     double trungReserved = 0;
     double bacReserved = 0;
     double xienReserved = 0;
 
     final endDateStr = date_utils.DateUtils.formatDate(endDate);
 
-    // 1. Tất cả (xsktBot1) - Cột H (index 7)
+    // 1. Tất cả (xsktBot1)
     if (targetTable != 'tatca' && targetTable != 'xsktBot1') {
       tatCaReserved = await _getTotalMoneyByDate(
         sheetName: 'xsktBot1',
@@ -39,7 +40,17 @@ class BudgetCalculationService {
       );
     }
 
-    // 2. Trung Bot - Cột H (index 7)
+    // ✅ 2. Miền Nam (namBot) - Cột H (index 7)
+    if (targetTable != 'nam' && targetTable != 'namBot') {
+      namReserved = await _getTotalMoneyByDate(
+        sheetName: 'namBot',
+        targetDate: endDateStr,
+        targetMien: endMien,
+        columnIndex: 7,
+      );
+    }
+
+    // 3. Trung Bot
     if (targetTable != 'trung' && targetTable != 'trungBot') {
       trungReserved = await _getTotalMoneyByDate(
         sheetName: 'trungBot',
@@ -49,7 +60,7 @@ class BudgetCalculationService {
       );
     }
 
-    // 3. Bắc Bot - Cột H (index 7)
+    // 4. Bắc Bot
     if (targetTable != 'bac' && targetTable != 'bacBot') {
       bacReserved = await _getTotalMoneyByDate(
         sheetName: 'bacBot',
@@ -59,7 +70,7 @@ class BudgetCalculationService {
       );
     }
 
-    // 4. Xiên Bot - Cột F (index 5)
+    // 5. Xiên Bot
     if (targetTable != 'xien' && targetTable != 'xienBot') {
       xienReserved = await _getTotalMoneyByDate(
         sheetName: 'xienBot',
@@ -69,9 +80,14 @@ class BudgetCalculationService {
       );
     }
 
-    final total = tatCaReserved + trungReserved + bacReserved + xienReserved;
+    final total = tatCaReserved +
+        namReserved +
+        trungReserved +
+        bacReserved +
+        xienReserved;
     return Reserved5DaysResult(
       tatCaReserved: tatCaReserved,
+      namReserved: namReserved, // ✅ MỚI
       trungReserved: trungReserved,
       bacReserved: bacReserved,
       xienReserved: xienReserved,
@@ -110,14 +126,13 @@ class BudgetCalculationService {
         String rowMien = row[2].toString().trim();
         int rowMienVal = mienOrder[rowMien] ?? 0;
 
-        // Kiểm tra nếu dòng này xảy ra TRƯỚC HOẶC ĐÚNG thời điểm (targetDate, targetMien)
         if (rowDt.isBefore(targetDt) ||
             (rowDt.isAtSameMomentAs(targetDt) && rowMienVal <= targetMienVal)) {
           if (row.length > columnIndex) {
             lastValidValue = _parseSheetNumber(row[columnIndex]);
           }
         } else {
-          break; // Đã vượt quá thời điểm cần tính
+          break;
         }
       }
       return lastValidValue;
@@ -132,7 +147,7 @@ class BudgetCalculationService {
     required String targetTable,
     double? configBudget,
     required DateTime endDate,
-    required String endMien, // 👈 THÊM
+    required String endMien,
   }) async {
     final reserved = await calculateReservedByEndDate(
       targetTable: targetTable,
@@ -201,20 +216,22 @@ class BudgetCalculationService {
   Reserved5DaysResult _calculateReservedInternal({
     required String targetTable,
     required DateTime endDate,
-    required String endMien, // 👈 THÊM
+    required String endMien,
     required Map<String, List<List<dynamic>>> data,
   }) {
     final mienOrder = {'Nam': 1, 'Trung': 2, 'Bắc': 3};
     int targetMienVal = mienOrder[endMien] ?? 3;
 
     double getMoney(String key, int colIdx) {
-      String sheetName = (key == 'tatca')
-          ? 'xsktBot1'
-          : (key == 'xien'
-              ? 'xienBot'
-              : (key == 'trung'
-                  ? 'trungBot'
-                  : (key == 'bac' ? 'bacBot' : key)));
+      String sheetName = switch (key) {
+        'tatca' || 'xsktBot1' => 'xsktBot1',
+        'nam' || 'namBot' => 'namBot', // ✅ MỚI
+        'trung' || 'trungBot' => 'trungBot',
+        'bac' || 'bacBot' => 'bacBot',
+        'xien' || 'xienBot' => 'xienBot',
+        _ => key
+      };
+
       if (targetTable == key || targetTable == sheetName) return 0;
 
       final rows = data[sheetName];
@@ -241,16 +258,18 @@ class BudgetCalculationService {
     }
 
     final tatCa = getMoney('tatca', 7);
+    final nam = getMoney('nam', 7); // ✅ MỚI
     final trung = getMoney('trung', 7);
     final bac = getMoney('bac', 7);
     final xien = getMoney('xien', 5);
 
     return Reserved5DaysResult(
       tatCaReserved: tatCa,
+      namReserved: nam, // ✅ MỚI
       trungReserved: trung,
       bacReserved: bac,
       xienReserved: xien,
-      totalReserved: tatCa + trung + bac + xien,
+      totalReserved: tatCa + nam + trung + bac + xien,
     );
   }
 
@@ -258,42 +277,26 @@ class BudgetCalculationService {
   double _parseSheetNumber(dynamic value) {
     if (value == null) return 0.0;
     if (value is num) return value.toDouble();
-
     String str = value.toString().trim();
     if (str.isEmpty) return 0.0;
 
-    // Handle Vietnamese number format
-    int dotCount = '.'.allMatches(str).length;
-    int commaCount = ','.allMatches(str).length;
-
-    if (dotCount > 0 && commaCount > 0) {
+    // Xử lý định dạng VN (chấm ngăn cách nghìn, phẩy thập phân)
+    if (str.contains('.') && str.contains(',')) {
       str = str.replaceAll('.', '').replaceAll(',', '.');
-    } else if (dotCount > 0) {
-      if (dotCount > 1) {
-        str = str.replaceAll('.', '');
-      } else {
-        final dotIndex = str.indexOf('.');
-        final afterDot = str.length - dotIndex - 1;
-        if (afterDot == 3) {
-          str = str.replaceAll('.', '');
-        }
-      }
-    } else if (commaCount > 0) {
-      if (commaCount > 1) {
+    } else if (str.contains(',')) {
+      // Nếu chỉ có dấu phẩy, kiểm tra xem là thập phân hay ngăn nghìn
+      final parts = str.split(',');
+      if (parts.last.length <= 2)
+        str = str.replaceAll(',', '.');
+      else
         str = str.replaceAll(',', '');
-      } else {
-        final commaIndex = str.indexOf(',');
-        final afterComma = str.length - commaIndex - 1;
-        if (afterComma <= 2) {
-          str = str.replaceAll(',', '.');
-        } else if (afterComma == 3) {
-          str = str.replaceAll(',', '');
-        }
-      }
+    } else if (str.contains('.')) {
+      // Nếu chỉ có dấu chấm, kiểm tra xem là ngăn nghìn hay thập phân
+      final parts = str.split('.');
+      if (parts.last.length == 3) str = str.replaceAll('.', '');
     }
 
     str = str.replaceAll(' ', '');
-
     try {
       return double.parse(str);
     } catch (e) {
@@ -302,9 +305,9 @@ class BudgetCalculationService {
   }
 }
 
-/// Result model cho reserved
 class Reserved5DaysResult {
   final double tatCaReserved;
+  final double namReserved; // ✅ MỚI
   final double trungReserved;
   final double bacReserved;
   final double xienReserved;
@@ -314,6 +317,7 @@ class Reserved5DaysResult {
 
   Reserved5DaysResult({
     required this.tatCaReserved,
+    required this.namReserved, // ✅ MỚI
     required this.trungReserved,
     required this.bacReserved,
     required this.xienReserved,
@@ -325,7 +329,6 @@ class Reserved5DaysResult {
   bool get isValid => !hasError && totalReserved >= 0;
 }
 
-/// Result model cho available budget
 class AvailableBudgetResult {
   final double totalCapital;
   final Reserved5DaysResult reservedBreakdown;
@@ -346,16 +349,16 @@ class AvailableBudgetResult {
     required double minimumRequired,
   }) {
     final shortage = minimumRequired - available;
-
     final buffer = StringBuffer();
     buffer.writeln('Không đủ vốn để tạo bảng $tableName!');
-    buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('📊 Phân tích:');
     buffer.writeln(
         '  • Tổng vốn: ${NumberUtils.formatCurrency(totalCapital)} VNĐ');
     buffer.writeln('  • Vốn đang dùng:');
     buffer.writeln(
         '    - Tất cả: ${NumberUtils.formatCurrency(reservedBreakdown.tatCaReserved)} VNĐ');
+    buffer.writeln(
+        '    - Nam: ${NumberUtils.formatCurrency(reservedBreakdown.namReserved)} VNĐ'); // ✅ MỚI
     buffer.writeln(
         '    - Trung: ${NumberUtils.formatCurrency(reservedBreakdown.trungReserved)} VNĐ');
     buffer.writeln(
@@ -366,18 +369,10 @@ class AvailableBudgetResult {
         '  → Tổng vốn đang dùng: ${NumberUtils.formatCurrency(reservedBreakdown.totalReserved)} VNĐ');
     buffer.writeln(
         '  → Vốn khả dụng: ${NumberUtils.formatCurrency(available)} VNĐ');
-    buffer.writeln('');
-    buffer.writeln('💰 Nhu cầu:');
     buffer.writeln(
-        '  • Cần tối thiểu: ${NumberUtils.formatCurrency(minimumRequired)} VNĐ');
+        '\n💰 Nhu cầu: ${NumberUtils.formatCurrency(minimumRequired)} VNĐ');
     buffer
         .writeln('  • Còn thiếu: ${NumberUtils.formatCurrency(shortage)} VNĐ');
-    buffer.writeln('');
-    buffer.writeln('💡 Giải pháp:');
-    buffer.writeln('  - Tăng tổng vốn thêm');
-    buffer
-        .writeln('  - Hoặc đợi đến khi một số bảng kết thúc để giải phóng vốn');
-
     return buffer.toString();
   }
 
