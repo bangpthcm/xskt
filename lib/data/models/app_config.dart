@@ -64,20 +64,20 @@ class BudgetConfig {
   factory BudgetConfig.fromJson(Map<String, dynamic> json) {
     return BudgetConfig(
       totalCapital: (json['totalCapital'] ?? 700000).toDouble(),
-      namBudget: (json['namBudget'] ?? 350000).toDouble(), // ✅ THÊM
-      trungBudget: (json['trungBudget'] ?? 300000).toDouble(),
+      namBudget: (json['namBudget'] ?? 300000).toDouble(), // ✅ THÊM
+      trungBudget: (json['trungBudget'] ?? 280000).toDouble(),
       bacBudget: (json['bacBudget'] ?? 200000).toDouble(),
-      xienBudget: (json['xienBudget'] ?? 200000).toDouble(),
+      xienBudget: (json['xienBudget'] ?? 151000).toDouble(),
     );
   }
 
   factory BudgetConfig.defaultBudget() {
     return BudgetConfig(
       totalCapital: 700000,
-      namBudget: 350000, // ✅ Mặc định 0
-      trungBudget: 300000,
+      namBudget: 300000, // ✅ Mặc định 0
+      trungBudget: 280000,
       bacBudget: 200000,
-      xienBudget: 200000,
+      xienBudget: 151000,
     );
   }
 

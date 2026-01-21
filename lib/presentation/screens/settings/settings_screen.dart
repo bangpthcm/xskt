@@ -144,18 +144,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 _buildGoogleSheetsSection(),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _buildTelegramSection(),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _buildApiAccountsSection(),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _buildBudgetSection(),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 if (viewModel.errorMessage != null)
                   _buildErrorCard(viewModel.errorMessage!),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _buildProbabilitySection(),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _buildActionButtons(viewModel),
               ],
             ),
@@ -196,7 +196,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildProbabilityThresholdField(
                   controller: _probabilityThresholdNamController,
                   label: 'Miền Nam',
-                  hint: '-45.22168732',
+                  hint: '-56.33901811',
                   helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
                 ),
                 const SizedBox(height: 16),
@@ -222,50 +222,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Xiên Bắc',
                   hint: ' 1.97e-6',
                   helperText: 'P1_pair nhỏ hơn ngưỡng này thì có thể vào cược',
-                ),
-
-                const SizedBox(height: 24),
-
-                // ✅ THÊM: Giải thích
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).canvasColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.blue.withOpacity(0.3),
-                    ),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '📌 Giải thích:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                          fontSize: 13,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        '• P_total: Xác suất xuất hiện số/cặp mục tiêu\n'
-                        '• Chu kỳ: P_total = P2 × P3\n'
-                        '• Xiên: P_total = P1 (cặp gan)\n'
-                        '• Giá trị càng nhỏ → Ngày vào cược càng gần\n'
-                        '• Giá trị càng lớn → Có thể chờ lâu hơn\n\n'
-                        '• Mặc định:\n'
-                        '  - Tất cả/Trung/Bắc: 7.74656e-53 (0.000000000005%)\n'
-                        '  - Xiên: 1.00e-10 (cao hơn vì ít cặp)\n\n'
-                        '• Range cho phép: 8e-8 đến 6e-6',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                          height: 1.6,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -303,7 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // ✅ CẬP NHẬT: Validate số Log (thường là số âm từ -700 đến -2)
         final val = double.tryParse(value);
         if (val == null) {
-          return 'Phải là số thực (ví dụ: -167.5848846)';
+          return 'Phải là số thực (ví dụ: -169.9302498)';
         }
 
         // Range an toàn cho Log xác suất
@@ -682,19 +638,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Dùng tên biến đúng: _probabilityThreshold...
     double thresholdTatCa =
         double.tryParse(_probabilityThresholdTatCaController.text) ??
-            -167.5848846;
+            -169.9302498;
     double thresholdNam =
         double.tryParse(_probabilityThresholdNamController.text) ??
-            -45.22168732;
+            -56.33901811;
     double thresholdTrung =
         double.tryParse(_probabilityThresholdTrungController.text) ??
-            -48.7834053;
+            -50.10242462;
     double thresholdBac =
         double.tryParse(_probabilityThresholdBacController.text) ??
-            -27.41528511;
+            -157.9834442;
     double thresholdXien =
         double.tryParse(_probabilityThresholdXienController.text) ??
-            -566.6681911;
+            -574.343423;
 
     // ✅ CẬP NHẬT: Tạo ProbabilityConfig với các trường Ln mới
     final probabilityConfig = ProbabilityConfig(
