@@ -1,14 +1,14 @@
 // lib/presentation/screens/win_history/win_summary_screen.dart
 
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'win_history_viewmodel.dart';
-import 'win_history_screen.dart';
-import '../../../core/utils/number_utils.dart';
-import '../../widgets/shimmer_loading.dart';
-import '../../widgets/profit_chart.dart';
+
 import '../../../core/theme/theme_provider.dart';
+import '../../../core/utils/number_utils.dart';
+import '../../widgets/profit_chart.dart';
+import '../../widgets/shimmer_loading.dart';
+import 'win_history_screen.dart';
+import 'win_history_viewmodel.dart';
 
 class WinSummaryScreen extends StatefulWidget {
   const WinSummaryScreen({super.key});
@@ -71,12 +71,12 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
               children: [
                 ProfitChart(data: viewModel.getProfitByMonth()),
                 const SizedBox(height: 16),
-                
+
                 // ✅ Card Tổng hợp (Tương tác để mở rộng)
                 _buildCombinedCard(viewModel),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // ✅ Chỉ hiện các card dưới khi _isExpanded = true
                 if (_isExpanded) ...[
                   _buildCycleCard(viewModel),
@@ -128,7 +128,9 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
                   ),
                   // Icon chỉ thị trạng thái mở/đóng
                   Icon(
-                    _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    _isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
                     color: ThemeProvider.accent,
                   ),
                 ],
@@ -145,53 +147,54 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
   // ✅ 3. Card Chu kỳ (Bỏ nút Xem chi tiết, thêm onTap cho sub-section)
   Widget _buildCycleCard(WinHistoryViewModel viewModel) {
     final allCycleStats = viewModel.getAllCycleStats();
+    final namStats = viewModel.getNamStats(); // Lấy stats miền nam
     final trungStats = viewModel.getTrungStats();
     final bacStats = viewModel.getBacStats();
 
     return Card(
       color: const Color(0xFF1E1E1E),
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'CHU KỲ 00-99',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            const Text('CHU KỲ 00-99',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const Divider(height: 24, color: Colors.grey),
-            
-            // Phần 1: Tất cả -> Tab 0 (Ba miền)
+
             _buildCycleSubSection(
               iconColor: ThemeProvider.accent,
               title: 'TẤT CẢ',
               stats: allCycleStats,
-              onTap: () => _navigateToDetail(0), // Tab Ba miền
+              onTap: () => _navigateToDetail(0),
             ),
             const SizedBox(height: 12),
-            
-            // Phần 2: Miền Trung -> Tab 1
+
+            // ✅ THÊM THẺ MIỀN NAM TẠI ĐÂY
+            _buildCycleSubSection(
+              iconColor: ThemeProvider.accent,
+              title: 'MIỀN NAM',
+              stats: namStats,
+              onTap: () =>
+                  _navigateToDetail(1), // Tab Index 1 trong WinHistoryScreen
+            ),
+            const SizedBox(height: 12),
+
             _buildCycleSubSection(
               iconColor: ThemeProvider.accent,
               title: 'MIỀN TRUNG',
               stats: trungStats,
-              onTap: () => _navigateToDetail(1), // Tab Trung
+              onTap: () => _navigateToDetail(2), // Tăng index lên 2
             ),
             const SizedBox(height: 12),
-            
-            // Phần 3: Miền Bắc -> Tab 2
+
             _buildCycleSubSection(
               iconColor: ThemeProvider.accent,
               title: 'MIỀN BẮC',
               stats: bacStats,
-              onTap: () => _navigateToDetail(2), // Tab Bắc
+              onTap: () => _navigateToDetail(3), // Tăng index lên 3
             ),
           ],
         ),
@@ -210,7 +213,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
-        onTap: () => _navigateToDetail(3), // Tab Xiên
+        onTap: () => _navigateToDetail(4), // Tab Xiên
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -300,9 +303,8 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
               child: _buildStatItem(
                 label: '💰 Lợi nhuận',
                 value: NumberUtils.formatCurrency(stats.totalProfit),
-                valueColor: stats.totalProfit > 0
-                    ? ThemeProvider.profit
-                    : Colors.white,
+                valueColor:
+                    stats.totalProfit > 0 ? ThemeProvider.profit : Colors.white,
               ),
             ),
           ],
@@ -313,11 +315,10 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
             Expanded(
               // Thay đổi: ROI TB -> Tiền lớn nhất
               child: _buildStatItem(
-                label: '💎 Tổng vốn đã dùng', 
+                label: '💎 Tổng vốn đã dùng',
                 value: NumberUtils.formatCurrency(stats.maxBet),
-                valueColor: stats.maxBet > 0
-                    ? ThemeProvider.loss
-                    : Colors.white,
+                valueColor:
+                    stats.maxBet > 0 ? ThemeProvider.loss : Colors.white,
               ),
             ),
             Expanded(

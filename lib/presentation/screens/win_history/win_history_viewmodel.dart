@@ -20,12 +20,14 @@ class WinHistoryViewModel extends ChangeNotifier {
   String? _errorMessage;
   List<CycleWinHistory> _cycleHistory = [];
   List<XienWinHistory> _xienHistory = [];
+  List<CycleWinHistory> _namHistory = [];
   List<CycleWinHistory> _trungHistory = [];
   List<CycleWinHistory> _bacHistory = [];
 
   static const int _pageSize = 50;
   bool _hasMoreCycle = true;
   bool _hasMoreXien = true;
+  bool _hasMoreNam = true;
   bool _hasMoreTrung = true;
   bool _hasMoreBac = true;
 
@@ -34,18 +36,18 @@ class WinHistoryViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   List<CycleWinHistory> get cycleHistory => _cycleHistory;
   List<XienWinHistory> get xienHistory => _xienHistory;
+  List<CycleWinHistory> get namHistory => _namHistory;
   List<CycleWinHistory> get trungHistory => _trungHistory;
   List<CycleWinHistory> get bacHistory => _bacHistory;
 
   bool get hasMoreCycle => _hasMoreCycle;
   bool get hasMoreXien => _hasMoreXien;
+  bool get hasMoreNam => _hasMoreNam;
   bool get hasMoreTrung => _hasMoreTrung;
   bool get hasMoreBac => _hasMoreBac;
 
   /// ✅ LAZY: Load initial data (chỉ page đầu)
   Future<void> loadHistory() async {
-    print('📚 Loading win history (initial page)...');
-
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -56,26 +58,25 @@ class WinHistoryViewModel extends ChangeNotifier {
         _loadXienPage(0),
         _loadTrungPage(0),
         _loadBacPage(0),
+        _loadNamPage(0), // Tải thêm trang đầu của Miền Nam
       ]);
 
       _cycleHistory = results[0] as List<CycleWinHistory>;
       _xienHistory = results[1] as List<XienWinHistory>;
       _trungHistory = results[2] as List<CycleWinHistory>;
       _bacHistory = results[3] as List<CycleWinHistory>;
+      _namHistory = results[4] as List<CycleWinHistory>; // Gán dữ liệu Miền Nam
 
       _hasMoreCycle = _cycleHistory.length >= _pageSize;
       _hasMoreXien = _xienHistory.length >= _pageSize;
       _hasMoreTrung = _trungHistory.length >= _pageSize;
       _hasMoreBac = _bacHistory.length >= _pageSize;
-
-      print(
-          '✅ Loaded initial: Cycle=${_cycleHistory.length}, Xien=${_xienHistory.length}, '
-          'Trung=${_trungHistory.length}, Bac=${_bacHistory.length}');
+      _hasMoreNam =
+          _namHistory.length >= _pageSize; // Kiểm tra còn dữ liệu không
 
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      print('❌ Error loading history: $e');
       _errorMessage = 'Lỗi tải lịch sử: $e';
       _isLoading = false;
       notifyListeners();
@@ -124,6 +125,26 @@ class WinHistoryViewModel extends ChangeNotifier {
       print('✅ Loaded ${newData.length} more xien records');
     } catch (e) {
       print('❌ Error loading more xien: $e');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadMoreNam() async {
+    if (!_hasMoreNam || _isLoadingMore) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final currentPage = (_namHistory.length / _pageSize).floor();
+      final newData = await _loadNamPage(currentPage);
+
+      _namHistory.addAll(newData);
+      _hasMoreNam = newData.length >= _pageSize;
+    } catch (e) {
+      print('❌ Error loading more nam: $e');
     } finally {
       _isLoadingMore = false;
       notifyListeners();
@@ -238,6 +259,34 @@ class WinHistoryViewModel extends ChangeNotifier {
     }
   }
 
+  Future<List<CycleWinHistory>> _loadNamPage(int page) async {
+    try {
+      final values = await _trackingService.sheetsService
+          .getAllValues('namWinHistory'); // Gọi sheet namWinHistory
+
+      if (values.length < 2) return [];
+
+      final startIndex = 1 + (page * _pageSize);
+      final endIndex = (startIndex + _pageSize).clamp(0, values.length);
+
+      if (startIndex >= values.length) return [];
+
+      final histories = <CycleWinHistory>[];
+      for (int i = startIndex; i < endIndex; i++) {
+        try {
+          histories.add(CycleWinHistory.fromSheetRow(values[i]));
+        } catch (e) {
+          print('⚠️ Error parsing nam row $i: $e');
+        }
+      }
+      histories.sort((a, b) => b.stt.compareTo(a.stt));
+      return histories;
+    } catch (e) {
+      print('❌ Error loading nam page: $e');
+      return [];
+    }
+  }
+
   /// Helper: Load một page của trung history
   Future<List<CycleWinHistory>> _loadTrungPage(int page) async {
     try {
@@ -315,6 +364,10 @@ class WinHistoryViewModel extends ChangeNotifier {
     return _calculateStats(_xienHistory.cast<dynamic>());
   }
 
+  WinStats getNamStats() {
+    return _calculateStats(_namHistory.cast<dynamic>());
+  }
+
   /// Tính thống kê Trung
   WinStats getTrungStats() {
     return _calculateStats(_trungHistory.cast<dynamic>());
@@ -334,6 +387,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   WinStats getCombinedStats() {
     final allHistories = <dynamic>[
       ..._cycleHistory,
+      ..._namHistory, // Bổ sung Nam vào tổng hợp
       ..._trungHistory,
       ..._bacHistory,
       ..._xienHistory,
@@ -449,6 +503,7 @@ class WinHistoryViewModel extends ChangeNotifier {
   List<MonthlyProfit> getProfitByMonth() {
     final allHistories = <dynamic>[
       ..._cycleHistory,
+      ..._namHistory, // Bổ sung Nam để vẽ chart
       ..._trungHistory,
       ..._bacHistory,
       ..._xienHistory,

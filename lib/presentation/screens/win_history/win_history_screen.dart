@@ -2,11 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/utils/number_utils.dart';
 import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/xien_win_history.dart';
-import 'win_history_viewmodel.dart';
 import '../../widgets/empty_state_widget.dart';
+import 'win_history_viewmodel.dart';
 
 class WinHistoryScreen extends StatefulWidget {
   final int initialTab;
@@ -20,7 +21,8 @@ class WinHistoryScreen extends StatefulWidget {
   State<WinHistoryScreen> createState() => _WinHistoryScreenState();
 }
 
-class _WinHistoryScreenState extends State<WinHistoryScreen> with SingleTickerProviderStateMixin {
+class _WinHistoryScreenState extends State<WinHistoryScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   // ✅ Định nghĩa bảng màu (Dark Theme)
@@ -36,7 +38,7 @@ class _WinHistoryScreenState extends State<WinHistoryScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 4,
+      length: 5, // Tăng lên 5 tab
       vsync: this,
       initialIndex: widget.initialTab,
     );
@@ -67,12 +69,9 @@ class _WinHistoryScreenState extends State<WinHistoryScreen> with SingleTickerPr
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
-          labelColor: kAccentColor,
-          unselectedLabelColor: kSecondaryTextColor,
-          indicatorColor: kAccentColor,
-          dividerColor: Colors.transparent,
           tabs: const [
             Tab(text: 'Ba miền'),
+            Tab(text: 'Miền Nam'), // Thêm tab
             Tab(text: 'Miền Trung'),
             Tab(text: 'Miền Bắc'),
             Tab(text: 'Xiên Bắc'),
@@ -82,10 +81,12 @@ class _WinHistoryScreenState extends State<WinHistoryScreen> with SingleTickerPr
       body: Consumer<WinHistoryViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading && viewModel.cycleHistory.isEmpty) {
-            return const Center(child: CircularProgressIndicator(color: kAccentColor));
+            return const Center(
+                child: CircularProgressIndicator(color: kAccentColor));
           }
 
-          if (viewModel.errorMessage != null && viewModel.cycleHistory.isEmpty) {
+          if (viewModel.errorMessage != null &&
+              viewModel.cycleHistory.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -113,30 +114,21 @@ class _WinHistoryScreenState extends State<WinHistoryScreen> with SingleTickerPr
           return TabBarView(
             controller: _tabController,
             children: [
-              _buildHistoryList(
-                context,
-                viewModel.cycleHistory,
-                onLoadMore: viewModel.loadMoreCycle,
-                hasMore: viewModel.hasMoreCycle,
-              ),
-              _buildHistoryList(
-                context,
-                viewModel.trungHistory,
-                onLoadMore: viewModel.loadMoreTrung,
-                hasMore: viewModel.hasMoreTrung,
-              ),
-              _buildHistoryList(
-                context,
-                viewModel.bacHistory,
-                onLoadMore: viewModel.loadMoreBac,
-                hasMore: viewModel.hasMoreBac,
-              ),
-              _buildHistoryList(
-                context,
-                viewModel.xienHistory,
-                onLoadMore: viewModel.loadMoreXien,
-                hasMore: viewModel.hasMoreXien,
-              ),
+              _buildHistoryList(context, viewModel.cycleHistory,
+                  onLoadMore: viewModel.loadMoreCycle,
+                  hasMore: viewModel.hasMoreCycle),
+              _buildHistoryList(context, viewModel.namHistory,
+                  onLoadMore: viewModel.loadMoreNam,
+                  hasMore: viewModel.hasMoreNam), // Thêm list Nam
+              _buildHistoryList(context, viewModel.trungHistory,
+                  onLoadMore: viewModel.loadMoreTrung,
+                  hasMore: viewModel.hasMoreTrung),
+              _buildHistoryList(context, viewModel.bacHistory,
+                  onLoadMore: viewModel.loadMoreBac,
+                  hasMore: viewModel.hasMoreBac),
+              _buildHistoryList(context, viewModel.xienHistory,
+                  onLoadMore: viewModel.loadMoreXien,
+                  hasMore: viewModel.hasMoreXien),
             ],
           );
         },
@@ -160,7 +152,8 @@ class _WinHistoryScreenState extends State<WinHistoryScreen> with SingleTickerPr
     return NotificationListener<ScrollNotification>(
       onNotification: (ScrollNotification scrollInfo) {
         if (!scrollInfo.metrics.atEdge && scrollInfo.metrics.pixels > 0) {
-          if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
+          if (scrollInfo.metrics.pixels >=
+              scrollInfo.metrics.maxScrollExtent - 200) {
             if (hasMore) {
               onLoadMore();
             }
