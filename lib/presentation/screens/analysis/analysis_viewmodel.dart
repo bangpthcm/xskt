@@ -739,14 +739,14 @@ class AnalysisViewModel extends ChangeNotifier {
         endMien: endMien,
       );
 
-      // ✅ ĐỒNG BỘ: Sử dụng ngưỡng 0.9 thay vì 0.8
+      // ✅ ĐỒNG BỘ: Sử dụng ngưỡng 0.8
       final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
         baseStartDate: startDate,
         endDate: finalEndDate,
         endMien: endMien,
         availableBudget: budgetResult.budgetMax,
-        // Dùng 0.9 để Summary không hiển thị những ngày mà khi bấm tạo bảng lại báo lỗi
-        budgetMin: budgetResult.budgetMax * 0.9,
+        // Dùng 0.8 để Summary không hiển thị những ngày mà khi bấm tạo bảng lại báo lỗi
+        budgetMin: budgetResult.budgetMax * 0.8,
         mien: type == BettingTableTypeEnum.tatca ? 'Tất cả' : type.displayName,
         targetNumber: result.targetNumber,
         cycleResult: result,
@@ -1017,14 +1017,14 @@ class AnalysisViewModel extends ChangeNotifier {
       DateTime finalStartDate = params.startDate;
 
       try {
-        // ✅ BƯỚC 3: Tìm ngày bắt đầu tối ưu (Dùng 0.9 giống Summary)
+        // ✅ BƯỚC 3: Tìm ngày bắt đầu tối ưu (Dùng 0.8 giống Summary)
         final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
           baseStartDate: params.startDate,
           endDate: params.endDate,
           endMien: params.endMien,
           availableBudget: budgetResult.budgetMax,
           // Thống nhất ngưỡng tối thiểu để khớp với Summary
-          budgetMin: budgetResult.budgetMax * 0.9,
+          budgetMin: budgetResult.budgetMax * 0.8,
           mien: params.type == BettingTableTypeEnum.tatca
               ? 'Tất cả'
               : params.type.displayName,
@@ -1050,7 +1050,7 @@ class AnalysisViewModel extends ChangeNotifier {
         end: params.endDate,
         endMien: params.endMien,
         startIdx: params.startMienIndex,
-        min: budgetResult.budgetMax * 0.9,
+        min: budgetResult.budgetMax * 0.8,
         max: budgetResult.budgetMax,
         results: params.allResults,
         maxCount: params.type == BettingTableTypeEnum.tatca

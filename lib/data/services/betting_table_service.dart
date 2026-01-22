@@ -282,7 +282,7 @@ class BettingTableService {
     required int searchRange,
   }) async {
     double lowBet = profitTarget / 3 / 50;
-    if (lowBet < 0.5) lowBet = 0.5;
+    if (lowBet < 1) lowBet = 1;
     double highBet = 2000.0;
     List<BettingRow>? localBestTable;
 
@@ -351,7 +351,7 @@ class BettingTableService {
 
     if (bestTable == null) {
       // Logic fallback khẩn cấp
-      final testResult = await calculator(20.0, 1.0);
+      final testResult = await calculator(20.0, 1);
       final actualTotal = testResult['tong_tien'] as double;
 
       // Chỉ throw nếu ngay cả phương án rẻ nhất cũng vượt quá budget
