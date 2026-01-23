@@ -1,12 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'dart:async';
-import 'home_viewmodel.dart';
-import '../betting/betting_viewmodel.dart';
-import '../../../data/models/betting_row.dart';
-import '../../../core/utils/number_utils.dart';
+
 import '../../../core/theme/theme_provider.dart';
+import '../../../core/utils/number_utils.dart';
+import '../../../data/models/betting_row.dart';
+import '../betting/betting_viewmodel.dart';
+import 'home_viewmodel.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -53,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       final viewModel = context.read<HomeViewModel>();
       final newUrl = viewModel.getUrlForCurrentTime();
-      
+
       if (newUrl != viewModel.currentUrl) {
         _webViewController.loadRequest(Uri.parse(newUrl));
         viewModel.updateUrl();
@@ -105,7 +107,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 width: 40,
                 height: 3,
                 decoration: BoxDecoration(
-                  color: ThemeProvider.textSecondary, // ✅ Dùng màu từ ThemeProvider
+                  color: ThemeProvider
+                      .textSecondary, // ✅ Dùng màu từ ThemeProvider
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -114,7 +117,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ? const Center(
                         child: Text(
                           'Chưa có bảng cược cho ngày hôm nay',
-                          style: TextStyle(color: ThemeProvider.textSecondary, fontSize: 16),
+                          style: TextStyle(
+                              color: ThemeProvider.textSecondary, fontSize: 16),
                         ),
                       )
                     : ListView(
@@ -147,20 +151,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             child: const Row(
               children: [
-                Expanded(flex: 4, child: Text('Ngày', style: TextStyle(fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
-                Expanded(flex: 3, child: Text('Miền', style: TextStyle(fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
-                Expanded(flex: 4, child: Text('Số', style: TextStyle(fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
-                Expanded(flex: 4, child: Text('Cược/số', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
+                Expanded(
+                    flex: 4,
+                    child: Text('Ngày',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: ThemeProvider.textPrimary))),
+                Expanded(
+                    flex: 3,
+                    child: Text('Miền',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: ThemeProvider.textPrimary))),
+                Expanded(
+                    flex: 4,
+                    child: Text('Số',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: ThemeProvider.textPrimary))),
+                Expanded(
+                    flex: 4,
+                    child: Text('Cược/số',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: ThemeProvider.textPrimary))),
               ],
             ),
           ),
-          
+
           // Rows
           ...rows.asMap().entries.map((entry) {
             final index = entry.key;
             final row = entry.value;
             final isEven = index % 2 == 0;
-            
+
             final isCycleRow = row.cuocSo > 0;
             final cuocValue = isCycleRow ? row.cuocSo : row.cuocMien;
 
@@ -170,10 +195,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               color: isEven ? ThemeProvider.surface : ThemeProvider.tableRowOdd,
               child: Row(
                 children: [
-                  Expanded(flex: 4, child: Text(row.ngay, style: const TextStyle(fontSize: 13, color: ThemeProvider.textPrimary))),
-                  Expanded(flex: 3, child: Text(row.mien, style: const TextStyle(fontSize: 13, color: ThemeProvider.textPrimary))),
-                  Expanded(flex: 4, child: Text(row.so, style: const TextStyle(fontSize: 13, color: ThemeProvider.textPrimary, fontWeight: FontWeight.w500))),
-                  Expanded(flex: 4, child: Text(NumberUtils.formatCurrency(cuocValue), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: ThemeProvider.textPrimary))),
+                  Expanded(
+                      flex: 4,
+                      child: Text(row.ngay,
+                          style: const TextStyle(
+                              fontSize: 13, color: ThemeProvider.textPrimary))),
+                  Expanded(
+                      flex: 3,
+                      child: Text(row.mien,
+                          style: const TextStyle(
+                              fontSize: 13, color: ThemeProvider.textPrimary))),
+                  Expanded(
+                      flex: 4,
+                      child: Text(row.so,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: ThemeProvider.textPrimary,
+                              fontWeight: FontWeight.w500))),
+                  Expanded(
+                      flex: 4,
+                      child: Text(NumberUtils.formatCurrency(cuocValue),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: ThemeProvider.textPrimary))),
                 ],
               ),
             );
@@ -191,27 +237,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         actions: [
           Consumer<BettingViewModel>(
             builder: (context, viewModel, child) {
-              final totalRows = viewModel.todayCycleRows.length + viewModel.todayXienRows.length;
+              final totalRows = viewModel.todayCycleRows.length +
+                  viewModel.todayXienRows.length;
               return Stack(
                 children: [
                   IconButton(
-                    icon: Icon(Icons.table_chart, color: totalRows > 0 ? Theme.of(context).primaryColor.withOpacity(0.5) : Theme.of(context).primaryColor.withOpacity(0.1)),
+                    icon: Icon(Icons.table_chart,
+                        color: totalRows > 0
+                            ? Theme.of(context).primaryColor.withOpacity(0.5)
+                            : Theme.of(context).primaryColor.withOpacity(0.1)),
                     tooltip: 'Xem bảng tóm tắt',
-                    onPressed: totalRows > 0 ? () => _showSummaryTable(context, viewModel) : null,
+                    onPressed: totalRows > 0
+                        ? () => _showSummaryTable(context, viewModel)
+                        : null,
                   ),
                   if (totalRows > 0)
                     Positioned(
-                      right: 8, top: 8,
+                      right: 8,
+                      top: 8,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: Theme.of(context).primaryColor,
                           shape: BoxShape.circle,
                         ),
-                        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                        constraints:
+                            const BoxConstraints(minWidth: 18, minHeight: 18),
                         child: Text(
                           totalRows.toString(),
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),
                       ),

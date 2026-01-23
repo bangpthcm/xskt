@@ -1,5 +1,7 @@
 // lib/presentation/screens/win_history/win_summary_screen.dart
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -49,23 +51,14 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
 
   Future<void> _triggerUpdateWithNotify() async {
     final vm = context.read<WinHistoryViewModel>();
+    // Chốt chặn 1: Nếu đang chạy thì không cho chạy thêm
+    if (vm.isUpdating || _progressTimer != null) return;
+
     try {
+      _startProgressTimer(); // Chốt chặn 2: Chạy timer ảo
       await vm.updateDataFromServer();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('✅ Đã cập nhật kết quả mới nhất'),
-          backgroundColor: ThemeProvider.profit,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('❌ Lỗi cập nhật: $e'),
-          backgroundColor: ThemeProvider.loss,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+    } finally {
+      _stopProgressTimer(); // Luôn dừng cho dù thành công hay lỗi
     }
   }
 
@@ -106,7 +99,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
           }
 
           return RefreshIndicator(
-            onRefresh: () => viewModel.loadHistory(),
+            onRefresh: () => _handleDataUpdate(),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
@@ -118,17 +111,25 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
                 Column(
                   children: [
                     if (viewModel.isUpdating) ...[
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 8.0),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
                         child: Text(
-                          'Hệ thống đang kiểm tra kết quả... (Có thể mất 1 phút)',
-                          style:
-                              TextStyle(color: Color(0xFFFFD700), fontSize: 12),
+                          'Hệ thống đang kiểm tra... ${(_fakeProgress * 100).toInt()}%',
+                          style: const TextStyle(
+                              color: Color(0xFFFFD700),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold),
                         ),
                       ),
-                      const LinearProgressIndicator(
-                        color: Color(0xFFFFD700), // Màu vàng gold đồng bộ
-                        backgroundColor: Colors.white10,
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          // Dùng value thực tế thay vì chạy vô định
+                          value: _fakeProgress,
+                          color: const Color(0xFFFFD700),
+                          backgroundColor: Colors.white10,
+                          minHeight: 4,
+                        ),
                       ),
                       const SizedBox(height: 12),
                     ],
@@ -138,7 +139,9 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
                           : () async {
                               try {
                                 // 1. Gọi hàm cập nhật
+                                _startProgressTimer(); // 🚀 Bắt đầu
                                 await viewModel.updateDataFromServer();
+                                _stopProgressTimer();
 
                                 // 2. Hiển thị thông báo thành công (Màu xanh - profit)
                                 if (mounted) {
@@ -153,6 +156,7 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
                                   );
                                 }
                               } catch (e) {
+                                _stopProgressTimer();
                                 // 3. Hiển thị thông báo thất bại (Màu đỏ - loss)
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -492,5 +496,68 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
         ),
       ),
     );
+  }
+
+  double _fakeProgress = 0.0;
+  Timer? _progressTimer;
+
+  void _startProgressTimer() {
+    // Hủy timer cũ nếu có để tránh chạy chồng chéo
+    _progressTimer?.cancel();
+    setState(() => _fakeProgress = 0.0);
+
+    const duration = Duration(milliseconds: 100);
+    int elapsedMs = 0;
+    const expectedTotalMs = 70000; // 70 giây
+
+    _progressTimer = Timer.periodic(duration, (timer) {
+      elapsedMs += 100;
+
+      // Công thức Ease-out: Chạy nhanh lúc đầu, chậm dần khi về sau
+      // Nó sẽ không bao giờ chạm 1.0 (100%) mà chỉ tiến sát 0.99
+      double factor = elapsedMs / expectedTotalMs;
+      double newProgress =
+          1 - (1 / (1 + (factor * 5))); // Hàm dốc nhanh lúc đầu
+
+      if (mounted) {
+        setState(() {
+          _fakeProgress = newProgress.clamp(0.0, 0.98);
+        });
+      }
+
+      if (elapsedMs >= expectedTotalMs) timer.cancel();
+    });
+  }
+
+  void _stopProgressTimer() {
+    _progressTimer?.cancel();
+    _progressTimer = null;
+    if (mounted) {
+      setState(() => _fakeProgress = 1.0);
+      // Ẩn thanh sau 800ms
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) setState(() => _fakeProgress = 0.0);
+      });
+    }
+  }
+
+// Hàm bao bọc để dùng cho cả nút nhấn và Refresh
+  Future<void> _handleDataUpdate() async {
+    final vm = context.read<WinHistoryViewModel>();
+    // Chốt chặn: Nếu đang chạy thì không làm gì cả
+    if (vm.isUpdating || _fakeProgress > 0) return;
+
+    try {
+      _startProgressTimer();
+      await vm.updateDataFromServer();
+    } finally {
+      _stopProgressTimer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _progressTimer?.cancel(); // Rất quan trọng để tránh memory leak và lỗi lặp
+    super.dispose();
   }
 }
