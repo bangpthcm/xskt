@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../screens/betting/betting_screen.dart';
+
+import '../../core/theme/theme_provider.dart'; // ✅ Import ThemeProvider
 import '../screens/analysis/analysis_screen.dart';
 import '../screens/analysis/analysis_viewmodel.dart';
-import '../screens/win_history/win_summary_screen.dart';
+import '../screens/betting/betting_screen.dart';
 import '../screens/settings/settings_screen.dart';
-import '../../core/theme/theme_provider.dart'; // ✅ Import ThemeProvider
+import '../screens/win_history/win_summary_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -50,10 +51,10 @@ class MainNavigationState extends State<MainNavigation>
         controller: _tabController,
         physics: const BouncingScrollPhysics(),
         children: const [
-          AnalysisScreen(),     // ✅ Index 0: Phân tích
-          BettingScreen(),      // ✅ Index 1: Bảng cược
-          WinSummaryScreen(),   // ✅ Index 2: Kết quả
-          SettingsScreen(),     // ✅ Index 3: Cài đặt
+          AnalysisScreen(), // ✅ Index 0: Phân tích
+          BettingScreen(), // ✅ Index 1: Bảng cược
+          SettingsScreen(), // ✅ Index 3: Cài đặt
+          WinSummaryScreen(), // ✅ Index 2: Kết quả
         ],
       ),
       // ✅ Sử dụng Custom Bottom Bar thay vì widget mặc định
@@ -78,7 +79,7 @@ class MainNavigationState extends State<MainNavigation>
         builder: (context, viewModel, child) {
           return Stack(
             children: [
-              // 1. Dòng ghi chú (Nằm ở layer dưới cùng hoặc trên cùng đều được, 
+              // 1. Dòng ghi chú (Nằm ở layer dưới cùng hoặc trên cùng đều được,
               // nhưng InkWell ở layer trên sẽ phủ lên để nhận gợn sóng)
               Positioned(
                 top: 6,
@@ -101,8 +102,8 @@ class MainNavigationState extends State<MainNavigation>
                 children: [
                   _buildNavItem(0, Icons.analytics, 'Phân tích', viewModel),
                   _buildNavItem(1, Icons.table_chart, 'Bảng cược', viewModel),
-                  _buildNavItem(2, Icons.assessment, 'Kết quả', viewModel),
-                  _buildNavItem(3, Icons.settings, 'Cài đặt', viewModel),
+                  _buildNavItem(2, Icons.settings, 'Cài đặt', viewModel),
+                  _buildNavItem(3, Icons.assessment, 'Kết quả', viewModel),
                 ],
               ),
             ],
@@ -112,19 +113,21 @@ class MainNavigationState extends State<MainNavigation>
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label, AnalysisViewModel vm) {
+  Widget _buildNavItem(
+      int index, IconData icon, String label, AnalysisViewModel vm) {
     final isSelected = _tabController.index == index;
-    final color = isSelected ? ThemeProvider.accent : ThemeProvider.textSecondary;
+    final color =
+        isSelected ? ThemeProvider.accent : ThemeProvider.textSecondary;
 
     return Expanded(
       child: BouncingButton(
         onTap: () => switchToTab(index),
         child: Container(
-          color: Colors.transparent, 
+          color: Colors.transparent,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const SizedBox(height: 20), 
+              const SizedBox(height: 20),
               Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -141,7 +144,7 @@ class MainNavigationState extends State<MainNavigation>
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
-              const SizedBox(height: 8), 
+              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -171,7 +174,8 @@ class BouncingButton extends StatefulWidget {
   State<BouncingButton> createState() => _BouncingButtonState();
 }
 
-class _BouncingButtonState extends State<BouncingButton> with SingleTickerProviderStateMixin {
+class _BouncingButtonState extends State<BouncingButton>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
@@ -183,7 +187,7 @@ class _BouncingButtonState extends State<BouncingButton> with SingleTickerProvid
       duration: const Duration(milliseconds: 100), // Thời gian co lại rất nhanh
       reverseDuration: const Duration(milliseconds: 100),
     );
-    
+
     // Co lại còn 90% kích thước
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),

@@ -17,20 +17,61 @@ class WinSummaryScreen extends StatefulWidget {
   State<WinSummaryScreen> createState() => _WinSummaryScreenState();
 }
 
-class _WinSummaryScreenState extends State<WinSummaryScreen> {
+class _WinSummaryScreenState extends State<WinSummaryScreen>
+    with AutomaticKeepAliveClientMixin {
   // ✅ 2. Biến trạng thái để ẩn/hiện chi tiết
   bool _isExpanded = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<WinHistoryViewModel>().loadHistory();
+      _initialLogic();
     });
+  }
+
+  Future<void> _initialLogic() async {
+    final vm = context.read<WinHistoryViewModel>();
+
+    // 🚀 CHIẾN THUẬT:
+    // 1. Load dữ liệu cũ ngay (mất ~1s) -> Chart và Card sẽ hiện ngay lập tức
+    await vm.loadHistory();
+
+    // 2. Sau đó mới kích hoạt cập nhật server (chạy ngầm 200s)
+    // Nếu dữ liệu trống hoặc người dùng vừa vào app, ta mới tự động trigger
+    if (vm.cycleHistory.isEmpty || !vm.isUpdating) {
+      _triggerUpdateWithNotify();
+    }
+  }
+
+  Future<void> _triggerUpdateWithNotify() async {
+    final vm = context.read<WinHistoryViewModel>();
+    try {
+      await vm.updateDataFromServer();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('✅ Đã cập nhật kết quả mới nhất'),
+          backgroundColor: ThemeProvider.profit,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('❌ Lỗi cập nhật: $e'),
+          backgroundColor: ThemeProvider.loss,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: Consumer<WinHistoryViewModel>(
@@ -70,9 +111,87 @@ class _WinSummaryScreenState extends State<WinSummaryScreen> {
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 ProfitChart(data: viewModel.getProfitByMonth()),
-                const SizedBox(height: 16),
 
-                // ✅ Card Tổng hợp (Tương tác để mở rộng)
+                const SizedBox(height: 12),
+
+                // 🚀 KHU VỰC NÚT KIỂM TRA KẾT QUẢ VÀ LOADING
+                Column(
+                  children: [
+                    if (viewModel.isUpdating) ...[
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          'Hệ thống đang kiểm tra kết quả... (Có thể mất 1 phút)',
+                          style:
+                              TextStyle(color: Color(0xFFFFD700), fontSize: 12),
+                        ),
+                      ),
+                      const LinearProgressIndicator(
+                        color: Color(0xFFFFD700), // Màu vàng gold đồng bộ
+                        backgroundColor: Colors.white10,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    ElevatedButton.icon(
+                      onPressed: viewModel.isUpdating
+                          ? null
+                          : () async {
+                              try {
+                                // 1. Gọi hàm cập nhật
+                                await viewModel.updateDataFromServer();
+
+                                // 2. Hiển thị thông báo thành công (Màu xanh - profit)
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content:
+                                          Text('✅ Cập nhật kết quả thành công'),
+                                      backgroundColor: ThemeProvider
+                                          .profit, // Đồng bộ màu Settings
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                // 3. Hiển thị thông báo thất bại (Màu đỏ - loss)
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('❌ Lỗi: ${e.toString()}'),
+                                      backgroundColor: ThemeProvider
+                                          .loss, // Đồng bộ màu Settings
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      icon: viewModel.isUpdating
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.grey))
+                          : const Icon(Icons.sync_alt),
+                      label: Text(viewModel.isUpdating
+                          ? 'Đang thực thi...'
+                          : 'Kiểm tra kết quả'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ThemeProvider.surface, // kSurfaceColor
+                        foregroundColor:
+                            ThemeProvider.accent, // Đồng bộ kAccentColor
+                        disabledBackgroundColor: Colors.grey.shade900,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Colors.white10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
                 _buildCombinedCard(viewModel),
 
                 const SizedBox(height: 16),

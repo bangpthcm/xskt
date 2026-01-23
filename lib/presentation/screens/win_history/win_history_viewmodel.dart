@@ -3,6 +3,7 @@
 import 'dart:math'; // Import để dùng hàm max
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../data/models/cycle_win_history.dart';
 import '../../../data/models/xien_win_history.dart';
@@ -14,6 +15,9 @@ class WinHistoryViewModel extends ChangeNotifier {
   WinHistoryViewModel({
     required WinTrackingService trackingService,
   }) : _trackingService = trackingService;
+
+  bool _isUpdating = false;
+  bool get isUpdating => _isUpdating;
 
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -58,21 +62,20 @@ class WinHistoryViewModel extends ChangeNotifier {
         _loadXienPage(0),
         _loadTrungPage(0),
         _loadBacPage(0),
-        _loadNamPage(0), // Tải thêm trang đầu của Miền Nam
+        _loadNamPage(0),
       ]);
 
       _cycleHistory = results[0] as List<CycleWinHistory>;
       _xienHistory = results[1] as List<XienWinHistory>;
       _trungHistory = results[2] as List<CycleWinHistory>;
       _bacHistory = results[3] as List<CycleWinHistory>;
-      _namHistory = results[4] as List<CycleWinHistory>; // Gán dữ liệu Miền Nam
+      _namHistory = results[4] as List<CycleWinHistory>;
 
       _hasMoreCycle = _cycleHistory.length >= _pageSize;
       _hasMoreXien = _xienHistory.length >= _pageSize;
       _hasMoreTrung = _trungHistory.length >= _pageSize;
       _hasMoreBac = _bacHistory.length >= _pageSize;
-      _hasMoreNam =
-          _namHistory.length >= _pageSize; // Kiểm tra còn dữ liệu không
+      _hasMoreNam = _namHistory.length >= _pageSize;
 
       _isLoading = false;
       notifyListeners();
@@ -569,6 +572,32 @@ class WinHistoryViewModel extends ChangeNotifier {
     });
 
     return result;
+  }
+
+  Future<void> updateDataFromServer() async {
+    if (_isUpdating) return;
+    _isUpdating = true;
+    notifyListeners();
+
+    try {
+      const String webAppUrl =
+          "https://script.google.com/macros/s/AKfycbzCPXQKZu86R1QsAm1s4GG1ysPhHrLHALy6YQSpnOuaNY6Rc1zCHRNGP5t-XUbysHcQpg/exec?action=dailyLotteryCheck";
+
+      // Gọi script với timeout 210 giây
+      await http.get(Uri.parse(webAppUrl)).timeout(const Duration(seconds: 44));
+
+      // 2. CHỈ KHI SCRIPT CHẠY XONG mới gọi loadHistory để làm mới UI
+      await loadHistory();
+    } catch (e) {
+      if (e.toString().contains('Failed to fetch')) {
+        await loadHistory();
+      } else {
+        rethrow; // Đẩy lỗi ra ngoài để UI hiện SnackBar đỏ
+      }
+    } finally {
+      _isUpdating = false;
+      notifyListeners();
+    }
   }
 }
 
