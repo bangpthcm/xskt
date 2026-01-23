@@ -584,7 +584,7 @@ class WinHistoryViewModel extends ChangeNotifier {
           "https://script.google.com/macros/s/AKfycbzCPXQKZu86R1QsAm1s4GG1ysPhHrLHALy6YQSpnOuaNY6Rc1zCHRNGP5t-XUbysHcQpg/exec?action=dailyLotteryCheck";
 
       // Gọi script với timeout 210 giây
-      await http.get(Uri.parse(webAppUrl)).timeout(const Duration(seconds: 44));
+      await http.get(Uri.parse(webAppUrl)).timeout(const Duration(seconds: 70));
 
       // 2. CHỈ KHI SCRIPT CHẠY XONG mới gọi loadHistory để làm mới UI
       await loadHistory();
