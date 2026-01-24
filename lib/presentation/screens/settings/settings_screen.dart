@@ -196,7 +196,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildProbabilityThresholdField(
                   controller: _probabilityThresholdNamController,
                   label: 'Miền Nam',
-                  hint: '-56.30669861',
+                  hint: '-45.64413261',
                   helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
                 ),
                 const SizedBox(height: 16),
@@ -259,7 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // ✅ CẬP NHẬT: Validate số Log (thường là số âm từ -700 đến -2)
         final val = double.tryParse(value);
         if (val == null) {
-          return 'Phải là số thực (ví dụ: -169.9302498)';
+          return 'Phải là số thực (ví dụ: -149.6663475)';
         }
 
         // Range an toàn cho Log xác suất
@@ -638,19 +638,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Dùng tên biến đúng: _probabilityThreshold...
     double thresholdTatCa =
         double.tryParse(_probabilityThresholdTatCaController.text) ??
-            -169.9302498;
+            -149.6663475;
     double thresholdNam =
         double.tryParse(_probabilityThresholdNamController.text) ??
-            -56.30669861;
+            -45.64413261;
     double thresholdTrung =
         double.tryParse(_probabilityThresholdTrungController.text) ??
-            -50.10242462;
+            -52.45307541;
     double thresholdBac =
         double.tryParse(_probabilityThresholdBacController.text) ??
-            -157.9834442;
+            -46.16436195;
     double thresholdXien =
         double.tryParse(_probabilityThresholdXienController.text) ??
-            -574.343423;
+            -599.9275294;
 
     // ✅ CẬP NHẬT: Tạo ProbabilityConfig với các trường Ln mới
     final probabilityConfig = ProbabilityConfig(

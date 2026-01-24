@@ -585,9 +585,6 @@ class WinHistoryViewModel extends ChangeNotifier {
 
       // Gọi script với timeout 210 giây
       await http.get(Uri.parse(webAppUrl)).timeout(const Duration(seconds: 70));
-
-      // 2. CHỈ KHI SCRIPT CHẠY XONG mới gọi loadHistory để làm mới UI
-      await loadHistory();
     } catch (e) {
       if (e.toString().contains('Failed to fetch')) {
         await loadHistory();

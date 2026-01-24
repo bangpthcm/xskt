@@ -38,14 +38,13 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
   Future<void> _initialLogic() async {
     final vm = context.read<WinHistoryViewModel>();
 
-    // 🚀 CHIẾN THUẬT:
-    // 1. Load dữ liệu cũ ngay (mất ~1s) -> Chart và Card sẽ hiện ngay lập tức
+    // 1. Tải dữ liệu cũ từ cache/Sheets lên trước để hiện ngay UI
     await vm.loadHistory();
 
-    // 2. Sau đó mới kích hoạt cập nhật server (chạy ngầm 200s)
-    // Nếu dữ liệu trống hoặc người dùng vừa vào app, ta mới tự động trigger
-    if (vm.cycleHistory.isEmpty || !vm.isUpdating) {
-      _triggerUpdateWithNotify();
+    // 2. Tự động chạy task cập nhật nếu dữ liệu trống (lần đầu dùng app)
+    // Hoặc trò có thể bỏ điều kiện isEmpty nếu muốn mỗi lần vào đều check
+    if (!vm.isUpdating) {
+      _runUpdateTask();
     }
   }
 
@@ -66,10 +65,12 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
   Widget build(BuildContext context) {
     super.build(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
       body: Consumer<WinHistoryViewModel>(
         builder: (context, viewModel, child) {
-          if (viewModel.isLoading) {
+          // ✅ CẬP NHẬT: Chỉ hiện Shimmer khi load lần đầu VÀ không phải đang update server
+          if (viewModel.isLoading &&
+              viewModel.cycleHistory.isEmpty &&
+              !viewModel.isUpdating) {
             return const ShimmerLoading(type: ShimmerType.stats);
           }
 
@@ -99,12 +100,11 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
           }
 
           return RefreshIndicator(
-            onRefresh: () => _handleDataUpdate(),
+            onRefresh: () => _runUpdateTask(), // Dùng hàm thống nhất
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 ProfitChart(data: viewModel.getProfitByMonth()),
-
                 const SizedBox(height: 12),
 
                 // 🚀 KHU VỰC NÚT KIỂM TRA KẾT QUẢ VÀ LOADING
@@ -114,69 +114,24 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
                         child: Text(
-                          'Hệ thống đang kiểm tra... ${(_fakeProgress * 100).toInt()}%',
+                          'Đang kiểm tra kết quả... ${(_fakeProgress * 100).toInt()}%',
                           style: const TextStyle(
                               color: Color(0xFFFFD700),
                               fontSize: 12,
                               fontWeight: FontWeight.bold),
                         ),
                       ),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
-                          // Dùng value thực tế thay vì chạy vô định
-                          value: _fakeProgress,
-                          color: const Color(0xFFFFD700),
-                          backgroundColor: Colors.white10,
-                          minHeight: 4,
-                        ),
+                      LinearProgressIndicator(
+                        value: _fakeProgress,
+                        color: const Color(0xFFFFD700),
+                        backgroundColor: Colors.white10,
+                        minHeight: 4,
                       ),
                       const SizedBox(height: 12),
                     ],
                     ElevatedButton.icon(
-                      onPressed: viewModel.isUpdating
-                          ? null
-                          : () async {
-                              try {
-                                // 1. Gọi hàm cập nhật
-                                _startProgressTimer(); // 🚀 Bắt đầu
-                                await viewModel.updateDataFromServer();
-                                _stopProgressTimer();
-
-                                // 2. Hiển thị thông báo thành công (Màu xanh - profit)
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content:
-                                          Text('✅ Cập nhật kết quả thành công'),
-                                      backgroundColor: ThemeProvider
-                                          .profit, // Đồng bộ màu Settings
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                _stopProgressTimer();
-                                // 3. Hiển thị thông báo thất bại (Màu đỏ - loss)
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('❌ Lỗi: ${e.toString()}'),
-                                      backgroundColor: ThemeProvider
-                                          .loss, // Đồng bộ màu Settings
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                      icon: viewModel.isUpdating
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.grey))
-                          : const Icon(Icons.sync_alt),
+                      onPressed:
+                          viewModel.isUpdating ? null : () => _runUpdateTask(),
                       label: Text(viewModel.isUpdating
                           ? 'Đang thực thi...'
                           : 'Kiểm tra kết quả'),
@@ -541,17 +496,34 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
     }
   }
 
-// Hàm bao bọc để dùng cho cả nút nhấn và Refresh
-  Future<void> _handleDataUpdate() async {
+  Future<void> _runUpdateTask() async {
     final vm = context.read<WinHistoryViewModel>();
-    // Chốt chặn: Nếu đang chạy thì không làm gì cả
+    // Chốt chặn tránh chạy lặp
     if (vm.isUpdating || _fakeProgress > 0) return;
 
     try {
-      _startProgressTimer();
-      await vm.updateDataFromServer();
-    } finally {
+      _startProgressTimer(); // Bật ngay timer ảo (nhanh trước chậm sau)
+
+      await vm.updateDataFromServer(); // Chờ server xử lý
+
+      _stopProgressTimer(); // Đẩy lên 100% khi xong
+
+      if (mounted) {
+        // Hiện SnackBar chúc mừng
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Đã cập nhật kết quả mới nhất'),
+            backgroundColor: ThemeProvider.profit,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        // Cuối cùng mới nạp dữ liệu mới vào biểu đồ/thẻ
+        await vm.loadHistory();
+      }
+    } catch (e) {
       _stopProgressTimer();
+      // Xử lý lỗi...
     }
   }
 
