@@ -48,19 +48,6 @@ class _WinSummaryScreenState extends State<WinSummaryScreen>
     }
   }
 
-  Future<void> _triggerUpdateWithNotify() async {
-    final vm = context.read<WinHistoryViewModel>();
-    // Chốt chặn 1: Nếu đang chạy thì không cho chạy thêm
-    if (vm.isUpdating || _progressTimer != null) return;
-
-    try {
-      _startProgressTimer(); // Chốt chặn 2: Chạy timer ảo
-      await vm.updateDataFromServer();
-    } finally {
-      _stopProgressTimer(); // Luôn dừng cho dù thành công hay lỗi
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
