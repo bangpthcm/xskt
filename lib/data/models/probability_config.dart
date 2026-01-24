@@ -9,9 +9,9 @@ class ProbabilityConfig {
 
   ProbabilityConfig({
     this.thresholdLnTatCa = -149.6663475, // P= -15
-    this.thresholdLnNam = -45.64413261, // ✅ THÊM (Giá trị mặc định cho Nam)
+    this.thresholdLnNam = -44.99256134, // ✅ THÊM (Giá trị mặc định cho Nam)
     this.thresholdLnTrung = -52.45307541,
-    this.thresholdLnBac = -46.16436195,
+    this.thresholdLnBac = -45.9005928,
     this.thresholdLnXien = -599.9275294,
   });
 
@@ -67,11 +67,11 @@ class ProbabilityConfig {
       thresholdLnTatCa:
           (json['thresholdLnTatCa'] as num?)?.toDouble() ?? -149.6663475,
       thresholdLnNam: (json['thresholdLnNam'] as num?)?.toDouble() ??
-          -45.64413261, // ✅ THÊM
+          -44.99256134, // ✅ THÊM
       thresholdLnTrung:
           (json['thresholdLnTrung'] as num?)?.toDouble() ?? -52.45307541,
       thresholdLnBac:
-          (json['thresholdLnBac'] as num?)?.toDouble() ?? -46.16436195,
+          (json['thresholdLnBac'] as num?)?.toDouble() ?? -45.9005928,
       thresholdLnXien:
           (json['thresholdLnXien'] as num?)?.toDouble() ?? -599.9275294,
     );
