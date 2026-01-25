@@ -66,7 +66,7 @@ class BudgetConfig {
       totalCapital: (json['totalCapital'] ?? 800000).toDouble(),
       namBudget: (json['namBudget'] ?? 380000).toDouble(), // ✅ THÊM
       trungBudget: (json['trungBudget'] ?? 330000).toDouble(),
-      bacBudget: (json['bacBudget'] ?? 250000).toDouble(),
+      bacBudget: (json['bacBudget'] ?? 270000).toDouble(),
       xienBudget: (json['xienBudget'] ?? 151000).toDouble(),
     );
   }
@@ -76,7 +76,7 @@ class BudgetConfig {
       totalCapital: 800000,
       namBudget: 380000, // ✅ Mặc định 0
       trungBudget: 330000,
-      bacBudget: 250000,
+      bacBudget: 270000,
       xienBudget: 151000,
     );
   }

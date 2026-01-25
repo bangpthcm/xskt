@@ -199,6 +199,14 @@ class AnalysisViewModel extends ChangeNotifier {
   DateTime? _endDateBac;
   DateTime? _endDateXien;
 
+  int _startIdxTatCa = 0;
+  int _startIdxNam = 0;
+  int _startIdxTrung = 0;
+  int _startIdxBac = 0;
+
+// Getters để UI hoặc các hàm khác có thể truy cập nếu cần
+  int get startIdxTatCa => _startIdxTatCa;
+
   // Getters
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -671,14 +679,22 @@ class AnalysisViewModel extends ChangeNotifier {
     return 'Miền Bắc';
   }
 
-  String _getStartRegionName(String mienName) {
+  String _getStartRegionName(String mienName, int startMienIndex) {
     final normalized = mienName.toLowerCase();
+
+    // Nếu là lọc miền riêng lẻ, hiển thị đúng miền đó
     if (normalized.contains('nam')) return 'Miền Nam';
     if (normalized.contains('trung')) return 'Miền Trung';
-    if (normalized.contains('bắc') || normalized.contains('bac')) {
+    if (normalized.contains('bắc') || normalized.contains('bac'))
       return 'Miền Bắc';
-    }
-    return 'Miền Nam';
+
+    // Nếu là "Tất cả", hiển thị dựa trên startMienIndex tìm được từ Service
+    return switch (startMienIndex) {
+      0 => 'Miền Nam',
+      1 => 'Miền Trung',
+      2 => 'Miền Bắc',
+      _ => 'Miền Nam',
+    };
   }
 
   Future<void> _calculatePlanForRegion(
@@ -686,8 +702,7 @@ class AnalysisViewModel extends ChangeNotifier {
     String mienName,
     AppConfig? config,
   ) async {
-    if (config == null) return;
-    if (_allResults.isEmpty) return;
+    if (config == null || _allResults.isEmpty) return;
 
     String normalizedMien = mienName.toLowerCase();
     double thresholdLn = _getThresholdForMien(mienName, config);
@@ -723,9 +738,14 @@ class AnalysisViewModel extends ChangeNotifier {
     }
 
     finalEndDate ??= DateTime.now().add(const Duration(days: 2));
+
+    // Ngày bắt đầu mặc định (Ngày mai dựa trên Header)
     DateTime startDate = DateFormat('dd/MM/yyyy')
         .parse(_sheetHeaderDate)
         .add(const Duration(days: 1));
+
+    // Biến tạm để lưu index miền tìm được
+    int foundStartIdx = 0;
 
     try {
       final type = _mapMienToEnum(mienName);
@@ -739,13 +759,12 @@ class AnalysisViewModel extends ChangeNotifier {
         endMien: endMien,
       );
 
-      // ✅ ĐỒNG BỘ: Sử dụng ngưỡng 0.8
-      final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
+      // GỌI HÀM VÀ NHẬN RECORD ({DateTime date, int mienIndex})
+      final optimalResult = await AnalysisService.findOptimalStartDateForCycle(
         baseStartDate: startDate,
         endDate: finalEndDate,
         endMien: endMien,
         availableBudget: budgetResult.budgetMax,
-        // Dùng 0.8 để Summary không hiển thị những ngày mà khi bấm tạo bảng lại báo lỗi
         budgetMin: budgetResult.budgetMax * 0.8,
         mien: type == BettingTableTypeEnum.tatca ? 'Tất cả' : type.displayName,
         targetNumber: result.targetNumber,
@@ -757,16 +776,21 @@ class AnalysisViewModel extends ChangeNotifier {
             : 0,
       );
 
-      if (optimalStart != null) startDate = optimalStart;
+      if (optimalResult != null) {
+        // ✅ GIẢI QUYẾT LỖI TẠI ĐÂY: Tách date và mienIndex từ Record
+        startDate = optimalResult.date;
+        foundStartIdx = optimalResult.mienIndex;
+      } else {
+        budgetErrorStatus = "⚠️ Thiếu vốn";
+      }
     } catch (e) {
       if (e is BudgetInsufficientException) {
         budgetErrorStatus = "⚠️ Thiếu vốn";
       }
     }
 
-    final startRegionStr = _getStartRegionName(mienName);
-    final endRegionStr = endMien;
-
+    // Cập nhật State và hiển thị
+    final startRegionStr = _getStartRegionName(mienName, foundStartIdx);
     String startInfoString = budgetErrorStatus ??
         "${date_utils.DateUtils.formatDate(startDate)} ($startRegionStr)";
 
@@ -776,25 +800,29 @@ class AnalysisViewModel extends ChangeNotifier {
 
     String endInfoString = budgetErrorStatus != null
         ? "❌ Vốn không đủ"
-        : "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(finalEndDate)} ($endRegionStr)";
+        : "🏁 Kết thúc: ${date_utils.DateUtils.formatDate(finalEndDate)} ($endMien)";
 
     if (normalizedMien.contains('nam')) {
       _dateNam = startDate;
+      _startIdxNam = foundStartIdx;
       _endDateNam = finalEndDate;
       _optimalNam = startInfoString;
       _endPlanNam = endInfoString;
     } else if (normalizedMien.contains('trung')) {
       _dateTrung = startDate;
+      _startIdxTrung = foundStartIdx;
       _endDateTrung = finalEndDate;
       _optimalTrung = startInfoString;
       _endPlanTrung = endInfoString;
     } else if (normalizedMien.contains('bắc')) {
       _dateBac = startDate;
+      _startIdxBac = foundStartIdx;
       _endDateBac = finalEndDate;
       _optimalBac = startInfoString;
       _endPlanBac = endInfoString;
     } else {
       _dateTatCa = startDate;
+      _startIdxTatCa = foundStartIdx;
       _endDateTatCa = finalEndDate;
       _optimalTatCa = startInfoString;
       _endPlanTatCa = endInfoString;
@@ -948,6 +976,7 @@ class AnalysisViewModel extends ChangeNotifier {
         .add(const Duration(days: 1));
     DateTime endDate;
     String endMien = _getEndRegionName(mien);
+    int startMienIndex = 0;
 
     bool isMatchingTarget =
         _cycleResult != null && _cycleResult!.targetNumber == targetNumber;
@@ -957,22 +986,29 @@ class AnalysisViewModel extends ChangeNotifier {
         case BettingTableTypeEnum.tatca:
           endDate = _endDateTatCa ?? startDate.add(const Duration(days: 3));
           endMien = _endMienTatCa ?? 'Miền Bắc';
+          if (_dateTatCa != null) startDate = _dateTatCa!;
+          startMienIndex = _startIdxTatCa; // ✅ Đồng bộ từ Summary
           break;
         case BettingTableTypeEnum.nam:
           endDate = _endDateNam ?? startDate.add(const Duration(days: 3));
           endMien = 'Miền Nam';
+          if (_dateNam != null) startDate = _dateNam!;
+          startMienIndex = _startIdxNam;
           break;
         case BettingTableTypeEnum.trung:
           endDate = _endDateTrung ?? startDate.add(const Duration(days: 3));
           endMien = 'Miền Trung';
+          if (_dateTrung != null) startDate = _dateTrung!;
+          startMienIndex = _startIdxTrung;
           break;
         case BettingTableTypeEnum.bac:
           endDate = _endDateBac ?? startDate.add(const Duration(days: 3));
           endMien = 'Miền Bắc';
+          if (_dateBac != null) startDate = _dateBac!;
+          startMienIndex = _startIdxBac;
           break;
       }
     } else {
-      // Logic dự phòng nếu không khớp cache
       endDate = startDate.add(const Duration(days: 3));
     }
 
@@ -983,8 +1019,8 @@ class AnalysisViewModel extends ChangeNotifier {
       targetNumber: targetNumber,
       startDate: startDate,
       endDate: endDate,
-      endMien: endMien, // 👈 THÊM
-      startMienIndex: 0,
+      endMien: endMien,
+      startMienIndex: startMienIndex,
       durationLimit: durationLimit > 0 ? durationLimit : 1,
       soNgayGan: _cycleResult?.maxGanDays ?? 0,
       cycleResult: _cycleResult!,
@@ -1037,7 +1073,7 @@ class AnalysisViewModel extends ChangeNotifier {
               : 0,
         );
 
-        if (optimalStart != null) finalStartDate = optimalStart;
+        if (optimalStart != null) finalStartDate = optimalStart as DateTime;
       } catch (_) {
         // Nếu không tìm được ngày tối ưu, vẫn dùng startDate mặc định
       }

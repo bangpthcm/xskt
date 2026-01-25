@@ -735,12 +735,13 @@ class AnalysisService {
 
   // ✅ LOGIC MỚI: Tối ưu Start Date theo session (thay vì theo ngày)
 
-  static Future<DateTime?> findOptimalStartDateForCycle({
+  static Future<({DateTime date, int mienIndex})?>
+      findOptimalStartDateForCycle({
     required DateTime baseStartDate,
     required DateTime endDate,
     required String endMien,
     required double availableBudget,
-    required double budgetMin, // ✅ Thêm tham số này
+    required double budgetMin,
     required String mien,
     required String targetNumber,
     required CycleAnalysisResult cycleResult,
@@ -756,25 +757,29 @@ class AnalysisService {
         mienLower.contains('bắc') ||
         mienLower.contains('bac');
 
+    // Khởi tạo miền bắt đầu
     String currentMien = isSpecific
         ? (mienLower.contains('nam')
             ? 'Nam'
             : (mienLower.contains('trung') ? 'Trung' : 'Bắc'))
         : 'Nam';
 
+    // Thử tối đa maxDaysToTry ngày, mỗi ngày 3 miền (nếu là Tất cả)
     for (int i = 0; i < maxDaysToTry * 3; i++) {
       if (!currentDate.isBefore(endDate)) break;
       await Future.delayed(Duration.zero);
 
       double totalCost = 0;
       final durationLimit = endDate.difference(currentDate).inDays;
+      final mienIdx = _getMienIndex(currentMien);
+
       try {
         if (mienLower.contains('nam')) {
           final table = await bettingService.generateNamGanTable(
               cycleResult: cycleResult,
               startDate: currentDate,
               endDate: endDate,
-              budgetMin: budgetMin, // ✅ Dùng tham số truyền vào thay vì * 0.8
+              budgetMin: budgetMin,
               budgetMax: availableBudget,
               durationLimit: durationLimit);
           if (table.isNotEmpty) totalCost = table.last.tongTien;
@@ -783,7 +788,7 @@ class AnalysisService {
               cycleResult: cycleResult,
               startDate: currentDate,
               endDate: endDate,
-              budgetMin: budgetMin, // ✅ Dùng tham số truyền vào
+              budgetMin: budgetMin,
               budgetMax: availableBudget,
               durationLimit: durationLimit);
           if (table.isNotEmpty) totalCost = table.last.tongTien;
@@ -792,18 +797,19 @@ class AnalysisService {
               cycleResult: cycleResult,
               startDate: currentDate,
               endDate: endDate,
-              budgetMin: budgetMin, // ✅ Dùng tham số truyền vào
+              budgetMin: budgetMin,
               budgetMax: availableBudget,
               durationLimit: durationLimit);
           if (table.isNotEmpty) totalCost = table.last.tongTien;
         } else {
+          // Trường hợp "Tất cả": Sử dụng mienIdx thực tế đang duyệt
           final table = await bettingService.generateCycleTable(
               cycleResult: cycleResult,
               startDate: currentDate,
               endDate: endDate,
               endMien: endMien,
-              startMienIndex: _getMienIndex(currentMien),
-              budgetMin: budgetMin, // ✅ Dùng tham số truyền vào
+              startMienIndex: mienIdx,
+              budgetMin: budgetMin,
               budgetMax: availableBudget,
               allResults: allResults,
               maxMienCount: maxMienCount,
@@ -811,15 +817,20 @@ class AnalysisService {
           if (table.isNotEmpty) totalCost = table.last.tongTien;
         }
 
-        if (totalCost > 0 && totalCost <= availableBudget) return currentDate;
+        // Nếu tìm thấy phương án phù hợp, trả về cả Ngày và Index miền
+        if (totalCost > 0 && totalCost <= availableBudget) {
+          return (date: currentDate, mienIndex: mienIdx);
+        }
       } catch (_) {}
 
+      // Chuyển sang phiên tiếp theo
       if (isSpecific) {
         currentDate = currentDate.add(const Duration(days: 1));
       } else {
         final next = _getNextMien(currentMien);
-        if (next == 'Nam')
+        if (next == 'Nam') {
           currentDate = currentDate.add(const Duration(days: 1));
+        }
         currentMien = next;
       }
     }
