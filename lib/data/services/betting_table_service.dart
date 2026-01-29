@@ -333,7 +333,7 @@ class BettingTableService {
       );
 
       if (foundTable != null) {
-        bestTable ??= foundTable;
+        bestTable = foundTable;
         final adjustedProfit = midProfit * 3.5 / 4.2;
         final optimizedTable = await _findBestStartBet(
           budgetMin: budgetMin,
@@ -351,7 +351,7 @@ class BettingTableService {
 
     if (bestTable == null) {
       // Logic fallback khẩn cấp
-      final testResult = await calculator(20.0, 1);
+      final testResult = await calculator(50.0, 1);
       final actualTotal = testResult['tong_tien'] as double;
 
       // Chỉ throw nếu ngay cả phương án rẻ nhất cũng vượt quá budget
