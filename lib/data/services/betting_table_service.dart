@@ -151,7 +151,7 @@ class BettingTableService {
     required CycleAnalysisResult cycleResult,
     required DateTime startDate,
     required DateTime endDate,
-    required String endMien, // 👈 THÊM: Miền kết thúc dự kiến
+    required String endMien,
     required int startMienIndex,
     required double budgetMin,
     required double budgetMax,
@@ -175,7 +175,7 @@ class BettingTableService {
         targetMien: targetMien,
         startDate: startDate,
         endDate: endDate,
-        endMien: endMien, // 👈 THÊM
+        endMien: endMien,
         startMienIndex: startMienIndex,
         startBetValue: startBet,
         profitTarget: profitTarget,
@@ -184,6 +184,10 @@ class BettingTableService {
         maxMienCount: maxMienCount,
       ),
       configName: "Cycle Table",
+      // ✅ CẬP NHẬT QUAN TRỌNG: Tăng range tìm kiếm cho Cycle
+      // Cycle biến động vốn rất mạnh (3 miền/ngày) nên cần dò kỹ hơn nhiều
+      profitSearchRange: 33,
+      betSearchRange: 33,
     );
   }
 
@@ -273,6 +277,8 @@ class BettingTableService {
 
   // --- PRIVATE METHODS ---
 
+  // --- PRIVATE METHODS ---
+
   Future<List<BettingRow>?> _findBestStartBet({
     required double budgetMin,
     required double budgetMax,
@@ -281,27 +287,37 @@ class BettingTableService {
         calculator,
     required int searchRange,
   }) async {
-    double lowBet = profitTarget / 3 / 50;
-    if (lowBet < 1) lowBet = 1;
-    double highBet = 2000.0;
+    // [FIX 1] Dynamic High Bet: Cho phép cược khởi điểm lớn (ví dụ tối đa 1/200 ngân sách)
+    // Thay vì cố định 2000, ta để nó linh hoạt theo túi tiền.
+    double highBet = budgetMax / 200;
+    if (highBet < 2000) highBet = 2000; // Tối thiểu vẫn cho range rộng một chút
+
+    // Low Bet khởi tạo thông minh hơn
+    double lowBet = 1.0;
+
     List<BettingRow>? localBestTable;
 
     for (int i = 0; i < searchRange; i++) {
       if (highBet < lowBet) break;
+
       double midBet = ((lowBet + highBet) / 2);
-      if (midBet < 0.5) midBet = 0.5;
+      if (midBet < 1) midBet = 1;
 
       final result = await calculator(profitTarget, midBet);
       final tongTien = result['tong_tien'] as double;
       final table = result['table'] as List<BettingRow>;
 
+      // [FIX 2] Logic tìm kiếm: Ưu tiên cược TO (hướng lên trên)
       if (tongTien >= budgetMin && tongTien <= budgetMax) {
         localBestTable = table;
-        highBet = midBet - 0.1;
+        // Đã tìm thấy mức thỏa mãn -> Thử tìm mức cao hơn nữa xem có được không
+        lowBet = midBet + 1;
       } else if (tongTien > budgetMax) {
-        highBet = midBet - 0.1;
+        // Quá ngân sách -> Phải giảm cược
+        highBet = midBet - 1;
       } else {
-        lowBet = midBet + 0.1;
+        // Dưới ngân sách tối thiểu -> Phải tăng cược
+        lowBet = midBet + 1;
       }
     }
     return localBestTable;
@@ -314,10 +330,14 @@ class BettingTableService {
         calculator,
     required String configName,
     int profitSearchRange = 12,
-    int betSearchRange = 11,
+    int betSearchRange = 12, // Tăng độ chính xác tìm kiếm Bet
   }) async {
-    double lowProfit = 100.0;
-    double highProfit = 100000.0;
+    double lowProfit = 10.0;
+
+    // [FIX 3] Dynamic High Profit: Phá bỏ giới hạn 100k.
+    // Cho phép lãi mục tiêu lên tới 50% tổng vốn (hoặc con số hợp lý với bạn)
+    double highProfit = budgetMax / 64;
+
     List<BettingRow>? bestTable;
 
     for (int i = 0; i < profitSearchRange; i++) {
@@ -333,28 +353,22 @@ class BettingTableService {
       );
 
       if (foundTable != null) {
+        // [FIX 4] Luôn cập nhật bảng mới nhất (vì nó có Profit cao hơn bảng cũ)
         bestTable = foundTable;
-        final adjustedProfit = midProfit * 3.5 / 4.2;
-        final optimizedTable = await _findBestStartBet(
-          budgetMin: budgetMin,
-          budgetMax: budgetMax,
-          profitTarget: adjustedProfit,
-          calculator: calculator,
-          searchRange: betSearchRange,
-        );
-        if (optimizedTable != null) bestTable = optimizedTable;
+
+        // Tìm thấy cấu hình ngon -> Tham lam thử Profit cao hơn nữa để tiêu hết tiền
         lowProfit = midProfit + 1;
       } else {
+        // Không tìm thấy -> Giảm Profit xuống
         highProfit = midProfit - 1;
       }
     }
 
     if (bestTable == null) {
-      // Logic fallback khẩn cấp
-      final testResult = await calculator(50.0, 1);
+      // Fallback: Thử mức thấp nhất có thể
+      final testResult = await calculator(10.0, 1);
       final actualTotal = testResult['tong_tien'] as double;
 
-      // Chỉ throw nếu ngay cả phương án rẻ nhất cũng vượt quá budget
       if (actualTotal > budgetMax) {
         throw Exception('Không đủ vốn cho $configName!\n'
             'Max: ${NumberUtils.formatCurrency(budgetMax)}\n'

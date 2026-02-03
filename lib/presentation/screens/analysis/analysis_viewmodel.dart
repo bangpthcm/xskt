@@ -765,7 +765,7 @@ class AnalysisViewModel extends ChangeNotifier {
         endDate: finalEndDate,
         endMien: endMien,
         availableBudget: budgetResult.budgetMax,
-        budgetMin: budgetResult.budgetMax * 0.8,
+        budgetMin: budgetResult.budgetMax * 0.66,
         mien: type == BettingTableTypeEnum.tatca ? 'Tất cả' : type.displayName,
         targetNumber: result.targetNumber,
         cycleResult: result,
@@ -1060,7 +1060,7 @@ class AnalysisViewModel extends ChangeNotifier {
           endMien: params.endMien,
           availableBudget: budgetResult.budgetMax,
           // Thống nhất ngưỡng tối thiểu để khớp với Summary
-          budgetMin: budgetResult.budgetMax * 0.8,
+          budgetMin: budgetResult.budgetMax * 0.66,
           mien: params.type == BettingTableTypeEnum.tatca
               ? 'Tất cả'
               : params.type.displayName,
@@ -1086,7 +1086,7 @@ class AnalysisViewModel extends ChangeNotifier {
         end: params.endDate,
         endMien: params.endMien,
         startIdx: params.startMienIndex,
-        min: budgetResult.budgetMax * 0.8,
+        min: budgetResult.budgetMax * 0.66,
         max: budgetResult.budgetMax,
         results: params.allResults,
         maxCount: params.type == BettingTableTypeEnum.tatca
