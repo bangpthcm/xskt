@@ -57,7 +57,7 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
     required CycleAnalysisResult result,
     required DateTime start,
     required DateTime end,
-    required String endMien, // 👈 THÊM
+    required String endMien,
     required int startIdx,
     required double min,
     required double max,
@@ -70,7 +70,7 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
           cycleResult: result,
           startDate: start,
           endDate: end,
-          endMien: endMien, // 👈 THÊM
+          endMien: endMien,
           startMienIndex: startIdx,
           budgetMin: min,
           budgetMax: max,
@@ -111,24 +111,26 @@ class BettingTableParams {
   final String targetNumber;
   final DateTime startDate;
   final DateTime endDate;
-  final String endMien; // 👈 THÊM
+  final String endMien;
   final int startMienIndex;
   final int durationLimit;
   final int soNgayGan;
   final CycleAnalysisResult cycleResult;
   final List<LotteryResult> allResults;
+  final bool isFromCache; // ✅ Cờ đánh dấu lấy từ Cache
 
   BettingTableParams({
     required this.type,
     required this.targetNumber,
     required this.startDate,
     required this.endDate,
-    required this.endMien, // 👈 THÊM
+    required this.endMien,
     required this.startMienIndex,
     required this.durationLimit,
     required this.soNgayGan,
     required this.cycleResult,
     required this.allResults,
+    this.isFromCache = false, // Mặc định false
   });
 }
 
@@ -204,10 +206,8 @@ class AnalysisViewModel extends ChangeNotifier {
   int _startIdxTrung = 0;
   int _startIdxBac = 0;
 
-// Getters để UI hoặc các hàm khác có thể truy cập nếu cần
-  int get startIdxTatCa => _startIdxTatCa;
-
   // Getters
+  int get startIdxTatCa => _startIdxTatCa;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   GanPairInfo? get ganPairInfo => _ganPairInfo;
@@ -271,14 +271,14 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ✅ HÀM LOAD CHÍNH
+  // ✅ HÀM LOAD CHÍNH (Load cache để tránh tính lại lần đầu)
   Future<void> loadAnalysis({bool useCache = true}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // 1. Init (Giữ nguyên)
+      // 1. Init
       var config = await _storageService.loadConfig();
       if (config == null) {
         config = AppConfig.defaultConfig();
@@ -286,16 +286,58 @@ class AnalysisViewModel extends ChangeNotifier {
       }
       await _sheetsService.initialize(config.googleSheets);
 
-      // 2. Load KQXS nền (Giữ nguyên)
-      if (_allResults.isEmpty || !useCache) {
-        print('🔄 [ViewModel] Fetching KQXS data first...');
+      // ============================================================
+      // 🚀 ƯU TIÊN 1: Đọc Cache từ Sheet ngay lập tức
+      // ============================================================
+      bool cacheHit = false;
+      if (useCache) {
+        try {
+          print('🔍 [AnalysisViewModel] Đang đọc Cache từ analysis...');
+          final cacheJson = await _sheetsService.getAnalysisCache();
+
+          if (cacheJson != null && cacheJson.trim().isNotEmpty) {
+            final cacheData = jsonDecode(cacheJson);
+
+            // 1. Cập nhật thông tin Header
+            if (cacheData['date'] != null) _sheetHeaderDate = cacheData['date'];
+            if (cacheData['region'] != null)
+              _sheetHeaderRegion = cacheData['region'];
+
+            // 2. Gán dữ liệu (Optimal, StartDate, EndDate...)
+            print('✅ Cache HIT! Đang áp dụng dữ liệu Summary...');
+            _applyCacheData(cacheData);
+            cacheHit = true;
+          }
+        } catch (e) {
+          print('⚠️ Lỗi đọc/parse cache: $e. Sẽ tính toán lại...');
+        }
+      }
+
+      // 3. Load KQXS nền
+      if (_allResults.isEmpty) {
         _allResults = await _cachedDataService.loadKQXS(
           forceRefresh: !useCache,
           incrementalOnly: useCache,
         );
       }
 
-      // 3. Get Raw Analysis Data (Giữ nguyên)
+      // 4. Nếu có cache, DỪNG TẠI ĐÂY (UI hiển thị dữ liệu từ cache)
+      if (cacheHit) {
+        final rawData = await _sheetsService.getAnalysisCycleData();
+        if (rawData.isNotEmpty) {
+          _parseRawDataToResults(rawData);
+          _updateCurrentCycleResult();
+        }
+
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      // ============================================================
+      // NẾU KHÔNG CÓ CACHE: TÍNH TOÁN LẠI TỪ ĐẦU
+      // ============================================================
+
       final rawData = await _sheetsService.getAnalysisCycleData();
       if (rawData.isEmpty) {
         _isLoading = false;
@@ -303,7 +345,6 @@ class AnalysisViewModel extends ChangeNotifier {
         return;
       }
 
-      // 4. Parse Header để lấy Date/Region thực tế
       if (rawData.isNotEmpty) {
         final headerRow = rawData[0];
         if (headerRow.length > 3) {
@@ -312,77 +353,34 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
-      // ============================================================
-      // 🚀 BƯỚC MỚI: KIỂM TRA CACHE TRƯỚC KHI TÍNH TOÁN
-      // ============================================================
-      bool cacheHit = false;
-      if (useCache) {
-        try {
-          print('🔍 Checking Cache from Sheet analysis...');
-          final cacheJson = await _sheetsService.getAnalysisCache();
-          if (cacheJson != null) {
-            final cache = jsonDecode(cacheJson);
-            // So sánh Header
-            if (cache['date'] == _sheetHeaderDate &&
-                cache['region'] == _sheetHeaderRegion) {
-              print('✅ Cache HIT! Using saved plans.');
-              _applyCacheData(cache);
-              cacheHit = true;
-            } else {
-              print('⚠️ Cache MISS (Date/Region mismatch). Recalculating...');
-            }
-          }
-        } catch (e) {
-          print('⚠️ Cache Read Error: $e');
-        }
-      }
-
-      // Parse sơ bộ dữ liệu Cycle (để có _cachedSheetResults dùng cho việc tính toán)
-      _parseRawDataToResults(rawData); // Tách logic parse ra hàm riêng cho gọn
+      _parseRawDataToResults(rawData);
       _updateCurrentCycleResult();
 
-      if (cacheHit) {
-        _isLoading = false;
-        notifyListeners();
-        return; // ✅ DỪNG TẠI ĐÂY NẾU CÓ CACHE
-      }
-
-      // ============================================================
-      // 🚀 NẾU KHÔNG CÓ CACHE: TÍNH TOÁN THEO THỨ TỰ ƯU TIÊN
-      // ============================================================
-
-      // Reset trạng thái về "Đang tính..."
       _resetPlanStates();
-      _isLoading = false; // Tắt loading toàn màn hình để hiện UI từng phần
+      _isLoading = false;
       notifyListeners();
 
-      // Priority 1: Chu kỳ TẤT CẢ (Quan trọng nhất)
       final tatCaResult = _findResultByMien('Tất cả');
       if (tatCaResult != null) {
         await _calculatePlanForRegion(tatCaResult, 'Tất cả', config);
-        notifyListeners(); // ⚡ Update UI ngay sau khi xong Tất cả
+        notifyListeners();
       }
 
-      // Priority 2: XIÊN BẮC
       if (_ganPairInfo != null) {
-        // _ganPairInfo đã được parse trong _parseRawDataToResults
         await _calculatePlanForXien(config);
-        notifyListeners(); // ⚡ Update UI ngay sau khi xong Xiên
+        notifyListeners();
       }
 
-      // Priority 3: NAM -> TRUNG -> BẮC
       final regions = ['Nam', 'Trung', 'Bắc'];
       for (var region in regions) {
         final res = _findResultByMien(region);
         if (res != null) {
           await _calculatePlanForRegion(res, region, config);
-          notifyListeners(); // ⚡ Update UI sau mỗi miền
+          notifyListeners();
         }
       }
 
-      // ============================================================
-      // 💾 LƯU CACHE SAU KHI TÍNH XONG HẾT
-      // ============================================================
+      // Save Cache
       await _saveCurrentStateToCache();
     } catch (e) {
       _errorMessage = 'Lỗi tải dữ liệu: $e';
@@ -406,16 +404,13 @@ class AnalysisViewModel extends ChangeNotifier {
         if (mienKey.contains('miền xét') || mienKey.contains('mien xet'))
           continue;
 
-        // Parse Xiên (chỉ để lấy info, chưa tính plan)
         if (mienKey.contains('xiên') || mienKey.contains('xien')) {
           if (_ganPairInfo == null) {
-            // Logic parse xiên cũ của bạn, tôi tách ra cho gọn
             _parseXienRowOnly(row);
           }
           continue;
         }
 
-        // Parse Cycle Result
         final result = _parseRowToResult(row);
         _cachedSheetResults.add(result);
       } catch (e) {
@@ -424,10 +419,7 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // Tách logic parse Xiên từ hàm cũ ra để tái sử dụng
   void _parseXienRowOnly(List<String> row) {
-    // (Copy logic parse row xiên từ code cũ vào đây, bỏ phần gọi _calculatePlanForXien)
-    // ... Xem phần implementation chi tiết bên dưới
     try {
       String getVal(int idx) => (idx < row.length) ? row[idx] : "";
       int parseInt(String s) =>
@@ -477,7 +469,7 @@ class AnalysisViewModel extends ChangeNotifier {
     _optimalTatCa = "Đang tính...";
     _endPlanTatCa = "...";
     _optimalNam = "Đang chờ...";
-    _endPlanNam = "..."; // Chờ priority thấp hơn
+    _endPlanNam = "...";
     _optimalTrung = "Đang chờ...";
     _endPlanTrung = "...";
     _optimalBac = "Đang chờ...";
@@ -486,52 +478,83 @@ class AnalysisViewModel extends ChangeNotifier {
     _endPlanXien = "...";
   }
 
+  // ✅ Helper: Lấy Index miền từ chuỗi hiển thị
+  int _parseStartIdxFromString(String optimalStr) {
+    final lower = optimalStr.toLowerCase();
+    if (lower.contains('trung')) return 1;
+    if (lower.contains('bắc') || lower.contains('bac')) return 2;
+    return 0; // Mặc định Nam
+  }
+
+  // ✅ Helper: Lấy Miền kết thúc từ chuỗi hiển thị
+  String _parseEndMienFromString(String endStr) {
+    final lower = endStr.toLowerCase();
+    if (lower.contains('nam')) return 'Miền Nam';
+    if (lower.contains('trung')) return 'Miền Trung';
+    if (lower.contains('bắc') || lower.contains('bac')) return 'Miền Bắc';
+    return 'Miền Bắc'; // Fallback
+  }
+
+  // ✅ CẬP NHẬT: Parse Full Info từ Cache
   void _applyCacheData(Map<String, dynamic> cache) {
     final plans = cache['plans'] ?? {};
 
     void apply(
         String key,
-        Function(String opt, String end, DateTime? dStart, DateTime? dEnd)
+        Function(String opt, String end, DateTime? dStart, DateTime? dEnd,
+                int startIdx, String endMien)
             setFunc) {
       if (plans[key] != null) {
-        setFunc(
-          plans[key]['optimal'] ?? "Lỗi cache",
-          plans[key]['end'] ?? "...",
-          plans[key]['dStart'] != null
-              ? DateTime.parse(plans[key]['dStart'])
-              : null,
-          plans[key]['dEnd'] != null
-              ? DateTime.parse(plans[key]['dEnd'])
-              : null,
-        );
+        final item = plans[key];
+        DateTime? dStart;
+        DateTime? dEnd;
+        try {
+          if (item['dStart'] != null) dStart = DateTime.parse(item['dStart']);
+          if (item['dEnd'] != null) dEnd = DateTime.parse(item['dEnd']);
+        } catch (e) {
+          print('Error parsing date in cache for $key: $e');
+        }
+
+        final optimalStr = item['optimal'] ?? "Lỗi cache";
+        final endStr = item['end'] ?? "...";
+
+        final startIdx = _parseStartIdxFromString(optimalStr);
+        final endMien = _parseEndMienFromString(endStr);
+
+        setFunc(optimalStr, endStr, dStart, dEnd, startIdx, endMien);
       }
     }
 
-    apply('tatca', (o, e, s, d) {
+    apply('tatca', (o, e, s, d, idx, em) {
       _optimalTatCa = o;
       _endPlanTatCa = e;
       _dateTatCa = s;
       _endDateTatCa = d;
+      _startIdxTatCa = idx;
+      _endMienTatCa = em;
     });
-    apply('nam', (o, e, s, d) {
+    apply('nam', (o, e, s, d, idx, em) {
       _optimalNam = o;
       _endPlanNam = e;
       _dateNam = s;
       _endDateNam = d;
+      _startIdxNam = idx;
     });
-    apply('trung', (o, e, s, d) {
+    apply('trung', (o, e, s, d, idx, em) {
       _optimalTrung = o;
       _endPlanTrung = e;
       _dateTrung = s;
       _endDateTrung = d;
+      _startIdxTrung = idx;
     });
-    apply('bac', (o, e, s, d) {
+    apply('bac', (o, e, s, d, idx, em) {
       _optimalBac = o;
       _endPlanBac = e;
       _dateBac = s;
       _endDateBac = d;
+      _startIdxBac = idx;
     });
-    apply('xien', (o, e, s, d) {
+    apply('xien', (o, e, s, d, idx, em) {
       _optimalXien = o;
       _endPlanXien = e;
       _dateXien = s;
@@ -653,7 +676,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // --- HELPER: Lấy threshold cho miền ---
   double _getThresholdForMien(String mien, AppConfig config) {
     final normalizedMien = mien.toLowerCase();
     if (normalizedMien.contains('nam')) {
@@ -668,7 +690,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // Helper hiển thị tên Miền
   String _getEndRegionName(String mienName) {
     final normalized = mienName.toLowerCase();
     if (normalized.contains('nam')) return 'Miền Nam';
@@ -682,13 +703,11 @@ class AnalysisViewModel extends ChangeNotifier {
   String _getStartRegionName(String mienName, int startMienIndex) {
     final normalized = mienName.toLowerCase();
 
-    // Nếu là lọc miền riêng lẻ, hiển thị đúng miền đó
     if (normalized.contains('nam')) return 'Miền Nam';
     if (normalized.contains('trung')) return 'Miền Trung';
     if (normalized.contains('bắc') || normalized.contains('bac'))
       return 'Miền Bắc';
 
-    // Nếu là "Tất cả", hiển thị dựa trên startMienIndex tìm được từ Service
     return switch (startMienIndex) {
       0 => 'Miền Nam',
       1 => 'Miền Trung',
@@ -739,12 +758,10 @@ class AnalysisViewModel extends ChangeNotifier {
 
     finalEndDate ??= DateTime.now().add(const Duration(days: 2));
 
-    // Ngày bắt đầu mặc định (Ngày mai dựa trên Header)
     DateTime startDate = DateFormat('dd/MM/yyyy')
         .parse(_sheetHeaderDate)
         .add(const Duration(days: 1));
 
-    // Biến tạm để lưu index miền tìm được
     int foundStartIdx = 0;
 
     try {
@@ -759,7 +776,6 @@ class AnalysisViewModel extends ChangeNotifier {
         endMien: endMien,
       );
 
-      // GỌI HÀM VÀ NHẬN RECORD ({DateTime date, int mienIndex})
       final optimalResult = await AnalysisService.findOptimalStartDateForCycle(
         baseStartDate: startDate,
         endDate: finalEndDate,
@@ -777,7 +793,6 @@ class AnalysisViewModel extends ChangeNotifier {
       );
 
       if (optimalResult != null) {
-        // ✅ GIẢI QUYẾT LỖI TẠI ĐÂY: Tách date và mienIndex từ Record
         startDate = optimalResult.date;
         foundStartIdx = optimalResult.mienIndex;
       } else {
@@ -789,7 +804,6 @@ class AnalysisViewModel extends ChangeNotifier {
       }
     }
 
-    // Cập nhật State và hiển thị
     final startRegionStr = _getStartRegionName(mienName, foundStartIdx);
     String startInfoString = budgetErrorStatus ??
         "${date_utils.DateUtils.formatDate(startDate)} ($startRegionStr)";
@@ -861,7 +875,7 @@ class AnalysisViewModel extends ChangeNotifier {
             targetTable: 'xien',
             configBudget: config.budget.xienBudget,
             endDate: endDate,
-            endMien: 'Miền Bắc', // 👈 Xiên luôn kết thúc ở Bắc
+            endMien: 'Miền Bắc',
           );
 
           final optimalStart =
@@ -891,11 +905,16 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> createCycleBettingTable(String number, AppConfig config) async {
+  // ✅ FIX: Load lại config mới nhất để tránh lỗi TotalCapital=0
+  Future<void> createCycleBettingTable(
+      String number, AppConfig uiConfig) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
+      final config = await _storageService.loadConfig() ?? uiConfig;
+      print('🐛 DEBUG: TotalCapital = ${config.budget.totalCapital}');
+
       final params = await _prepareFarmingParams(
         mien: 'Tất cả',
         config: config,
@@ -909,11 +928,13 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> createNamGanBettingTable(String number, AppConfig config) async {
+  Future<void> createNamGanBettingTable(
+      String number, AppConfig uiConfig) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
+      final config = await _storageService.loadConfig() ?? uiConfig;
       final params = await _prepareFarmingParams(
         mien: 'Nam',
         config: config,
@@ -928,11 +949,12 @@ class AnalysisViewModel extends ChangeNotifier {
   }
 
   Future<void> createTrungGanBettingTable(
-      String number, AppConfig config) async {
+      String number, AppConfig uiConfig) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
+      final config = await _storageService.loadConfig() ?? uiConfig;
       final params = await _prepareFarmingParams(
         mien: 'Trung',
         config: config,
@@ -946,11 +968,13 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> createBacGanBettingTable(String number, AppConfig config) async {
+  Future<void> createBacGanBettingTable(
+      String number, AppConfig uiConfig) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
+      final config = await _storageService.loadConfig() ?? uiConfig;
       final params = await _prepareFarmingParams(
         mien: 'Bắc',
         config: config,
@@ -964,52 +988,105 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ ĐÃ SỬA: Ưu tiên lấy cached state (_endDateNam...)
+  // ✅ FIX: Logic ưu tiên lấy dữ liệu từ Cache để tránh lệch tiền/lệch ngày
   Future<BettingTableParams> _prepareFarmingParams({
     required String mien,
     required AppConfig config,
     required String targetNumber,
   }) async {
     final type = _mapMienToEnum(mien);
-    DateTime startDate = DateFormat('dd/MM/yyyy')
-        .parse(_sheetHeaderDate)
-        .add(const Duration(days: 1));
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    DateTime startDate = today.add(const Duration(days: 1));
+    DateTime? cachedEndDate;
+    int? cachedStartIdx;
+    String? cachedEndMien;
+    bool usingCache = false;
+
+    // Logic lấy dữ liệu từ Cache
+    switch (type) {
+      case BettingTableTypeEnum.tatca:
+        if (_dateTatCa != null && _dateTatCa!.isAfter(today)) {
+          startDate = _dateTatCa!;
+          cachedEndDate = _endDateTatCa;
+          cachedStartIdx = _startIdxTatCa;
+          cachedEndMien = _endMienTatCa;
+        }
+        break;
+      case BettingTableTypeEnum.nam:
+        if (_dateNam != null && _dateNam!.isAfter(today)) {
+          startDate = _dateNam!;
+          cachedEndDate = _endDateNam;
+          cachedStartIdx = _startIdxNam;
+          cachedEndMien = 'Miền Nam';
+        }
+        break;
+      case BettingTableTypeEnum.trung:
+        if (_dateTrung != null && _dateTrung!.isAfter(today)) {
+          startDate = _dateTrung!;
+          cachedEndDate = _endDateTrung;
+          cachedStartIdx = _startIdxTrung;
+          cachedEndMien = 'Miền Trung';
+        }
+        break;
+      case BettingTableTypeEnum.bac:
+        if (_dateBac != null && _dateBac!.isAfter(today)) {
+          startDate = _dateBac!;
+          cachedEndDate = _endDateBac;
+          cachedStartIdx = _startIdxBac;
+          cachedEndMien = 'Miền Bắc';
+        }
+        break;
+    }
+
     DateTime endDate;
     String endMien = _getEndRegionName(mien);
     int startMienIndex = 0;
 
-    bool isMatchingTarget =
-        _cycleResult != null && _cycleResult!.targetNumber == targetNumber;
+    if (cachedEndDate != null) {
+      // ✅ DÙNG CACHE
+      endDate = cachedEndDate;
+      startMienIndex = cachedStartIdx ?? 0;
+      if (cachedEndMien != null) endMien = cachedEndMien;
+      usingCache = true;
 
-    if (isMatchingTarget) {
-      switch (type) {
-        case BettingTableTypeEnum.tatca:
-          endDate = _endDateTatCa ?? startDate.add(const Duration(days: 3));
-          endMien = _endMienTatCa ?? 'Miền Bắc';
-          if (_dateTatCa != null) startDate = _dateTatCa!;
-          startMienIndex = _startIdxTatCa; // ✅ Đồng bộ từ Summary
-          break;
-        case BettingTableTypeEnum.nam:
-          endDate = _endDateNam ?? startDate.add(const Duration(days: 3));
-          endMien = 'Miền Nam';
-          if (_dateNam != null) startDate = _dateNam!;
-          startMienIndex = _startIdxNam;
-          break;
-        case BettingTableTypeEnum.trung:
-          endDate = _endDateTrung ?? startDate.add(const Duration(days: 3));
-          endMien = 'Miền Trung';
-          if (_dateTrung != null) startDate = _dateTrung!;
-          startMienIndex = _startIdxTrung;
-          break;
-        case BettingTableTypeEnum.bac:
-          endDate = _endDateBac ?? startDate.add(const Duration(days: 3));
-          endMien = 'Miền Bắc';
-          if (_dateBac != null) startDate = _dateBac!;
-          startMienIndex = _startIdxBac;
-          break;
-      }
+      print(
+          '🐛 DEBUG [Tạo bảng $mien]: Dùng Full Cache -> Start: ${DateFormat('dd/MM').format(startDate)} | End: ${DateFormat('dd/MM').format(endDate)} | StartMien: $startMienIndex');
     } else {
-      endDate = startDate.add(const Duration(days: 3));
+      // ✅ KHÔNG DÙNG CACHE (Fallback)
+      print(
+          '⚠️ DEBUG [Tạo bảng $mien]: Không có Cache EndDate, dùng logic tự tính');
+
+      bool isMatchingTarget =
+          _cycleResult != null && _cycleResult!.targetNumber == targetNumber;
+
+      if (isMatchingTarget) {
+        switch (type) {
+          case BettingTableTypeEnum.tatca:
+            endDate = _endDateTatCa ?? startDate.add(const Duration(days: 3));
+            endMien = _endMienTatCa ?? 'Miền Bắc';
+            startMienIndex = _startIdxTatCa;
+            break;
+          case BettingTableTypeEnum.nam:
+            endDate = _endDateNam ?? startDate.add(const Duration(days: 3));
+            endMien = 'Miền Nam';
+            startMienIndex = _startIdxNam;
+            break;
+          case BettingTableTypeEnum.trung:
+            endDate = _endDateTrung ?? startDate.add(const Duration(days: 3));
+            endMien = 'Miền Trung';
+            startMienIndex = _startIdxTrung;
+            break;
+          case BettingTableTypeEnum.bac:
+            endDate = _endDateBac ?? startDate.add(const Duration(days: 3));
+            endMien = 'Miền Bắc';
+            startMienIndex = _startIdxBac;
+            break;
+        }
+      } else {
+        endDate = startDate.add(const Duration(days: 3));
+      }
     }
 
     final durationLimit = endDate.difference(startDate).inDays;
@@ -1025,6 +1102,7 @@ class AnalysisViewModel extends ChangeNotifier {
       soNgayGan: _cycleResult?.maxGanDays ?? 0,
       cycleResult: _cycleResult!,
       allResults: _allResults,
+      isFromCache: usingCache, // ✅ Truyền cờ này ra
     );
   }
 
@@ -1033,14 +1111,13 @@ class AnalysisViewModel extends ChangeNotifier {
     AppConfig config,
   ) async {
     try {
-      // ✅ BƯỚC 1: XÓA SHEET TRƯỚC để giải phóng ngân sách trong tính toán
-      // Điều này giúp hàm tính budget phía dưới không trừ tiền của chính cái bảng sắp bị thay thế này.
+      // ✅ BƯỚC 1: XÓA SHEET TRƯỚC
       await _sheetsService.clearSheet(params.type.sheetName);
 
       final budgetService =
           BudgetCalculationService(sheetsService: _sheetsService);
 
-      // ✅ BƯỚC 2: Tính toán ngân sách khả dụng thực tế
+      // ✅ BƯỚC 2: Tính toán ngân sách
       final budgetResult =
           await budgetService.calculateAvailableBudgetByEndDate(
         totalCapital: config.budget.totalCapital,
@@ -1052,30 +1129,37 @@ class AnalysisViewModel extends ChangeNotifier {
 
       DateTime finalStartDate = params.startDate;
 
-      try {
-        // ✅ BƯỚC 3: Tìm ngày bắt đầu tối ưu (Dùng 0.8 giống Summary)
-        final optimalStart = await AnalysisService.findOptimalStartDateForCycle(
-          baseStartDate: params.startDate,
-          endDate: params.endDate,
-          endMien: params.endMien,
-          availableBudget: budgetResult.budgetMax,
-          // Thống nhất ngưỡng tối thiểu để khớp với Summary
-          budgetMin: budgetResult.budgetMax * 0.66,
-          mien: params.type == BettingTableTypeEnum.tatca
-              ? 'Tất cả'
-              : params.type.displayName,
-          targetNumber: params.targetNumber,
-          cycleResult: params.cycleResult,
-          allResults: params.allResults,
-          bettingService: _bettingService,
-          maxMienCount: params.type == BettingTableTypeEnum.tatca
-              ? params.durationLimit
-              : 0,
-        );
+      // ✅ BƯỚC 3: Tìm ngày bắt đầu tối ưu
+      // CHỈ CHẠY NẾU KHÔNG PHẢI TỪ CACHE
+      if (!params.isFromCache) {
+        try {
+          print('🔍 Đang tính toán lại ngày tối ưu (do không dùng cache)...');
+          final optimalStart =
+              await AnalysisService.findOptimalStartDateForCycle(
+            baseStartDate: params.startDate,
+            endDate: params.endDate,
+            endMien: params.endMien,
+            availableBudget: budgetResult.budgetMax,
+            budgetMin: budgetResult.budgetMax * 0.66,
+            mien: params.type == BettingTableTypeEnum.tatca
+                ? 'Tất cả'
+                : params.type.displayName,
+            targetNumber: params.targetNumber,
+            cycleResult: params.cycleResult,
+            allResults: params.allResults,
+            bettingService: _bettingService,
+            maxMienCount: params.type == BettingTableTypeEnum.tatca
+                ? params.durationLimit
+                : 0,
+          );
 
-        if (optimalStart != null) finalStartDate = optimalStart as DateTime;
-      } catch (_) {
-        // Nếu không tìm được ngày tối ưu, vẫn dùng startDate mặc định
+          if (optimalStart != null) finalStartDate = optimalStart.date;
+        } catch (e) {
+          print('⚠️ Lỗi tìm ngày tối ưu: $e. Dùng ngày mặc định.');
+        }
+      } else {
+        print(
+            '✅ Dùng ngày từ Cache, bỏ qua tính toán lại: ${DateFormat('dd/MM').format(finalStartDate)}');
       }
 
       // ✅ BƯỚC 4: Tạo bảng chi tiết
@@ -1095,7 +1179,7 @@ class AnalysisViewModel extends ChangeNotifier {
         durationLimit: params.endDate.difference(finalStartDate).inDays,
       );
 
-      // ✅ BƯỚC 5: Lưu vào Sheet (Lúc này sheet đã trống sẵn từ Bước 1)
+      // ✅ BƯỚC 5: Lưu vào Sheet
       await _saveTableToSheet(params.type, table, params.cycleResult);
 
       _isLoading = false;
@@ -1146,7 +1230,7 @@ class AnalysisViewModel extends ChangeNotifier {
                   targetTable: 'xien',
                   configBudget: config.budget.xienBudget,
                   endDate: endDate,
-                  endMien: 'Miền Bắc'); // 👈 THÊM
+                  endMien: 'Miền Bắc');
 
       final table = await _bettingService.generateXienTable(
         ganInfo: _ganPairInfo!,
@@ -1271,7 +1355,6 @@ class AnalysisViewModel extends ChangeNotifier {
 
     buffer.writeln('<b>Số mục tiêu:</b> ${_cycleResult!.targetNumber}\n');
 
-    // Kết hợp Start (optimal) và End (plan) để báo cáo đầy đủ trên Telegram
     if (_selectedMien == 'Tất cả') {
       if (_optimalTatCa != "Chưa có" && !_optimalTatCa.contains("Thiếu vốn")) {
         buffer.writeln(
