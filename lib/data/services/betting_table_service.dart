@@ -186,8 +186,8 @@ class BettingTableService {
       configName: "Cycle Table",
       // ✅ CẬP NHẬT QUAN TRỌNG: Tăng range tìm kiếm cho Cycle
       // Cycle biến động vốn rất mạnh (3 miền/ngày) nên cần dò kỹ hơn nhiều
-      profitSearchRange: 33,
-      betSearchRange: 33,
+      profitSearchRange: 22,
+      betSearchRange: 22,
     );
   }
 
@@ -214,8 +214,8 @@ class BettingTableService {
         winMultiplier: AppConstants.namGanWinMultiplier,
       ),
       configName: "Nam Gan",
-      profitSearchRange: 22,
-      betSearchRange: 22,
+      profitSearchRange: 11,
+      betSearchRange: 11,
     );
   }
 
@@ -242,8 +242,8 @@ class BettingTableService {
         winMultiplier: AppConstants.bacGanWinMultiplier,
       ),
       configName: "Bắc Gan",
-      profitSearchRange: 22,
-      betSearchRange: 22,
+      profitSearchRange: 11,
+      betSearchRange: 11,
     );
   }
 
@@ -270,12 +270,10 @@ class BettingTableService {
         winMultiplier: AppConstants.trungGanWinMultiplier,
       ),
       configName: "Trung Gan",
-      profitSearchRange: 22,
-      betSearchRange: 22,
+      profitSearchRange: 11,
+      betSearchRange: 11,
     );
   }
-
-  // --- PRIVATE METHODS ---
 
   // --- PRIVATE METHODS ---
 

@@ -737,6 +737,7 @@ class AnalysisViewModel extends ChangeNotifier {
     int daysNeeded = 0;
     String? budgetErrorStatus;
 
+    // ✅ FIX 1: BẮT BUỘC tính End Date (không dùng fallback +3 ngày)
     if (analysisData != null) {
       final simResult = await AnalysisService.findEndDateForCycleThreshold(
         analysisData,
@@ -756,7 +757,26 @@ class AnalysisViewModel extends ChangeNotifier {
       }
     }
 
-    finalEndDate ??= DateTime.now().add(const Duration(days: 2));
+    // ✅ FIX 2: Nếu vẫn không có End Date → Dùng default an toàn (7 ngày)
+    if (finalEndDate == null) {
+      print(
+          '⚠️ [DEBUG] Không tính được End Date cho $mienName, dùng fallback +7 ngày');
+      DateTime startFallback = DateFormat('dd/MM/yyyy')
+          .parse(_sheetHeaderDate)
+          .add(const Duration(days: 1));
+      finalEndDate = startFallback.add(const Duration(days: 7));
+    }
+
+    // ✅ FIX 3: LƯU End Date ngay lập tức (để lần dùng sau không phải tính lại)
+    if (normalizedMien.contains('nam')) {
+      _endDateNam = finalEndDate;
+    } else if (normalizedMien.contains('trung')) {
+      _endDateTrung = finalEndDate;
+    } else if (normalizedMien.contains('bắc')) {
+      _endDateBac = finalEndDate;
+    } else {
+      _endDateTatCa = finalEndDate;
+    }
 
     DateTime startDate = DateFormat('dd/MM/yyyy')
         .parse(_sheetHeaderDate)
@@ -766,22 +786,27 @@ class AnalysisViewModel extends ChangeNotifier {
 
     try {
       final type = _mapMienToEnum(mienName);
+
+      // ✅ FIX 4: Dùng End Date đã tính toán chính xác
       final budgetResult =
           await BudgetCalculationService(sheetsService: _sheetsService)
               .calculateAvailableBudgetByEndDate(
         totalCapital: config.budget.totalCapital,
         targetTable: type.budgetTableName,
         configBudget: type.getBudgetConfig(config),
-        endDate: finalEndDate,
+        endDate: finalEndDate, // ← Đã chính xác
         endMien: endMien,
       );
+
+      print(
+          '🐛 [DEBUG $mienName] End Date: ${DateFormat('dd/MM').format(finalEndDate)} | Budget Max: ${budgetResult.budgetMax}');
 
       final optimalResult = await AnalysisService.findOptimalStartDateForCycle(
         baseStartDate: startDate,
         endDate: finalEndDate,
         endMien: endMien,
         availableBudget: budgetResult.budgetMax,
-        budgetMin: budgetResult.budgetMax * 0.66,
+        budgetMin: budgetResult.budgetMax * 0.77,
         mien: type == BettingTableTypeEnum.tatca ? 'Tất cả' : type.displayName,
         targetNumber: result.targetNumber,
         cycleResult: result,
@@ -1052,40 +1077,41 @@ class AnalysisViewModel extends ChangeNotifier {
       usingCache = true;
 
       print(
-          '🐛 DEBUG [Tạo bảng $mien]: Dùng Full Cache -> Start: ${DateFormat('dd/MM').format(startDate)} | End: ${DateFormat('dd/MM').format(endDate)} | StartMien: $startMienIndex');
+          '🐛 [Tạo bảng $mien] Dùng Cache → End: ${DateFormat('dd/MM').format(endDate)}');
     } else {
-      // ✅ KHÔNG DÙNG CACHE (Fallback)
-      print(
-          '⚠️ DEBUG [Tạo bảng $mien]: Không có Cache EndDate, dùng logic tự tính');
+      // ✅ FIX: KHÔNG DÙNG FALLBACK +3 NGÀY → Tính toán ngay
+      print('⚠️ [Tạo bảng $mien] Cache rỗng → BẮT BUỘC tính End Date');
 
-      bool isMatchingTarget =
-          _cycleResult != null && _cycleResult!.targetNumber == targetNumber;
+      // Tính End Date dựa trên Analysis Service
+      final thresholdLn = _getThresholdForMien(mien, config);
+      final analysisData = await AnalysisService.getAnalysisData(
+        targetNumber,
+        _allResults,
+        mien,
+      );
 
-      if (isMatchingTarget) {
-        switch (type) {
-          case BettingTableTypeEnum.tatca:
-            endDate = _endDateTatCa ?? startDate.add(const Duration(days: 3));
-            endMien = _endMienTatCa ?? 'Miền Bắc';
-            startMienIndex = _startIdxTatCa;
-            break;
-          case BettingTableTypeEnum.nam:
-            endDate = _endDateNam ?? startDate.add(const Duration(days: 3));
-            endMien = 'Miền Nam';
-            startMienIndex = _startIdxNam;
-            break;
-          case BettingTableTypeEnum.trung:
-            endDate = _endDateTrung ?? startDate.add(const Duration(days: 3));
-            endMien = 'Miền Trung';
-            startMienIndex = _startIdxTrung;
-            break;
-          case BettingTableTypeEnum.bac:
-            endDate = _endDateBac ?? startDate.add(const Duration(days: 3));
-            endMien = 'Miền Bắc';
-            startMienIndex = _startIdxBac;
-            break;
+      if (analysisData != null) {
+        final simResult = await AnalysisService.findEndDateForCycleThreshold(
+          analysisData,
+          0.01,
+          _allResults,
+          thresholdLn,
+          mien: mien,
+        );
+
+        if (simResult != null) {
+          endDate = simResult.endDate;
+          endMien = simResult.endMien;
+          print(
+              '✅ End Date đã tính: ${DateFormat('dd/MM').format(endDate)} ($endMien)');
+        } else {
+          // Fallback cuối cùng (rất hiếm xảy ra)
+          endDate = startDate.add(const Duration(days: 7));
+          print('⚠️ Fallback: End Date = +7 ngày');
         }
       } else {
-        endDate = startDate.add(const Duration(days: 3));
+        endDate = startDate.add(const Duration(days: 7));
+        print('⚠️ Không có analysis data → Fallback +7 ngày');
       }
     }
 
@@ -1102,7 +1128,7 @@ class AnalysisViewModel extends ChangeNotifier {
       soNgayGan: _cycleResult?.maxGanDays ?? 0,
       cycleResult: _cycleResult!,
       allResults: _allResults,
-      isFromCache: usingCache, // ✅ Truyền cờ này ra
+      isFromCache: usingCache,
     );
   }
 
@@ -1140,7 +1166,7 @@ class AnalysisViewModel extends ChangeNotifier {
             endDate: params.endDate,
             endMien: params.endMien,
             availableBudget: budgetResult.budgetMax,
-            budgetMin: budgetResult.budgetMax * 0.66,
+            budgetMin: budgetResult.budgetMax * 0.77,
             mien: params.type == BettingTableTypeEnum.tatca
                 ? 'Tất cả'
                 : params.type.displayName,
@@ -1170,7 +1196,7 @@ class AnalysisViewModel extends ChangeNotifier {
         end: params.endDate,
         endMien: params.endMien,
         startIdx: params.startMienIndex,
-        min: budgetResult.budgetMax * 0.66,
+        min: budgetResult.budgetMax * 0.77,
         max: budgetResult.budgetMax,
         results: params.allResults,
         maxCount: params.type == BettingTableTypeEnum.tatca
