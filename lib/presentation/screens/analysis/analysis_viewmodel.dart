@@ -302,9 +302,22 @@ class AnalysisViewModel extends ChangeNotifier {
 
   // ✅ HÀM LOAD CHÍNH
   Future<void> loadAnalysis({bool useCache = true}) async {
-    _isLoading = true;
+    if (useCache) {
+      _isLoading = true;
+    }
+
     _errorMessage = null;
-    notifyListeners();
+    if (!useCache) {
+      _cachedPlanTatCa = null;
+      _cachedPlanNam = null;
+      _cachedPlanTrung = null;
+      _cachedPlanBac = null;
+      _cachedPlanXien = null;
+      // Thông báo UI cập nhật ngay lập tức để hiện trạng thái "Đang tính"
+      notifyListeners();
+    } else {
+      notifyListeners();
+    }
 
     try {
       // 1. Init

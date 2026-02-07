@@ -21,8 +21,6 @@ class AnalysisScreen extends StatefulWidget {
 
 class _AnalysisScreenState extends State<AnalysisScreen>
     with SingleTickerProviderStateMixin {
-  // Đã xóa các biến state _selectedNumber, _currentNumberDetail, _isLoadingDetail thừa thãi
-
   @override
   void initState() {
     super.initState();
@@ -37,13 +35,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     });
   }
 
-  // Đã xóa hàm _onNumberSelected
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Consumer<AnalysisViewModel>(
         builder: (context, viewModel, child) {
+          // Chỉ hiện Shimmer khi đang tải dữ liệu thô ban đầu (Sheet)
+          // Còn khi tính toán Plan từng miền, ta sẽ hiện "Đang tính..." trong list
           if (viewModel.isLoading) {
             return const ShimmerLoading(type: ShimmerType.card);
           }
@@ -109,13 +107,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Đoạn Header mới cho thẻ Summary
             Padding(
               padding: const EdgeInsets.only(bottom: 12, top: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Bên trái: Ngày hiện tại định dạng dd/MM/yyyy
                   Text(
                     'Ngày hiện tại',
                     style: Theme.of(context).textTheme.titleLarge,
@@ -132,19 +128,19 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 date: viewModel.dateTatCa,
                 dataDate: viewModel.sheetHeaderDateTime),
 
-            // ✅ THÊM DÒNG NÀY
-            _buildSummaryRow(
-                'Nam', viewModel.optimalNam, // Cần thêm field này vào ViewModel
+            // Đã cập nhật đúng theo logic ViewModel
+            _buildSummaryRow('Nam', viewModel.optimalNam,
                 date: viewModel.dateNam,
-                dataDate: viewModel
-                    .sheetHeaderDateTime), // Cần thêm field này vào ViewModel
+                dataDate: viewModel.sheetHeaderDateTime),
 
             _buildSummaryRow('Trung', viewModel.optimalTrung,
                 date: viewModel.dateTrung,
                 dataDate: viewModel.sheetHeaderDateTime),
+
             _buildSummaryRow('Bắc', viewModel.optimalBac,
                 date: viewModel.dateBac,
                 dataDate: viewModel.sheetHeaderDateTime),
+
             _buildSummaryRow('Xiên', viewModel.optimalXien,
                 date: viewModel.dateXien,
                 dataDate: viewModel.sheetHeaderDateTime),
@@ -156,14 +152,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
   Widget _buildSummaryRow(String label, String value,
       {DateTime? date, DateTime? dataDate}) {
-    bool isSpecialValue = value.contains("Đang tính") ||
-        value.contains("Thiếu vốn") ||
-        value.contains("Lỗi");
+    // 1. Phân loại trạng thái
+    bool isCalculating = value.contains("Đang tính");
+    bool isLackCapital = value.contains("Thiếu vốn") || value.contains("Lỗi");
 
     bool isTargetNextDay = false;
 
-    // Logic: Nếu ngày bắt đầu (date) = ngày dữ liệu (dataDate) + 1 ngày
-    if (date != null && dataDate != null && !isSpecialValue) {
+    // 2. Logic kiểm tra ngày "vào tiền" (Chỉ chạy khi có date hợp lệ và không lỗi/đang tính)
+    if (date != null && dataDate != null && !isCalculating && !isLackCapital) {
       final nextDay = dataDate.add(const Duration(days: 1));
       if (date.year == nextDay.year &&
           date.month == nextDay.month &&
@@ -172,17 +168,32 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       }
     }
 
-    // Quy định style:
-    // 1. In đậm (Bold) CHỈ khi là ngày kế tiếp (Cơ hội vào tiền ngay)
-    // 2. Màu sắc: Trắng khi in đậm, Xám khi bình thường, Đỏ khi thiếu vốn
-    FontWeight fontWeight =
-        isTargetNextDay ? FontWeight.bold : FontWeight.normal;
-    Color textColor = isTargetNextDay ? Colors.white : Colors.grey;
+    // 3. Quy định Style dựa trên trạng thái
+    Color textColor;
+    FontWeight fontWeight;
+    FontStyle fontStyle;
 
-    if (value.contains("Thiếu vốn")) {
+    if (isCalculating) {
+      // TRẠNG THÁI ĐANG TÍNH: Màu cam + Nghiêng => Báo hiệu activity
       textColor = Colors.grey;
-      fontWeight =
-          FontWeight.normal; // Đảm bảo bỏ in đậm khi thiếu vốn như bạn muốn
+      fontWeight = FontWeight.normal;
+      fontStyle = FontStyle.italic;
+    } else if (isTargetNextDay) {
+      // TRẠNG THÁI "ĂN TIỀN": Màu trắng + Đậm
+      textColor = Colors.white;
+      fontWeight = FontWeight.bold;
+      fontStyle = FontStyle.normal;
+    } else if (isLackCapital) {
+      // TRẠNG THÁI LỖI/THIẾU VỐN: Màu xám/đỏ nhạt
+      textColor = Colors
+          .grey; // Hoặc Colors.redAccent.withOpacity(0.7) nếu muốn gắt hơn
+      fontWeight = FontWeight.normal;
+      fontStyle = FontStyle.normal;
+    } else {
+      // TRẠNG THÁI BÌNH THƯỜNG
+      textColor = Colors.grey;
+      fontWeight = FontWeight.normal;
+      fontStyle = FontStyle.normal;
     }
 
     return Padding(
@@ -197,6 +208,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             style: TextStyle(
               color: textColor,
               fontWeight: fontWeight,
+              fontStyle: fontStyle, // Áp dụng style nghiêng nếu cần
               fontSize: 16,
             ),
           ),
@@ -394,7 +406,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 'Lần cuối về:',
                 date_utils.DateUtils.formatDate(ganInfo.lastSeen),
               ),
-              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày/151 ngày'),
+              _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
             ],
           ],
         ),
