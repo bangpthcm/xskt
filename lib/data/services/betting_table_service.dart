@@ -533,15 +533,41 @@ class BettingTableService {
     required List<BettingRow> prevTable,
     required int winMultiplier,
   }) {
-    final requiredBet = (prevTongTien + profitTarget) / (winMultiplier - soLo);
+    // [LOGIC MỚI] Soft Start cho Dòng 1
+    // Nếu là dòng 1: Chỉ yêu cầu đạt 60% lợi nhuận mục tiêu để giảm tải vốn
+    // Các dòng sau: Yêu cầu 100% lợi nhuận mục tiêu
+    double currentProfitTarget = profitTarget;
+    if (prevTable.isEmpty) {
+      currentProfitTarget =
+          profitTarget * 0.67; // Giảm nhẹ kỳ vọng dòng 1 xuống 60%
+    }
 
-    double tienCuoc1So = startBetValue;
-    if (prevTable.isNotEmpty) {
+    // Tính mức cược cần thiết với target (đã điều chỉnh)
+    final requiredBet =
+        (prevTongTien + currentProfitTarget) / (winMultiplier - soLo);
+
+    double tienCuoc1So;
+
+    if (prevTable.isEmpty) {
+      // Dòng 1: Lấy MAX để đảm bảo cược không quá bé, nhưng cũng không quá lớn
+      tienCuoc1So = max(startBetValue, requiredBet);
+      final tienCuocMienTest = tienCuoc1So * soLo;
+      final tongTienTest = tienCuocMienTest;
+      final loiTest = (tienCuoc1So * winMultiplier) - tongTienTest;
+
+      // Nếu lợi nhuận dòng đầu đã > profitTarget → Giảm cược về tối thiểu
+      if (loiTest > profitTarget) {
+        tienCuoc1So = 1.0;
+      }
+    } else {
+      // Các dòng sau: Martingale như cũ
       final lastBet = prevTable.last.cuocSo;
       tienCuoc1So = max(lastBet, requiredBet);
     }
+
     tienCuoc1So = tienCuoc1So.ceilToDouble();
 
+    // ... (Phần code tính toán bên dưới giữ nguyên) ...
     final tienCuocMien = tienCuoc1So * soLo;
     final newTongTien = prevTongTien + tienCuocMien;
     final tienLoi1So = (tienCuoc1So * winMultiplier) - newTongTien;
