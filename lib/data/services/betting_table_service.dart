@@ -551,14 +551,6 @@ class BettingTableService {
     if (prevTable.isEmpty) {
       // Dòng 1: Lấy MAX để đảm bảo cược không quá bé, nhưng cũng không quá lớn
       tienCuoc1So = max(startBetValue, requiredBet);
-      final tienCuocMienTest = tienCuoc1So * soLo;
-      final tongTienTest = tienCuocMienTest;
-      final loiTest = (tienCuoc1So * winMultiplier) - tongTienTest;
-
-      // Nếu lợi nhuận dòng đầu đã > profitTarget → Giảm cược về tối thiểu
-      if (loiTest > profitTarget) {
-        tienCuoc1So = 1.0;
-      }
     } else {
       // Các dòng sau: Martingale như cũ
       final lastBet = prevTable.last.cuocSo;
