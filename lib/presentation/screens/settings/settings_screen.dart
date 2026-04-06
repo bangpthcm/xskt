@@ -196,7 +196,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildProbabilityThresholdField(
                   controller: _probabilityThresholdNamController,
                   label: 'Miền Nam',
-                  hint: '-44.99256134',
+                  hint: '-99.54683685',
                   helperText: 'P_total nhỏ hơn ngưỡng này thì có thể vào cược',
                 ),
                 const SizedBox(height: 16),
@@ -259,7 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // ✅ CẬP NHẬT: Validate số Log (thường là số âm từ -700 đến -2)
         final val = double.tryParse(value);
         if (val == null) {
-          return 'Phải là số thực (ví dụ: -149.6663475)';
+          return 'Phải là số thực (ví dụ: -111.2303696)';
         }
 
         // Range an toàn cho Log xác suất
@@ -638,15 +638,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Dùng tên biến đúng: _probabilityThreshold...
     double thresholdTatCa =
         double.tryParse(_probabilityThresholdTatCaController.text) ??
-            -149.6663475;
+            -111.2303696;
     double thresholdNam =
         double.tryParse(_probabilityThresholdNamController.text) ??
-            -44.99256134;
+            -99.54683685;
     double thresholdTrung =
         double.tryParse(_probabilityThresholdTrungController.text) ??
-            -52.45307541;
+            -83.8792572;
     double thresholdBac =
-        double.tryParse(_probabilityThresholdBacController.text) ?? -45.9005928;
+        double.tryParse(_probabilityThresholdBacController.text) ??
+            -94.52222824;
     double thresholdXien =
         double.tryParse(_probabilityThresholdXienController.text) ??
             -599.9275294;
