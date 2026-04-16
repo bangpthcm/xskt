@@ -259,7 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // ✅ CẬP NHẬT: Validate số Log (thường là số âm từ -700 đến -2)
         final val = double.tryParse(value);
         if (val == null) {
-          return 'Phải là số thực (ví dụ: -111.2303696)';
+          return 'Phải là số thực (ví dụ: -103.9307747)';
         }
 
         // Range an toàn cho Log xác suất
@@ -638,7 +638,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Dùng tên biến đúng: _probabilityThreshold...
     double thresholdTatCa =
         double.tryParse(_probabilityThresholdTatCaController.text) ??
-            -111.2303696;
+            -103.9307747;
     double thresholdNam =
         double.tryParse(_probabilityThresholdNamController.text) ??
             -99.54683685;

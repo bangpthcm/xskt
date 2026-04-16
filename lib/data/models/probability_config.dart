@@ -8,7 +8,7 @@ class ProbabilityConfig {
   final double thresholdLnXien;
 
   ProbabilityConfig({
-    this.thresholdLnTatCa = -111.2303696, // P= -15
+    this.thresholdLnTatCa = -103.9307747, // P= -15
     this.thresholdLnNam = -99.54683685, // ✅ THÊM (Giá trị mặc định cho Nam)
     this.thresholdLnTrung = -83.8792572,
     this.thresholdLnBac = -94.52222824,
@@ -65,7 +65,7 @@ class ProbabilityConfig {
   factory ProbabilityConfig.fromJson(Map<String, dynamic> json) {
     return ProbabilityConfig(
       thresholdLnTatCa:
-          (json['thresholdLnTatCa'] as num?)?.toDouble() ?? -111.2303696,
+          (json['thresholdLnTatCa'] as num?)?.toDouble() ?? -103.9307747,
       thresholdLnNam: (json['thresholdLnNam'] as num?)?.toDouble() ??
           -99.54683685, // ✅ THÊM
       thresholdLnTrung:
