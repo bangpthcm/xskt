@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../app.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
-// Đã xóa import number_detail.dart vì không còn dùng tới
+import '../../../core/utils/number_utils.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../betting/betting_viewmodel.dart';
 import '../settings/settings_viewmodel.dart';
@@ -40,8 +40,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     return Scaffold(
       body: Consumer<AnalysisViewModel>(
         builder: (context, viewModel, child) {
-          // Chỉ hiện Shimmer khi đang tải dữ liệu thô ban đầu (Sheet)
-          // Còn khi tính toán Plan từng miền, ta sẽ hiện "Đang tính..." trong list
           if (viewModel.isLoading) {
             return const ShimmerLoading(type: ShimmerType.card);
           }
@@ -112,14 +110,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Ngày hiện tại',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  Text(
-                    date_utils.DateUtils.formatDate(DateTime.now()),
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+                  Text('Ngày hiện tại',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  Text(date_utils.DateUtils.formatDate(DateTime.now()),
+                      style: Theme.of(context).textTheme.titleLarge),
                 ],
               ),
             ),
@@ -127,20 +121,15 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             _buildSummaryRow('Tất cả', viewModel.optimalTatCa,
                 date: viewModel.dateTatCa,
                 dataDate: viewModel.sheetHeaderDateTime),
-
-            // Đã cập nhật đúng theo logic ViewModel
             _buildSummaryRow('Nam', viewModel.optimalNam,
                 date: viewModel.dateNam,
                 dataDate: viewModel.sheetHeaderDateTime),
-
             _buildSummaryRow('Trung', viewModel.optimalTrung,
                 date: viewModel.dateTrung,
                 dataDate: viewModel.sheetHeaderDateTime),
-
             _buildSummaryRow('Bắc', viewModel.optimalBac,
                 date: viewModel.dateBac,
                 dataDate: viewModel.sheetHeaderDateTime),
-
             _buildSummaryRow('Xiên', viewModel.optimalXien,
                 date: viewModel.dateXien,
                 dataDate: viewModel.sheetHeaderDateTime),
@@ -152,13 +141,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
   Widget _buildSummaryRow(String label, String value,
       {DateTime? date, DateTime? dataDate}) {
-    // 1. Phân loại trạng thái
     bool isCalculating = value.contains("Đang tính");
     bool isLackCapital = value.contains("Thiếu vốn") || value.contains("Lỗi");
-
     bool isTargetNextDay = false;
 
-    // 2. Logic kiểm tra ngày "vào tiền" (Chỉ chạy khi có date hợp lệ và không lỗi/đang tính)
     if (date != null && dataDate != null && !isCalculating && !isLackCapital) {
       final nextDay = dataDate.add(const Duration(days: 1));
       if (date.year == nextDay.year &&
@@ -168,29 +154,23 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       }
     }
 
-    // 3. Quy định Style dựa trên trạng thái
     Color textColor;
     FontWeight fontWeight;
     FontStyle fontStyle;
 
     if (isCalculating) {
-      // TRẠNG THÁI ĐANG TÍNH: Màu cam + Nghiêng => Báo hiệu activity
       textColor = Colors.grey;
       fontWeight = FontWeight.normal;
       fontStyle = FontStyle.italic;
     } else if (isTargetNextDay) {
-      // TRẠNG THÁI "ĂN TIỀN": Màu trắng + Đậm
       textColor = Colors.white;
       fontWeight = FontWeight.bold;
       fontStyle = FontStyle.normal;
     } else if (isLackCapital) {
-      // TRẠNG THÁI LỖI/THIẾU VỐN: Màu xám/đỏ nhạt
-      textColor = Colors
-          .grey; // Hoặc Colors.redAccent.withOpacity(0.7) nếu muốn gắt hơn
+      textColor = Colors.grey;
       fontWeight = FontWeight.normal;
       fontStyle = FontStyle.normal;
     } else {
-      // TRẠNG THÁI BÌNH THƯỜNG
       textColor = Colors.grey;
       fontWeight = FontWeight.normal;
       fontStyle = FontStyle.normal;
@@ -208,7 +188,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             style: TextStyle(
               color: textColor,
               fontWeight: fontWeight,
-              fontStyle: fontStyle, // Áp dụng style nghiêng nếu cần
+              fontStyle: fontStyle,
               fontSize: 16,
             ),
           ),
@@ -220,7 +200,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   Widget _buildCycleSection(AnalysisViewModel viewModel) {
     final cycleResult = viewModel.cycleResult;
 
-    // ✅ Lấy end date tương ứng với miền đang chọn
     DateTime? currentEndDate;
     if (viewModel.selectedMien == 'Tất cả') {
       currentEndDate = viewModel.endDateTatCa;
@@ -231,6 +210,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     } else if (viewModel.selectedMien == 'Bắc') {
       currentEndDate = viewModel.endDateBac;
     }
+
+    // ✅ Lấy loi1So từ cache viewmodel — đã tính khi load, lưu vào sheet
+    final loi1So = viewModel.loi1SoForSelectedMien;
 
     return Card(
       child: Padding(
@@ -243,10 +225,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 Expanded(
                   child: Row(
                     children: [
-                      Text(
-                        'Chu kỳ 00-99',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
+                      Text('Chu kỳ 00-99',
+                          style: Theme.of(context).textTheme.titleLarge),
                       const Spacer(),
                     ],
                   ),
@@ -288,45 +268,39 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             if (cycleResult == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow(
-                'Số mục tiêu:',
-                cycleResult.targetNumber,
-                isHighlight: true,
-              ),
+              _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber,
+                  isHighlight: true),
 
-              // ✅ HIỂN THỊ END DATE với highlight màu đỏ
               if (currentEndDate != null)
                 _buildInfoRow(
                   'Kết thúc dự kiến:',
                   viewModel.selectedMien == 'Tất cả'
-                      ? '${date_utils.DateUtils.formatDate(currentEndDate)} (${viewModel.endMienTatCa})' // ⚡ Hiển thị miền
+                      ? '${date_utils.DateUtils.formatDate(currentEndDate)} (${viewModel.endMienTatCa})'
                       : date_utils.DateUtils.formatDate(currentEndDate),
                   textColor: const Color(0xFFFF5252),
                 )
-              else ...[
-                _buildInfoRow(
-                  'Kết thúc dự kiến:',
-                  'Đang tính ...',
-                  textColor: const Color(0xFFFF5252),
-                )
-              ],
-              // Lần cuối về
-              _buildInfoRow(
-                'Lần cuối về:',
-                date_utils.DateUtils.formatDate(cycleResult.lastSeenDate),
-              ),
+              else
+                _buildInfoRow('Kết thúc dự kiến:', 'Đang tính ...',
+                    textColor: const Color(0xFFFF5252)),
 
-              // Ngày gan hiện tại (Cột E)
+              _buildInfoRow('Lần cuối về:',
+                  date_utils.DateUtils.formatDate(cycleResult.lastSeenDate)),
+
               _buildInfoRow('Ngày gan hiện tại:',
                   '${cycleResult.maxGanDays} ngày (Slots: ${cycleResult.ganCurrentSlots})'),
 
-              // Ngày gan cũ (Cột H)
-              _buildInfoRow('Ngày gan CK trước:',
-                  '${cycleResult.ganCKTruocDays} ngày (Slots: ${cycleResult.ganCKTruocSlots})'),
-
-              // Ngày gan kìa (Cột J)
-              _buildInfoRow('Ngày gan CK kìa:',
-                  '${cycleResult.ganCKKiaDays} ngày (Slots: ${cycleResult.ganCKKiaSlots})'),
+              // ✅ Lời 1 số: đọc từ cache, không tính lại
+              _buildInfoRow(
+                'Lời 1 số:',
+                loi1So != null
+                    ? NumberUtils.formatCurrency(loi1So)
+                    : (currentEndDate == null ? 'Đang tính ...' : '—'),
+                textColor: loi1So != null && loi1So > 0
+                    ? const Color(0xFF00897B)
+                    : (loi1So == null && currentEndDate == null
+                        ? Colors.grey
+                        : null),
+              ),
             ],
           ],
         ),
@@ -334,9 +308,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  // Đã xóa widget _buildInlineNumberDetail và _buildInlineMienRow
-
-  // ... (Giữ nguyên _buildGanPairSection)
   Widget _buildGanPairSection(AnalysisViewModel viewModel) {
     final ganInfo = viewModel.ganPairInfo;
 
@@ -351,15 +322,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 Expanded(
                   child: Row(
                     children: [
-                      Text(
-                        'Cặp xiên Bắc',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
+                      Text('Cặp xiên Bắc',
+                          style: Theme.of(context).textTheme.titleLarge),
                       const Spacer(),
                     ],
                   ),
                 ),
-                // Nút tạo bảng
                 IconButton(
                   icon: Icon(Icons.table_chart,
                       color: Theme.of(context).primaryColor.withOpacity(0.9)),
@@ -367,7 +335,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       ? () => _createXienBettingTable(context, viewModel)
                       : null,
                 ),
-                // Nút gửi Telegram
                 IconButton(
                   icon: Icon(Icons.send,
                       color: Theme.of(context).primaryColor.withOpacity(0.9)),
@@ -378,8 +345,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               ],
             ),
             const Divider(color: Colors.grey),
-
-            // ✅ HIỂN THỊ KHI CÓ DỮ LIỆU
             if (ganInfo == null)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -390,11 +355,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               if (ganInfo.pairs.isNotEmpty)
                 ...ganInfo.pairs.asMap().entries.map((entry) {
                   final pairWithDays = entry.value;
-                  return _buildInfoRow(
-                    'Cặp số mục tiêu:',
-                    pairWithDays.display,
-                    textColor: Colors.white,
-                  );
+                  return _buildInfoRow('Cặp số mục tiêu:', pairWithDays.display,
+                      textColor: Colors.white);
                 }),
               if (viewModel.endDateXien != null)
                 _buildInfoRow(
@@ -402,10 +364,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   date_utils.DateUtils.formatDate(viewModel.endDateXien!),
                   textColor: const Color(0xFFFF5252),
                 ),
-              _buildInfoRow(
-                'Lần cuối về:',
-                date_utils.DateUtils.formatDate(ganInfo.lastSeen),
-              ),
+              _buildInfoRow('Lần cuối về:',
+                  date_utils.DateUtils.formatDate(ganInfo.lastSeen)),
               _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
             ],
           ],
@@ -414,7 +374,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  // ... (Giữ nguyên _buildMienFilter)
   Widget _buildMienFilter(AnalysisViewModel viewModel) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -451,10 +410,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               checkmarkColor: Colors.transparent,
               showCheckmark: false,
               onSelected: (selected) {
-                if (selected) {
-                  // Đã xóa reset state _selectedNumber
-                  viewModel.setSelectedMien(mien);
-                }
+                if (selected) viewModel.setSelectedMien(mien);
               },
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
@@ -467,7 +423,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  // Cập nhật helper _buildInfoRow để hỗ trợ custom màu text
   Widget _buildInfoRow(String label, String value,
       {bool isHighlight = false, Color? textColor}) {
     return Padding(
@@ -476,12 +431,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 140, // Cố định độ rộng label cho thẳng hàng
-            child: Text(
-              label,
-              style: const TextStyle(
-                  color: Colors.grey, fontWeight: FontWeight.w600),
-            ),
+            width: 140,
+            child: Text(label,
+                style: const TextStyle(
+                    color: Colors.grey, fontWeight: FontWeight.w600)),
           ),
           Expanded(
             child: Text(
@@ -498,6 +451,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
+  // ─── DIALOGS ───────────────────────────────────────────────────────────────
+
   void _createCycleBettingTable(
       BuildContext context, AnalysisViewModel viewModel, String number) {
     showDialog(
@@ -510,48 +465,35 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           children: [
             Text('Số: $number'),
             const SizedBox(height: 8),
-            const Text(
-              'Tạo bảng cược Chu kỳ dựa trên kết quả phân tích?\n'
-              'Bảng cược sẽ được tạo trong tab "Bảng cược".',
-            ),
+            const Text('Tạo bảng cược Chu kỳ dựa trên kết quả phân tích?\n'
+                'Bảng cược sẽ được tạo trong tab "Bảng cược".'),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-
               final config = context.read<SettingsViewModel>().config;
               await viewModel.createCycleBettingTable(number, config);
-
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
                   await context.read<BettingViewModel>().loadBettingTables();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Tạo bảng cược thành công!'),
-                      backgroundColor: ThemeProvider.profit,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('✅ Tạo bảng cược thành công!'),
+                    backgroundColor: ThemeProvider.profit,
+                    duration: Duration(seconds: 2),
+                  ));
                   await Future.delayed(const Duration(milliseconds: 300));
-
-                  if (context.mounted) {
+                  if (context.mounted)
                     mainNavigationKey.currentState?.switchToTab(1);
-                  }
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ ${viewModel.errorMessage}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('❌ ${viewModel.errorMessage}'),
+                    backgroundColor: Colors.red,
+                  ));
                 }
               }
             },
@@ -568,38 +510,27 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận'),
-        content: const Text(
-          'Tạo bảng cược Xiên dựa trên kết quả phân tích?\n'
-          'Bảng cược sẽ được tạo trong tab "Bảng cược".',
-        ),
+        content: const Text('Tạo bảng cược Xiên dựa trên kết quả phân tích?\n'
+            'Bảng cược sẽ được tạo trong tab "Bảng cược".'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-
               await viewModel.createXienBettingTable();
-
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
                   await context.read<BettingViewModel>().loadBettingTables();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Tạo bảng cược thành công!'),
-                      backgroundColor: ThemeProvider.profit,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Tạo bảng cược thành công!'),
+                    backgroundColor: ThemeProvider.profit,
+                    duration: Duration(seconds: 2),
+                  ));
                   await Future.delayed(const Duration(milliseconds: 300));
-
-                  if (context.mounted) {
+                  if (context.mounted)
                     mainNavigationKey.currentState?.switchToTab(1);
-                  }
                 }
               }
             },
@@ -618,25 +549,19 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         content: const Text('Gửi kết quả phân tích Chu kỳ 00-99 qua Telegram?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
               await viewModel.sendCycleAnalysisToTelegram();
-
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      viewModel.errorMessage ?? 'Gửi thành công!',
-                    ),
-                    backgroundColor: viewModel.errorMessage != null
-                        ? ThemeProvider.loss
-                        : ThemeProvider.profit,
-                  ),
-                );
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(viewModel.errorMessage ?? 'Gửi thành công!'),
+                  backgroundColor: viewModel.errorMessage != null
+                      ? ThemeProvider.loss
+                      : ThemeProvider.profit,
+                ));
               }
             },
             child: const Text('Gửi'),
@@ -655,25 +580,19 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         content: const Text('Gửi kết quả phân tích Cặp số gan qua Telegram?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
               await viewModel.sendGanPairAnalysisToTelegram();
-
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      viewModel.errorMessage ?? 'Gửi thành công!',
-                    ),
-                    backgroundColor: viewModel.errorMessage != null
-                        ? ThemeProvider.loss
-                        : ThemeProvider.profit,
-                  ),
-                );
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(viewModel.errorMessage ?? 'Gửi thành công!'),
+                  backgroundColor: viewModel.errorMessage != null
+                      ? ThemeProvider.loss
+                      : ThemeProvider.profit,
+                ));
               }
             },
             child: const Text('Gửi'),
@@ -684,208 +603,100 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   }
 
   void _showCreateTrungGanTableDialog(
-    BuildContext context,
-    AnalysisViewModel viewModel,
-    String number,
-  ) {
-    showDialog(
+      BuildContext context, AnalysisViewModel viewModel, String number) {
+    _showCreateRegionDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tạo bảng cược Miền Trung'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Số: $number'),
-            const SizedBox(height: 8),
-            const Text(
-              'Tạo bảng cược cho số gan Miền Trung?\n\n'
-              '• Chỉ cược Miền Trung\n'
-              '• Dựa trên kết quả phân tích\n'
-              '• Bảng hiện tại sẽ bị thay thế',
-              style: TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-
-              final config = context.read<SettingsViewModel>().config;
-              await viewModel.createTrungGanBettingTable(number, config);
-
-              if (context.mounted) {
-                if (viewModel.errorMessage == null) {
-                  await context.read<BettingViewModel>().loadBettingTables();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Tạo bảng cược Miền Trung thành công!'),
-                      backgroundColor: ThemeProvider.profit,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-
-                  await Future.delayed(const Duration(milliseconds: 300));
-
-                  if (context.mounted) {
-                    mainNavigationKey.currentState?.switchToTab(1);
-                  }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ ${viewModel.errorMessage}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Tạo bảng'),
-          ),
-        ],
-      ),
+      viewModel: viewModel,
+      number: number,
+      title: 'Tạo bảng cược Miền Trung',
+      description: '• Chỉ cược Miền Trung',
+      onCreate: () => viewModel.createTrungGanBettingTable(
+          number, context.read<SettingsViewModel>().config),
+      successMsg: '✅ Tạo bảng cược Miền Trung thành công!',
     );
   }
 
   void _showCreateNamGanTableDialog(
-    BuildContext context,
-    AnalysisViewModel viewModel,
-    String number,
-  ) {
-    showDialog(
+      BuildContext context, AnalysisViewModel viewModel, String number) {
+    _showCreateRegionDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tạo bảng cược Miền Nam'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Số: $number'),
-            const SizedBox(height: 8),
-            const Text(
-              'Tạo bảng cược cho số gan Miền Nam?\n\n'
-              '• Chỉ cược Miền Nam\n'
-              '• Dựa trên kết quả phân tích\n'
-              '• Bảng hiện tại sẽ bị thay thế',
-              style: TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-
-              final config = context.read<SettingsViewModel>().config;
-
-              // ⚠️ LƯU Ý: Trò cần thêm hàm createNamGanBettingTable vào AnalysisViewModel
-              await viewModel.createNamGanBettingTable(number, config);
-
-              if (context.mounted) {
-                if (viewModel.errorMessage == null) {
-                  await context.read<BettingViewModel>().loadBettingTables();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Tạo bảng cược Miền Nam thành công!'),
-                      backgroundColor: ThemeProvider.profit,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-
-                  await Future.delayed(const Duration(milliseconds: 300));
-
-                  if (context.mounted) {
-                    mainNavigationKey.currentState
-                        ?.switchToTab(1); // Chuyển sang tab Bảng cược
-                  }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ ${viewModel.errorMessage}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Tạo bảng'),
-          ),
-        ],
-      ),
+      viewModel: viewModel,
+      number: number,
+      title: 'Tạo bảng cược Miền Nam',
+      description: '• Chỉ cược Miền Nam',
+      onCreate: () => viewModel.createNamGanBettingTable(
+          number, context.read<SettingsViewModel>().config),
+      successMsg: '✅ Tạo bảng cược Miền Nam thành công!',
     );
   }
 
   void _showCreateBacGanTableDialog(
-    BuildContext context,
-    AnalysisViewModel viewModel,
-    String number,
-  ) {
+      BuildContext context, AnalysisViewModel viewModel, String number) {
+    _showCreateRegionDialog(
+      context: context,
+      viewModel: viewModel,
+      number: number,
+      title: 'Tạo bảng cược Miền Bắc',
+      description: '• Chỉ cược Miền Bắc',
+      onCreate: () => viewModel.createBacGanBettingTable(
+          number, context.read<SettingsViewModel>().config),
+      successMsg: '✅ Tạo bảng cược Miền Bắc thành công!',
+    );
+  }
+
+  void _showCreateRegionDialog({
+    required BuildContext context,
+    required AnalysisViewModel viewModel,
+    required String number,
+    required String title,
+    required String description,
+    required Future<void> Function() onCreate,
+    required String successMsg,
+  }) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Tạo bảng cược Miền Bắc'),
+        title: Text(title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Số: $number'),
             const SizedBox(height: 8),
-            const Text(
-              'Tạo bảng cược cho số gan Miền Bắc?\n\n'
-              '• Chỉ cược Miền Bắc\n'
+            Text(
+              'Tạo bảng cược cho số gan?\n\n'
+              '$description\n'
               '• Dựa trên kết quả phân tích\n'
               '• Bảng hiện tại sẽ bị thay thế',
-              style: TextStyle(fontSize: 13),
+              style: const TextStyle(fontSize: 13),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-
-              final config = context.read<SettingsViewModel>().config;
-              await viewModel.createBacGanBettingTable(number, config);
-
+              await onCreate();
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
                   await context.read<BettingViewModel>().loadBettingTables();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Tạo bảng cược Miền Bắc thành công!'),
-                      backgroundColor: ThemeProvider.profit,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(successMsg),
+                    backgroundColor: ThemeProvider.profit,
+                    duration: const Duration(seconds: 2),
+                  ));
                   await Future.delayed(const Duration(milliseconds: 300));
-
                   if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
                   }
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ ${viewModel.errorMessage}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('❌ ${viewModel.errorMessage}'),
+                    backgroundColor: Colors.red,
+                  ));
                 }
               }
             },

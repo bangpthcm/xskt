@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/utils/date_utils.dart' as date_utils;
+import '../../../core/utils/number_utils.dart';
 import '../../../data/models/app_config.dart';
 import '../../../data/models/betting_row.dart';
 import '../../../data/models/cycle_analysis_result.dart';
@@ -106,7 +107,7 @@ extension BettingTableTypeExtension on BettingTableTypeEnum {
   }
 }
 
-// ✅ NEW: Model chứa kết quả tính toán ngày/miền đầy đủ
+// ✅ Model chứa kết quả tính toán ngày/miền đầy đủ
 class RegionPlanResult {
   final DateTime startDate;
   final DateTime endDate;
@@ -115,6 +116,8 @@ class RegionPlanResult {
   final int daysNeeded;
   final bool hasBudgetError;
   final String? budgetErrorMessage;
+  // ✅ MỚI: Lời 1 số dự kiến (lấy từ dòng cuối bảng cược được tính khi load)
+  final double? loi1So;
 
   RegionPlanResult({
     required this.startDate,
@@ -124,9 +127,9 @@ class RegionPlanResult {
     required this.daysNeeded,
     this.hasBudgetError = false,
     this.budgetErrorMessage,
+    this.loi1So,
   });
 
-  // Format cho Summary Card
   String formatStartInfo() {
     if (hasBudgetError) return "⚠️ Thiếu vốn";
 
@@ -141,7 +144,6 @@ class RegionPlanResult {
     return result;
   }
 
-  // Format cho Detail Card
   String formatEndInfo() {
     if (hasBudgetError) {
       return "❌ Vốn không đủ";
@@ -218,14 +220,11 @@ class AnalysisViewModel extends ChangeNotifier {
   String _selectedMien = 'Tất cả';
   List<LotteryResult> _allResults = [];
 
-  // Cache data từ Sheet
   final List<CycleAnalysisResult> _cachedSheetResults = [];
 
-  // Header Info
   String _sheetHeaderDate = "";
   String _sheetHeaderRegion = "";
 
-  // ✅ NEW: Cache kết quả tính toán đầy đủ
   RegionPlanResult? _cachedPlanTatCa;
   RegionPlanResult? _cachedPlanNam;
   RegionPlanResult? _cachedPlanTrung;
@@ -239,7 +238,6 @@ class AnalysisViewModel extends ChangeNotifier {
   CycleAnalysisResult? get cycleResult => _cycleResult;
   String get selectedMien => _selectedMien;
 
-  // ✅ NEW: Getters sử dụng cache result
   String get optimalTatCa =>
       _cachedPlanTatCa?.formatStartInfo() ?? "Đang tính ...";
   String get optimalNam => _cachedPlanNam?.formatStartInfo() ?? "Đang tính ...";
@@ -269,6 +267,27 @@ class AnalysisViewModel extends ChangeNotifier {
 
   String get endMienTatCa => _cachedPlanTatCa?.endMien ?? 'Miền Bắc';
   int get startIdxTatCa => _cachedPlanTatCa?.startMienIndex ?? 0;
+
+  // ✅ MỚI: Getters lời 1 số theo miền
+  double? get loi1SoTatCa => _cachedPlanTatCa?.loi1So;
+  double? get loi1SoNam => _cachedPlanNam?.loi1So;
+  double? get loi1SoTrung => _cachedPlanTrung?.loi1So;
+  double? get loi1SoBac => _cachedPlanBac?.loi1So;
+  double? get loi1SoXien => _cachedPlanXien?.loi1So;
+
+  // ✅ Getter lời 1 số theo miền đang chọn
+  double? get loi1SoForSelectedMien {
+    switch (_selectedMien) {
+      case 'Nam':
+        return loi1SoNam;
+      case 'Trung':
+        return loi1SoTrung;
+      case 'Bắc':
+        return loi1SoBac;
+      default:
+        return loi1SoTatCa;
+    }
+  }
 
   DateTime? get sheetHeaderDateTime {
     if (_sheetHeaderDate.isEmpty) return null;
@@ -300,7 +319,6 @@ class AnalysisViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ✅ HÀM LOAD CHÍNH
   Future<void> loadAnalysis({bool useCache = true}) async {
     if (useCache) {
       _isLoading = true;
@@ -313,7 +331,6 @@ class AnalysisViewModel extends ChangeNotifier {
       _cachedPlanTrung = null;
       _cachedPlanBac = null;
       _cachedPlanXien = null;
-      // Thông báo UI cập nhật ngay lập tức để hiện trạng thái "Đang tính"
       notifyListeners();
     } else {
       notifyListeners();
@@ -389,7 +406,6 @@ class AnalysisViewModel extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
 
-      // Tính toán tuần tự cho từng miền
       final tatCaResult = _findResultByMien('Tất cả');
       if (tatCaResult != null) {
         await _calculateAndCachePlan('Tất cả', tatCaResult, config);
@@ -410,7 +426,7 @@ class AnalysisViewModel extends ChangeNotifier {
         }
       }
 
-      // Save Cache
+      // Save Cache (bao gồm loi1So)
       await _saveCurrentStateToCache();
     } catch (e) {
       _errorMessage = 'Lỗi tải dữ liệu: $e';
@@ -420,8 +436,7 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ HÀM TÍNH TOÁN CHUNG (Core Logic)
-  // Được dùng bởi cả loadAnalysis() và createBettingTable()
+  // ✅ HÀM TÍNH TOÁN CHUNG — bao gồm tính loi1So sau khi có đủ thông tin
   Future<RegionPlanResult> _calculateRegionPlan({
     required String mienName,
     required CycleAnalysisResult result,
@@ -457,7 +472,6 @@ class AnalysisViewModel extends ChangeNotifier {
       }
     }
 
-    // Fallback nếu không tính được
     if (endDate == null) {
       print(
           '⚠️ [_calculateRegionPlan] Không tính được End Date cho $mienName, dùng +7 ngày');
@@ -474,9 +488,11 @@ class AnalysisViewModel extends ChangeNotifier {
         .add(const Duration(days: 1));
     int startMienIndex = 0;
     String? budgetError;
+    double? loi1So;
+    AvailableBudgetResult? budgetResult;
 
     try {
-      final budgetResult = await BudgetCalculationService(
+      budgetResult = await BudgetCalculationService(
         sheetsService: _sheetsService,
       ).calculateAvailableBudgetByEndDate(
         totalCapital: config.budget.totalCapital,
@@ -508,6 +524,32 @@ class AnalysisViewModel extends ChangeNotifier {
       if (optimalResult != null) {
         startDate = optimalResult.date;
         startMienIndex = optimalResult.mienIndex;
+
+        // ✅ BƯỚC 3: Tính loi1So bằng cách generate bảng với tham số đã tìm được
+        try {
+          final previewTable = await type.generateTable(
+            service: _bettingService,
+            result: result,
+            start: startDate,
+            end: endDate,
+            endMien: endMien,
+            startIdx: startMienIndex,
+            min: budgetResult.budgetMax * 0.77,
+            max: budgetResult.budgetMax,
+            results: _allResults,
+            maxCount: type == BettingTableTypeEnum.tatca
+                ? endDate.difference(startDate).inDays
+                : 0,
+            durationLimit: endDate.difference(startDate).inDays,
+          );
+          if (previewTable.isNotEmpty) {
+            loi1So = previewTable.last.loi1So;
+            print(
+                '💰 [_calculateRegionPlan $mienName] Lời 1 số dự kiến: ${NumberUtils.formatCurrency(loi1So)}');
+          }
+        } catch (e) {
+          print('⚠️ Không tính được loi1So cho $mienName: $e');
+        }
       } else {
         budgetError = "⚠️ Thiếu vốn";
       }
@@ -525,10 +567,10 @@ class AnalysisViewModel extends ChangeNotifier {
       daysNeeded: daysNeeded,
       hasBudgetError: budgetError != null,
       budgetErrorMessage: budgetError,
+      loi1So: loi1So,
     );
   }
 
-  // ✅ Wrapper cho loadAnalysis(): Tính toán + Cache vào State
   Future<void> _calculateAndCachePlan(
     String mienName,
     CycleAnalysisResult result,
@@ -540,7 +582,6 @@ class AnalysisViewModel extends ChangeNotifier {
       config: config,
     );
 
-    // Cache vào state tương ứng
     final normalized = mienName.toLowerCase();
     if (normalized.contains('nam')) {
       _cachedPlanNam = plan;
@@ -553,7 +594,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ Tương tự cho Xiên
   Future<void> _calculateAndCacheXienPlan(AppConfig config) async {
     if (_ganPairInfo == null) return;
 
@@ -577,6 +617,7 @@ class AnalysisViewModel extends ChangeNotifier {
           .parse(_sheetHeaderDate)
           .add(const Duration(days: 1));
       String? xienError;
+      double? loi1So;
 
       if (simResult != null) {
         final endDate = simResult.endDate;
@@ -601,7 +642,26 @@ class AnalysisViewModel extends ChangeNotifier {
             bettingService: _bettingService,
           );
 
-          if (optimalStart != null) start = optimalStart;
+          if (optimalStart != null) {
+            start = optimalStart;
+
+            // ✅ Tính loi1So cho Xiên
+            try {
+              final previewTable = await _bettingService.generateXienTable(
+                ganInfo: _ganPairInfo!,
+                startDate: start,
+                xienBudget: budgetRes.budgetMax,
+                endDate: endDate,
+              );
+              if (previewTable.isNotEmpty) {
+                loi1So = previewTable.last.loi1So;
+                print(
+                    '💰 [Xien] Lời 1 cặp dự kiến: ${NumberUtils.formatCurrency(loi1So)}');
+              }
+            } catch (e) {
+              print('⚠️ Không tính được loi1So Xiên: $e');
+            }
+          }
         } catch (e) {
           if (e is BudgetInsufficientException) xienError = "⚠️ Thiếu vốn";
         }
@@ -614,6 +674,7 @@ class AnalysisViewModel extends ChangeNotifier {
           daysNeeded: simResult.daysNeeded,
           hasBudgetError: xienError != null,
           budgetErrorMessage: xienError,
+          loi1So: loi1So,
         );
       }
     } catch (e) {
@@ -621,7 +682,6 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // ✅ Wrapper cho createBettingTable(): Sử dụng cache hoặc tính mới
   Future<BettingTableParams> _prepareFarmingParams({
     required String mien,
     required AppConfig config,
@@ -629,7 +689,6 @@ class AnalysisViewModel extends ChangeNotifier {
   }) async {
     final type = _mapMienToEnum(mien);
 
-    // Lấy cache tương ứng
     RegionPlanResult? cachedPlan;
     switch (type) {
       case BettingTableTypeEnum.tatca:
@@ -646,7 +705,6 @@ class AnalysisViewModel extends ChangeNotifier {
         break;
     }
 
-    // Nếu có cache và hợp lệ -> Dùng luôn
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
@@ -670,7 +728,6 @@ class AnalysisViewModel extends ChangeNotifier {
       );
     }
 
-    // Không có cache hợp lệ -> Tính mới
     print(
         '⚠️ [_prepareFarmingParams] Cache không hợp lệ, tính toán lại cho $mien');
 
@@ -680,7 +737,6 @@ class AnalysisViewModel extends ChangeNotifier {
       config: config,
     );
 
-    // Cập nhật cache luôn
     switch (type) {
       case BettingTableTypeEnum.tatca:
         _cachedPlanTatCa = freshPlan;
@@ -711,7 +767,6 @@ class AnalysisViewModel extends ChangeNotifier {
     );
   }
 
-  // ✅ CREATE TABLE METHODS (Giữ nguyên nhưng dùng _prepareFarmingParams mới)
   Future<void> createCycleBettingTable(
       String number, AppConfig uiConfig) async {
     _isLoading = true;
@@ -876,7 +931,7 @@ class AnalysisViewModel extends ChangeNotifier {
     }
   }
 
-  // --- HELPER METHODS (Giữ nguyên) ---
+  // --- HELPER METHODS ---
 
   void _parseRawDataToResults(List<List<String>> rawData) {
     _cachedSheetResults.clear();
@@ -1070,6 +1125,8 @@ class AnalysisViewModel extends ChangeNotifier {
             daysNeeded: item['daysNeeded'] ?? 0,
             hasBudgetError: item['hasBudgetError'] ?? false,
             budgetErrorMessage: item['budgetError'],
+            // ✅ Đọc loi1So từ cache
+            loi1So: (item['loi1So'] as num?)?.toDouble(),
           );
           setFunc(plan);
         } catch (e) {
@@ -1097,6 +1154,8 @@ class AnalysisViewModel extends ChangeNotifier {
           'daysNeeded': p.daysNeeded,
           'hasBudgetError': p.hasBudgetError,
           'budgetError': p.budgetErrorMessage,
+          // ✅ Lưu loi1So vào cache
+          'loi1So': p.loi1So,
         };
       }
 
@@ -1113,7 +1172,7 @@ class AnalysisViewModel extends ChangeNotifier {
       };
 
       await _sheetsService.saveAnalysisCache(jsonEncode(cacheData));
-      print('💾 Cache saved to Sheet successfully.');
+      print('💾 Cache saved to Sheet successfully (including loi1So).');
     } catch (e) {
       print('❌ Failed to save cache: $e');
     }
@@ -1188,12 +1247,11 @@ class AnalysisViewModel extends ChangeNotifier {
   Future<void> sendCycleAnalysisToTelegram() async {
     if (_cycleResult == null) return;
 
-    // ✅ Chọn topic dựa theo miền đang chọn
     final topic = switch (_selectedMien) {
       'Nam' => TelegramTopic.nam,
       'Trung' => TelegramTopic.trung,
       'Bắc' => TelegramTopic.bac,
-      _ => TelegramTopic.cycle, // Tất cả
+      _ => TelegramTopic.cycle,
     };
 
     await _sendTelegram(_buildCycleMessage(), topic: topic);
@@ -1201,7 +1259,6 @@ class AnalysisViewModel extends ChangeNotifier {
 
   Future<void> sendGanPairAnalysisToTelegram() async {
     if (_ganPairInfo == null) return;
-    // ✅ Phân tích xiên → gửi vào topic xien
     await _sendTelegram(_buildGanPairMessage(), topic: TelegramTopic.xien);
   }
 
@@ -1210,7 +1267,6 @@ class AnalysisViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      // ✅ Truyền topic vào sendMessage
       await _telegramService.sendMessage(msg, topic: topic);
       _isLoading = false;
       notifyListeners();
@@ -1237,7 +1293,6 @@ class AnalysisViewModel extends ChangeNotifier {
         '<b>Lần cuối về:</b> ${date_utils.DateUtils.formatDate(_cycleResult!.lastSeenDate)}');
     buffer.writeln('<b>Số mục tiêu:</b> ${_cycleResult!.targetNumber}\n');
 
-    // Hiển thị plan tương ứng
     RegionPlanResult? plan = switch (_selectedMien) {
       'Tất cả' => _cachedPlanTatCa,
       'Nam' => _cachedPlanNam,
@@ -1250,6 +1305,10 @@ class AnalysisViewModel extends ChangeNotifier {
       buffer.writeln('<b>Kế hoạch:</b>');
       buffer.writeln(plan.formatStartInfo());
       buffer.writeln('${plan.formatEndInfo()}\n');
+      if (plan.loi1So != null) {
+        buffer.writeln(
+            '<b>Lời 1 số dự kiến:</b> ${NumberUtils.formatCurrency(plan.loi1So!)} đ\n');
+      }
     }
 
     buffer.writeln(
@@ -1276,6 +1335,10 @@ class AnalysisViewModel extends ChangeNotifier {
       buffer.writeln('\n<b>Kế hoạch:</b>');
       buffer.writeln(_cachedPlanXien!.formatStartInfo());
       buffer.writeln(_cachedPlanXien!.formatEndInfo());
+      if (_cachedPlanXien!.loi1So != null) {
+        buffer.writeln(
+            '\n<b>Lời 1 cặp dự kiến:</b> ${NumberUtils.formatCurrency(_cachedPlanXien!.loi1So!)} đ');
+      }
     }
 
     return buffer.toString();

@@ -147,7 +147,7 @@ class TelegramTopicConfig {
 
   // Default topics khớp với ví dụ của bạn
   factory TelegramTopicConfig.defaults() => const TelegramTopicConfig(
-        cycle: 949,
+        cycle: 1,
         xien: 957,
         nam: 951,
         trung: 953,
