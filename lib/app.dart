@@ -99,7 +99,6 @@ class _MyAppState extends State<MyApp> {
               create: (context) => AnalysisViewModel(
                 cachedDataService: context.read<CachedDataService>(),
                 sheetsService: context.read<GoogleSheetsService>(),
-                analysisService: context.read<AnalysisService>(),
                 storageService: context.read<StorageService>(),
                 telegramService: context.read<TelegramService>(),
                 bettingService: context.read<BettingTableService>(),
@@ -110,7 +109,6 @@ class _MyAppState extends State<MyApp> {
                   AnalysisViewModel(
                     cachedDataService: cached,
                     sheetsService: sheets,
-                    analysisService: analysis,
                     storageService: storage,
                     telegramService: telegram,
                     bettingService: betting,
