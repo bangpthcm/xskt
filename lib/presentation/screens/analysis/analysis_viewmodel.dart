@@ -1187,20 +1187,31 @@ class AnalysisViewModel extends ChangeNotifier {
   // --- TELEGRAM ---
   Future<void> sendCycleAnalysisToTelegram() async {
     if (_cycleResult == null) return;
-    await _sendTelegram(_buildCycleMessage());
+
+    // ✅ Chọn topic dựa theo miền đang chọn
+    final topic = switch (_selectedMien) {
+      'Nam' => TelegramTopic.nam,
+      'Trung' => TelegramTopic.trung,
+      'Bắc' => TelegramTopic.bac,
+      _ => TelegramTopic.cycle, // Tất cả
+    };
+
+    await _sendTelegram(_buildCycleMessage(), topic: topic);
   }
 
   Future<void> sendGanPairAnalysisToTelegram() async {
     if (_ganPairInfo == null) return;
-    await _sendTelegram(_buildGanPairMessage());
+    // ✅ Phân tích xiên → gửi vào topic xien
+    await _sendTelegram(_buildGanPairMessage(), topic: TelegramTopic.xien);
   }
 
-  Future<void> _sendTelegram(String msg) async {
+  Future<void> _sendTelegram(String msg, {TelegramTopic? topic}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
-      await _telegramService.sendMessage(msg);
+      // ✅ Truyền topic vào sendMessage
+      await _telegramService.sendMessage(msg, topic: topic);
       _isLoading = false;
       notifyListeners();
     } catch (e) {

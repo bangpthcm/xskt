@@ -25,20 +25,19 @@ class BettingConfig {
 
 class BudgetConfig {
   final double totalCapital;
-  final double namBudget; // ✅ THÊM
+  final double namBudget;
   final double trungBudget;
   final double bacBudget;
   final double xienBudget;
 
   BudgetConfig({
     required this.totalCapital,
-    required this.namBudget, // ✅ THÊM
+    required this.namBudget,
     required this.trungBudget,
     required this.bacBudget,
     required this.xienBudget,
   });
 
-  // ✅ CẬP NHẬT Logic tính toán bao gồm namBudget
   bool get isValid {
     return (namBudget + trungBudget + bacBudget + xienBudget) <= totalCapital;
   }
@@ -54,7 +53,7 @@ class BudgetConfig {
   Map<String, dynamic> toJson() {
     return {
       'totalCapital': totalCapital,
-      'namBudget': namBudget, // ✅ THÊM
+      'namBudget': namBudget,
       'trungBudget': trungBudget,
       'bacBudget': bacBudget,
       'xienBudget': xienBudget,
@@ -63,18 +62,18 @@ class BudgetConfig {
 
   factory BudgetConfig.fromJson(Map<String, dynamic> json) {
     return BudgetConfig(
-      totalCapital: (json['totalCapital'] ?? 800000).toDouble(),
-      namBudget: (json['namBudget'] ?? 380000).toDouble(), // ✅ THÊM
-      trungBudget: (json['trungBudget'] ?? 330000).toDouble(),
-      bacBudget: (json['bacBudget'] ?? 270000).toDouble(),
-      xienBudget: (json['xienBudget'] ?? 151000).toDouble(),
+      totalCapital: (json['totalCapital'] ?? 1500000).toDouble(),
+      namBudget: (json['namBudget'] ?? 60000).toDouble(),
+      trungBudget: (json['trungBudget'] ?? 450000).toDouble(),
+      bacBudget: (json['bacBudget'] ?? 350000).toDouble(),
+      xienBudget: (json['xienBudget'] ?? 300000).toDouble(),
     );
   }
 
   factory BudgetConfig.defaultBudget() {
     return BudgetConfig(
       totalCapital: 800000,
-      namBudget: 380000, // ✅ Mặc định 0
+      namBudget: 380000,
       trungBudget: 330000,
       bacBudget: 270000,
       xienBudget: 151000,
@@ -83,17 +82,94 @@ class BudgetConfig {
 
   BudgetConfig copyWith({
     double? totalCapital,
-    double? namBudget, // ✅ THÊM
+    double? namBudget,
     double? trungBudget,
     double? bacBudget,
     double? xienBudget,
   }) {
     return BudgetConfig(
       totalCapital: totalCapital ?? this.totalCapital,
-      namBudget: namBudget ?? this.namBudget, // ✅ THÊM
+      namBudget: namBudget ?? this.namBudget,
       trungBudget: trungBudget ?? this.trungBudget,
       bacBudget: bacBudget ?? this.bacBudget,
       xienBudget: xienBudget ?? this.xienBudget,
+    );
+  }
+}
+
+// ✅ MỚI: Config cho Topic ID của từng loại bảng cược trong Telegram Group
+class TelegramTopicConfig {
+  final int? cycle; // Bảng chu kỳ tất cả
+  final int? xien; // Bảng xiên Bắc
+  final int? nam; // Bảng miền Nam
+  final int? trung; // Bảng miền Trung
+  final int? bac; // Bảng miền Bắc
+  final int? error; // Topic thông báo lỗi
+
+  const TelegramTopicConfig({
+    this.cycle,
+    this.xien,
+    this.nam,
+    this.trung,
+    this.bac,
+    this.error,
+  });
+
+  bool get hasAnyTopic =>
+      cycle != null ||
+      xien != null ||
+      nam != null ||
+      trung != null ||
+      bac != null ||
+      error != null;
+
+  Map<String, dynamic> toJson() => {
+        if (cycle != null) 'cycle': cycle,
+        if (xien != null) 'xien': xien,
+        if (nam != null) 'nam': nam,
+        if (trung != null) 'trung': trung,
+        if (bac != null) 'bac': bac,
+        if (error != null) 'error': error,
+      };
+
+  factory TelegramTopicConfig.fromJson(Map<String, dynamic> json) {
+    return TelegramTopicConfig(
+      cycle: json['cycle'] as int?,
+      xien: json['xien'] as int?,
+      nam: json['nam'] as int?,
+      trung: json['trung'] as int?,
+      bac: json['bac'] as int?,
+      error: json['error'] as int?,
+    );
+  }
+
+  factory TelegramTopicConfig.empty() => const TelegramTopicConfig();
+
+  // Default topics khớp với ví dụ của bạn
+  factory TelegramTopicConfig.defaults() => const TelegramTopicConfig(
+        cycle: 949,
+        xien: 957,
+        nam: 951,
+        trung: 953,
+        bac: 955,
+        error: 805,
+      );
+
+  TelegramTopicConfig copyWith({
+    int? cycle,
+    int? xien,
+    int? nam,
+    int? trung,
+    int? bac,
+    int? error,
+  }) {
+    return TelegramTopicConfig(
+      cycle: cycle ?? this.cycle,
+      xien: xien ?? this.xien,
+      nam: nam ?? this.nam,
+      trung: trung ?? this.trung,
+      bac: bac ?? this.bac,
+      error: error ?? this.error,
     );
   }
 }
@@ -174,7 +250,6 @@ class AppConfig {
   }
 }
 
-// ... (Giữ nguyên class GoogleSheetsConfig và TelegramConfig như file cũ của bạn)
 class GoogleSheetsConfig {
   final String projectId;
   final String privateKeyId;
@@ -288,17 +363,20 @@ class GoogleSheetsConfig {
 class TelegramConfig {
   final String botToken;
   final List<String> chatIds;
+  final TelegramTopicConfig topics; // ✅ MỚI
 
   TelegramConfig({
     required this.botToken,
     required this.chatIds,
-  });
+    TelegramTopicConfig? topics,
+  }) : topics = topics ?? TelegramTopicConfig.empty();
 
   bool get isValid => botToken.isNotEmpty && chatIds.isNotEmpty;
 
   Map<String, dynamic> toJson() {
     return {
       'chatIds': chatIds,
+      'topics': topics.toJson(), // ✅ Lưu topics vào JSON
     };
   }
 
@@ -306,12 +384,30 @@ class TelegramConfig {
     return TelegramConfig(
       botToken: _defaultBotToken,
       chatIds: List<String>.from(json['chatIds'] ?? []),
+      topics: json['topics'] != null
+          ? TelegramTopicConfig.fromJson(json['topics'] as Map<String, dynamic>)
+          : TelegramTopicConfig.defaults(), // ✅ Dùng defaults nếu chưa có
     );
   }
 
   factory TelegramConfig.empty() {
     return TelegramConfig(
-        botToken: _defaultBotToken, chatIds: ['-1003060014477']);
+      botToken: _defaultBotToken,
+      chatIds: ['-1003060014477'],
+      topics: TelegramTopicConfig.defaults(), // ✅ Luôn có defaults
+    );
+  }
+
+  TelegramConfig copyWith({
+    String? botToken,
+    List<String>? chatIds,
+    TelegramTopicConfig? topics,
+  }) {
+    return TelegramConfig(
+      botToken: botToken ?? this.botToken,
+      chatIds: chatIds ?? this.chatIds,
+      topics: topics ?? this.topics,
+    );
   }
 
   static const String _defaultBotToken =
