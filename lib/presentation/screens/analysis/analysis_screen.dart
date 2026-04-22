@@ -51,13 +51,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 children: [
                   const Icon(Icons.error_outline,
                       size: 64, color: ThemeProvider.loss),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   Text(
                     viewModel.errorMessage!,
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: ThemeProvider.loss),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   ElevatedButton(
                     onPressed: () {
                       viewModel.clearError();
@@ -86,9 +86,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               padding: const EdgeInsets.fromLTRB(16, 45, 16, 16),
               children: [
                 _buildOptimalSummaryCard(viewModel),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 _buildCycleSection(viewModel),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 _buildGanPairSection(viewModel),
               ],
             ),
@@ -213,6 +213,21 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
     // ✅ Lấy loi1So từ cache viewmodel — đã tính khi load, lưu vào sheet
     final loi1So = viewModel.loi1SoForSelectedMien;
+    // Tính isTargetNextDay cho miền đang chọn
+    final selectedDate = switch (viewModel.selectedMien) {
+      'Nam' => viewModel.dateNam,
+      'Trung' => viewModel.dateTrung,
+      'Bắc' => viewModel.dateBac,
+      _ => viewModel.dateTatCa,
+    };
+    final dataDate = viewModel.sheetHeaderDateTime;
+    bool isTargetNextDay = false;
+    if (selectedDate != null && dataDate != null) {
+      final nextDay = dataDate.add(const Duration(days: 1));
+      isTargetNextDay = selectedDate.year == nextDay.year &&
+          selectedDate.month == nextDay.month &&
+          selectedDate.day == nextDay.day;
+    }
 
     return Card(
       child: Padding(
@@ -264,12 +279,40 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             ),
             const Divider(color: Colors.grey),
             _buildMienFilter(viewModel),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             if (cycleResult == null)
               const Text('Chưa có dữ liệu phân tích')
             else ...[
-              _buildInfoRow('Số mục tiêu:', cycleResult.targetNumber,
-                  isHighlight: true),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(
+                      width: 140,
+                      child: Text('Số mục tiêu:',
+                          style: TextStyle(
+                              color: Colors.grey, fontWeight: FontWeight.w600)),
+                    ),
+                    Text(
+                      cycleResult.targetNumber,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (viewModel.secondaryTargetNumber != null) ...[
+                      const Text('  /  ',
+                          style: TextStyle(fontSize: 16, color: Colors.grey)),
+                      Text(
+                        viewModel.secondaryTargetNumber!,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
 
               if (currentEndDate != null)
                 _buildInfoRow(
@@ -286,8 +329,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               _buildInfoRow('Lần cuối về:',
                   date_utils.DateUtils.formatDate(cycleResult.lastSeenDate)),
 
-              _buildInfoRow('Ngày gan hiện tại:',
-                  '${cycleResult.maxGanDays} ngày (Slots: ${cycleResult.ganCurrentSlots})'),
+              _buildInfoRow(
+                'Ngày nuôi:',
+                viewModel.daysNeededForSelectedMien != null
+                    ? '${viewModel.daysNeededForSelectedMien} ngày'
+                    : (currentEndDate == null ? 'Đang tính ...' : '—'),
+              ),
 
               // ✅ Lời 1 số: đọc từ cache, không tính lại
               _buildInfoRow(
@@ -295,11 +342,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 loi1So != null
                     ? NumberUtils.formatCurrency(loi1So)
                     : (currentEndDate == null ? 'Đang tính ...' : '—'),
-                textColor: loi1So != null && loi1So > 0
-                    ? const Color(0xFF00897B)
-                    : (loi1So == null && currentEndDate == null
-                        ? Colors.grey
-                        : null),
+                textColor: loi1So != null
+                    ? (isTargetNextDay ? const Color(0xFF00897B) : Colors.grey)
+                    : Colors.grey,
               ),
             ],
           ],
@@ -366,6 +411,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 ),
               _buildInfoRow('Lần cuối về:',
                   date_utils.DateUtils.formatDate(ganInfo.lastSeen)),
+              _buildInfoRow(
+                'Ngày nuôi:',
+                viewModel.cachedPlanXienDaysNeeded != null
+                    ? '${viewModel.cachedPlanXienDaysNeeded} ngày'
+                    : (viewModel.endDateXien == null ? 'Đang tính ...' : '—'),
+              ),
               _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
             ],
           ],

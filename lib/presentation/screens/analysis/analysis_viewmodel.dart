@@ -216,6 +216,15 @@ class AnalysisViewModel extends ChangeNotifier {
   GanPairInfo? get ganPairInfo => _ganPairInfo;
   CycleAnalysisResult? get cycleResult => _cycleResult;
   String get selectedMien => _selectedMien;
+  int? get cachedPlanXienDaysNeeded => _cachedPlanXien?.daysNeeded;
+  String? get secondaryTargetNumber {
+    final matches = _cachedSheetResults
+        .where((e) => e.mienGroups.keys.first
+            .toLowerCase()
+            .contains(_selectedMien.toLowerCase()))
+        .toList();
+    return matches.length >= 2 ? matches[1].targetNumber : null;
+  }
 
   String get optimalTatCa =>
       _cachedPlanTatCa?.formatStartInfo() ?? "Đang tính ...";
@@ -246,6 +255,14 @@ class AnalysisViewModel extends ChangeNotifier {
         'Trung' => _cachedPlanTrung?.loi1So,
         'Bắc' => _cachedPlanBac?.loi1So,
         _ => _cachedPlanTatCa?.loi1So,
+      };
+
+  /// Số ngày nuôi theo miền đang chọn
+  int? get daysNeededForSelectedMien => switch (_selectedMien) {
+        'Nam' => _cachedPlanNam?.daysNeeded,
+        'Trung' => _cachedPlanTrung?.daysNeeded,
+        'Bắc' => _cachedPlanBac?.daysNeeded,
+        _ => _cachedPlanTatCa?.daysNeeded,
       };
 
   DateTime? get sheetHeaderDateTime {
