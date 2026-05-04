@@ -108,7 +108,7 @@ class AnalysisService {
 
     // ✅ 4. XIÊN - TRỌNG SỐ RIÊNG
     if (s.contains('xien') || s.contains('xiên')) {
-      return (w1: 9.42822302, w2: 2.71988714, w3: 4.10588736);
+      return (w1: 5.31261348, w2: 0.80860314, w3: 3.71472082);
     }
 
     // 5. Mặc định (Tất cả / Cycle)
