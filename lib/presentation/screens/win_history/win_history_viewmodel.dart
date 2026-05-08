@@ -581,7 +581,7 @@ class WinHistoryViewModel extends ChangeNotifier {
 
     try {
       const String webAppUrl =
-          "https://script.google.com/macros/s/AKfycbzCPXQKZu86R1QsAm1s4GG1ysPhHrLHALy6YQSpnOuaNY6Rc1zCHRNGP5t-XUbysHcQpg/exec?action=dailyLotteryCheck";
+          "https://script.google.com/macros/s/AKfycbyjJViGK_f6nR5jO152flYaZbPky-82_ErywHkFY3-3lZMDAerfCbXXtKZyygmV9wD9/exec?action=dailyLotteryCheck";
 
       // Gọi script với timeout 210 giây
       await http.get(Uri.parse(webAppUrl)).timeout(const Duration(seconds: 70));
