@@ -400,6 +400,7 @@ class AnalysisViewModel extends ChangeNotifier {
   }) async {
     final type = _mapMienToEnum(mienName);
     final thresholdLn = _getThresholdForMien(mienName, config);
+    final baseDate = _defaultStartDate();
 
     // Bước 1: Tính End Date
     DateTime endDate;
@@ -419,6 +420,7 @@ class AnalysisViewModel extends ChangeNotifier {
         _allResults,
         thresholdLn,
         mien: mienName,
+        baseDate: baseDate,
       );
       if (simResult != null) {
         endDate = simResult.endDate;
@@ -537,10 +539,13 @@ class AnalysisViewModel extends ChangeNotifier {
         return;
       }
 
+      final baseDate = _defaultStartDate();
+
       final simResult = await AnalysisService.findEndDateForXienThreshold(
         pairAnalysis,
         0.055,
         config.probability.thresholdLnXien,
+        baseDate: baseDate,
       );
       if (simResult == null) {
         _cachedPlanXien = null;

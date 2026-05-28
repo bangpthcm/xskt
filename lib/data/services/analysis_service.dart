@@ -423,10 +423,17 @@ class AnalysisService {
   }
 
   // --- TÌM NGÀY KẾT THÚC (LOGARITHM SIMULATION) ---
+  // Thêm param baseDate vào findEndDateForCycleThreshold
   static Future<({DateTime endDate, String endMien, int daysNeeded})?>
-      findEndDateForCycleThreshold(NumberAnalysisData targetNumber,
-          double pUnused, List<LotteryResult> results, double lnThreshold,
-          {int maxIterations = 20000, String mien = 'Tất cả'}) async {
+      findEndDateForCycleThreshold(
+    NumberAnalysisData targetNumber,
+    double pUnused,
+    List<LotteryResult> results,
+    double lnThreshold, {
+    int maxIterations = 20000,
+    String mien = 'Tất cả',
+    DateTime? baseDate, // ✅ THÊM
+  }) async {
     return await compute(_findEndDateForCycleThresholdCompute, {
       'currentLnP1': targetNumber.lnP1,
       'currentLnP2': targetNumber.lnP2,
@@ -435,28 +442,29 @@ class AnalysisService {
       'lnThreshold': lnThreshold,
       'maxIterations': maxIterations,
       'mien': mien,
+      'baseDate': (baseDate ?? DateTime.now()).millisecondsSinceEpoch, // ✅ THÊM
     });
   }
 
   static ({DateTime endDate, String endMien, int daysNeeded})?
-      _findEndDateForCycleThresholdCompute(
-    Map<String, dynamic> params,
-  ) {
+      _findEndDateForCycleThresholdCompute(Map<String, dynamic> params) {
     var currentLnP1 = params['currentLnP1'] as double;
     final currentLnP2 = params['currentLnP2'] as double;
     final currentLnP3 = params['currentLnP3'] as double;
     final lnThreshold = params['lnThreshold'] as double;
     final maxIterations = params['maxIterations'] as int;
     final mienFilter = params['mien'] as String;
+    // ✅ THÊM: đọc baseDate từ params thay vì DateTime.now()
+    final baseDate = DateTime.fromMillisecondsSinceEpoch(
+      params['baseDate'] as int,
+    );
 
     try {
-      // 0. Lấy trọng số
       final weights = _getWeights(mienFilter);
       final w1 = weights.w1;
       final w2 = weights.w2;
       final w3 = weights.w3;
 
-      // 1. Tính P_Total hiện tại
       final currentLnPTotal = (2.0 * LN_P_INDIV) +
           (w1 * currentLnP1) +
           (w2 * currentLnP2) +
@@ -464,14 +472,12 @@ class AnalysisService {
 
       if (currentLnPTotal < lnThreshold) {
         return (
-          endDate: DateTime.now().add(const Duration(days: 1)),
-          endMien: 'Miền Nam', // ⚡ Thêm field
+          endDate: baseDate.add(const Duration(days: 1)), // ✅ dùng baseDate
+          endMien: 'Miền Nam',
           daysNeeded: 1
         );
       }
 
-      // 2. Tính Delta cần giảm
-      // addedSlots > (lnThreshold - currentLnPTotal) / (w1 * LN_BASE)
       final double denominator = w1 * LN_BASE;
       if (denominator == 0) return null;
 
@@ -479,19 +485,18 @@ class AnalysisService {
       final double slotsNeededDouble = gapNeeded / denominator;
 
       int addedSlots = slotsNeededDouble.ceil();
-
       if (addedSlots <= 0) addedSlots = 1;
       if (addedSlots > maxIterations) return null;
 
       final simulationResult = _mapSlotsToDateAndMien(
         slotsNeeded: addedSlots,
-        startDate: DateTime.now(),
+        startDate: baseDate, // ✅ dùng baseDate thay vì DateTime.now()
         mienFilter: mienFilter,
       );
 
       return (
         endDate: simulationResult.date,
-        endMien: simulationResult.endMien, // ⚡ Thêm field từ simulation
+        endMien: simulationResult.endMien,
         daysNeeded: simulationResult.daysFromStart,
       );
     } catch (e) {
@@ -1173,52 +1178,47 @@ class AnalysisService {
   static Future<({DateTime endDate, int daysNeeded})?>
       findEndDateForXienThreshold(
     PairAnalysisData targetPair,
-    double pUnused, // Deprecated, giữ lại để tương thích API
+    double pUnused,
     double lnThreshold, {
     int maxIterations = 10000,
+    DateTime? baseDate, // ✅ THÊM
   }) async {
     return await compute(_findEndDateForXienThresholdCompute, {
       'currentLnP1': targetPair.lnP1Pair,
-      'currentLnPTotal': targetPair.lnPTotalXien, // ✅ Pass full P_total
+      'currentLnPTotal': targetPair.lnPTotalXien,
       'lnThreshold': lnThreshold,
       'maxIterations': maxIterations,
+      'baseDate': (baseDate ?? DateTime.now()).millisecondsSinceEpoch, // ✅ THÊM
     });
   }
 
   static ({DateTime endDate, int daysNeeded})?
-      _findEndDateForXienThresholdCompute(
-    Map<String, dynamic> params,
-  ) {
-    // ✅ Lấy trọng số Xiên
+      _findEndDateForXienThresholdCompute(Map<String, dynamic> params) {
     final weights = _getWeights('xien');
     final w1 = weights.w1;
 
     final currentLnP1 = params['currentLnP1'] as double?;
-    final currentLnPTotal =
-        params['currentLnPTotal'] as double?; // ✅ Sử dụng P_total đã tính
+    final currentLnPTotal = params['currentLnPTotal'] as double?;
     final lnThreshold = params['lnThreshold'] as double;
     final maxIterations = params['maxIterations'] as int;
+    // ✅ THÊM
+    final baseDate = DateTime.fromMillisecondsSinceEpoch(
+      params['baseDate'] as int,
+    );
 
     try {
-      // ✅ Sử dụng P_total đã được tính từ phân tích (bao gồm P1, P2, P3)
       final lnPTotal = currentLnPTotal ??
           ((currentLnP1 != null)
               ? ((2.0 * LN_P_INDIV) + (w1 * currentLnP1))
               : 0.0);
 
-      print('\n🔍 [XIEN END DATE CALC]');
-      print('   Current P_total: ${lnPTotal.toStringAsFixed(4)}');
-      print('   Threshold: ${lnThreshold.toStringAsFixed(4)}');
-
       if (lnPTotal < lnThreshold) {
-        print('   ✅ Already below threshold!');
         return (
-          endDate: DateTime.now().add(const Duration(days: 1)),
+          endDate: baseDate.add(const Duration(days: 1)), // ✅
           daysNeeded: 1
         );
       }
 
-      // Tính slots cần thêm để đạt threshold
       final double denominator = w1 * LN_BASE;
       if (denominator == 0) return null;
 
@@ -1227,21 +1227,14 @@ class AnalysisService {
 
       int addedSlots = slotsNeededDouble.ceil();
       if (addedSlots <= 0) addedSlots = 1;
-      if (addedSlots > maxIterations) {
-        print('   ⚠️ Exceeded max iterations');
-        return null;
-      }
+      if (addedSlots > maxIterations) return null;
 
-      // Map slots to date (Bắc only, 27 slots/day)
       final daysNeeded = (addedSlots / 27).ceil();
-      final endDate = DateTime.now().add(Duration(days: daysNeeded));
-
-      print('   📅 Days needed: $daysNeeded');
-      print('   🏁 End date: ${date_utils.DateUtils.formatDate(endDate)}');
+      final endDate =
+          baseDate.add(Duration(days: daysNeeded)); // ✅ dùng baseDate
 
       return (endDate: endDate, daysNeeded: daysNeeded);
     } catch (e) {
-      print('   ❌ Error: $e');
       return null;
     }
   }
