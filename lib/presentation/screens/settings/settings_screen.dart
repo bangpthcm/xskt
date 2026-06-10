@@ -194,7 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Icon(Icons.attach_money, color: Theme.of(context).primaryColor),
         title: const Text('Ngân sách',
             style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('700 => 700.000đ',
+        subtitle: const Text('2000 => 2.000.000đ',
             style: TextStyle(fontSize: 12, color: Colors.grey)),
         initiallyExpanded: false,
         children: [
