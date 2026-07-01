@@ -3,7 +3,7 @@ class AppConstants {
 
   // Budget defaults
   static const double defaultBudgetMin = 330000.0;
-  static const double defaultBudgetMax = 2000000.0;
+  static const double defaultBudgetMax = 1500000.0;
 
   // Xiên betting constants
   static const double targetBudgetXien = 400000.0;
