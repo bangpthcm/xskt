@@ -148,12 +148,22 @@ class _ProfitChartState extends State<ProfitChart> {
                   ),
 
                   // 2. REAL CHART: Vuốt ngang và thao tác chọn điểm
+                  // 2. REAL CHART: Vuốt ngang và thao tác chọn điểm
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final calculatedWidth = widget.data.length * 60.0;
-                        final minWidth = constraints.maxWidth;
-                        final chartWidth = calculatedWidth > minWidth
+                        const int visiblePoints = 5;
+                        const int visibleIntervals = visiblePoints - 1;
+                        final double spacing =
+                            constraints.maxWidth / visibleIntervals;
+
+                        // THAY ĐỔI 1: Thay vì 'widget.data.length - 1', ta giữ nguyên 'widget.data.length'
+                        // để tạo thêm đúng 1 khoảng trống (interval) ảo ở cuối biểu đồ.
+                        final int totalIntervals = widget.data.length;
+
+                        final double calculatedWidth = spacing * totalIntervals;
+                        final double minWidth = constraints.maxWidth;
+                        final double chartWidth = calculatedWidth > minWidth
                             ? calculatedWidth
                             : minWidth;
 
@@ -167,8 +177,9 @@ class _ProfitChartState extends State<ProfitChart> {
                                 minY: _getMinY(),
                                 maxY: _getMaxY(),
                                 minX: 0,
-                                maxX: (widget.data.length - 1).toDouble(),
-                                // ÉP HIỂN THỊ TOOLTIP: Dựa vào state _touchedIndex
+                                // THAY ĐỔI 2: Tăng maxX thêm 1 đơn vị để fl_chart chừa không gian vẽ trục X
+                                maxX: widget.data.length.toDouble(),
+
                                 showingTooltipIndicators: _touchedIndex == null
                                     ? []
                                     : [
@@ -184,18 +195,14 @@ class _ProfitChartState extends State<ProfitChart> {
                                   show: true,
                                   drawVerticalLine: true,
                                   horizontalInterval: _calculateInterval(),
-                                  getDrawingHorizontalLine: (value) {
-                                    return FlLine(
-                                      color: Colors.grey.shade800,
-                                      strokeWidth: 1,
-                                    );
-                                  },
-                                  getDrawingVerticalLine: (value) {
-                                    return FlLine(
-                                      color: Colors.grey.shade800,
-                                      strokeWidth: 1,
-                                    );
-                                  },
+                                  getDrawingHorizontalLine: (value) => FlLine(
+                                    color: Colors.grey.shade800,
+                                    strokeWidth: 1,
+                                  ),
+                                  getDrawingVerticalLine: (value) => FlLine(
+                                    color: Colors.grey.shade800,
+                                    strokeWidth: 1,
+                                  ),
                                 ),
                                 titlesData: FlTitlesData(
                                   show: true,
@@ -215,27 +222,62 @@ class _ProfitChartState extends State<ProfitChart> {
                                       interval: 1,
                                       getTitlesWidget: (value, meta) {
                                         final index = value.toInt();
+
+                                        // Chặn triệt để các index nhảy ngoài phạm vi cho phép
                                         if (index < 0 ||
-                                            index >= widget.data.length) {
+                                            index > widget.data.length) {
                                           return const Text('');
                                         }
 
-                                        final rawLabel =
-                                            widget.data[index].monthLabel;
-                                        String displayLabel = rawLabel;
+                                        String displayLabel = '';
 
-                                        try {
-                                          final parts = rawLabel.split('/');
-                                          if (parts.length == 2) {
-                                            final month =
-                                                int.parse(parts[0]).toString();
-                                            final year = parts[1].substring(2);
-                                            displayLabel = (month == '1')
-                                                ? 'T1/$year'
-                                                : 'T$month';
+                                        // THAY ĐỔI 3: Xử lý điểm ảo (index cuối cùng vượt quá data thực tế)
+                                        if (index == widget.data.length) {
+                                          try {
+                                            // Tự động suy luận ra tháng tiếp theo dựa trên phần tử cuối cùng
+                                            final lastRawLabel =
+                                                widget.data.last.monthLabel;
+                                            final parts =
+                                                lastRawLabel.split('/');
+                                            if (parts.length == 2) {
+                                              int month = int.parse(parts[0]);
+                                              int year = int.parse(parts[1]);
+
+                                              month++;
+                                              if (month > 12) {
+                                                month = 1;
+                                                year++;
+                                              }
+
+                                              final yearStr =
+                                                  year.toString().substring(2);
+                                              displayLabel = (month == 1)
+                                                  ? 'T1/$yearStr'
+                                                  : 'T$month';
+                                            }
+                                          } catch (_) {
+                                            displayLabel =
+                                                ''; // Ngăn crash nếu định dạng text bị lỗi
                                           }
-                                        } catch (_) {
+                                        } else {
+                                          // Trả về logic xử lý data thật của cậu
+                                          final rawLabel =
+                                              widget.data[index].monthLabel;
                                           displayLabel = rawLabel;
+                                          try {
+                                            final parts = rawLabel.split('/');
+                                            if (parts.length == 2) {
+                                              final month = int.parse(parts[0])
+                                                  .toString();
+                                              final year =
+                                                  parts[1].substring(2);
+                                              displayLabel = (month == '1')
+                                                  ? 'T1/$year'
+                                                  : 'T$month';
+                                            }
+                                          } catch (_) {
+                                            displayLabel = rawLabel;
+                                          }
                                         }
 
                                         return Padding(
@@ -249,7 +291,6 @@ class _ProfitChartState extends State<ProfitChart> {
                                               fontWeight: _touchedIndex == index
                                                   ? FontWeight.bold
                                                   : FontWeight.normal,
-                                              // Làm nổi bật nhẹ nhãn của tháng đang chọn
                                             ),
                                           ),
                                         );
@@ -269,18 +310,13 @@ class _ProfitChartState extends State<ProfitChart> {
                                         BorderSide(color: Colors.grey.shade800),
                                   ),
                                 ),
-                                lineBarsData: [
-                                  lineBarData
-                                ], // Sử dụng biến lineBarData đã tạo ở trên
+                                lineBarsData: [lineBarData],
                                 lineTouchData: LineTouchData(
                                   enabled: true,
-                                  // QUAN TRỌNG: Tắt hành vi hold-to-show mặc định
                                   handleBuiltInTouches: false,
                                   touchCallback: (FlTouchEvent event,
                                       LineTouchResponse? touchResponse) {
-                                    // Bắt sự kiện Tap Up (nhấc ngón tay lên sau khi chạm)
                                     if (event is FlTapUpEvent) {
-                                      // Chạm ra khoảng trống hoặc không trúng điểm nào -> Tắt tooltip
                                       if (touchResponse == null ||
                                           touchResponse.lineBarSpots == null ||
                                           touchResponse.lineBarSpots!.isEmpty) {
@@ -290,11 +326,9 @@ class _ProfitChartState extends State<ProfitChart> {
                                         return;
                                       }
 
-                                      // Lấy index của điểm vừa chạm
                                       final spotIndex = touchResponse
                                           .lineBarSpots!.first.spotIndex;
                                       setState(() {
-                                        // Nếu chạm vào điểm đang hiển thị -> Tắt. Nếu chạm điểm khác -> Bật điểm mới.
                                         _touchedIndex =
                                             (_touchedIndex == spotIndex)
                                                 ? null
@@ -310,6 +344,7 @@ class _ProfitChartState extends State<ProfitChart> {
                                     getTooltipItems: (touchedSpots) {
                                       return touchedSpots.map((spot) {
                                         final index = spot.x.toInt();
+                                        // Đoạn check index này cậu làm tốt, nó sẽ bỏ qua điểm ảo không hiển thị tooltip bậy
                                         if (index < 0 ||
                                             index >= widget.data.length)
                                           return null;
@@ -335,7 +370,7 @@ class _ProfitChartState extends State<ProfitChart> {
                         );
                       },
                     ),
-                  ),
+                  )
                 ],
               ),
             ),

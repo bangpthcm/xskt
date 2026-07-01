@@ -334,7 +334,7 @@ class BettingTableService {
 
     // [FIX 3] Dynamic High Profit: Phá bỏ giới hạn 100k.
     // Cho phép lãi mục tiêu lên tới 50% tổng vốn (hoặc con số hợp lý với bạn)
-    double highProfit = budgetMax / 64;
+    double highProfit = budgetMax / 2;
 
     List<BettingRow>? bestTable;
 
