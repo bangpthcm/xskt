@@ -16,6 +16,7 @@ import '../../../data/services/betting_table_service.dart';
 import '../../../data/services/budget_calculation_service.dart';
 import '../../../data/services/cached_data_service.dart';
 import '../../../data/services/google_sheets_service.dart';
+import '../../../data/services/region_plan_isolate.dart';
 import '../../../data/services/storage_service.dart';
 import '../../../data/services/telegram_service.dart';
 
@@ -369,13 +370,19 @@ class AnalysisViewModel extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
 
+      // ✅ Chạy song song 4 miền, mỗi miền 1 isolate nền riêng
+      // (thay vì await tuần tự từng miền như trước)
+      final planFutures = <Future<void>>[];
       for (final mien in ['Tất cả', 'Nam', 'Trung', 'Bắc']) {
         final res = _findResultByMien(mien);
         if (res != null) {
-          await _calculateAndCachePlan(mien, res, config);
-          notifyListeners();
+          planFutures.add(
+            _calculateAndCachePlan(mien, res, config)
+                .then((_) => notifyListeners()),
+          );
         }
       }
+      await Future.wait(planFutures);
 
       if (_ganPairInfo != null) {
         await _calculateAndCacheXienPlan(config);
@@ -452,50 +459,28 @@ class AnalysisViewModel extends ChangeNotifier {
         endMien: endMien,
       );
 
-      final optimalResult = await AnalysisService.findOptimalStartDateForCycle(
+      // ✅ Toàn bộ phần tìm ngày tối ưu + preview lời 1 số giờ chạy
+      // trên 1 isolate nền duy nhất (compute()), không đụng UI thread.
+      final isolateResult = await RegionPlanIsolate.run(RegionPlanIsolateParams(
+        mienName:
+            type == BettingTableTypeEnum.tatca ? 'Tất cả' : type.displayName,
+        cycleResult: result,
+        allResults: _allResults,
         baseStartDate: startDate,
         endDate: endDate,
         endMien: endMien,
         availableBudget: budgetResult.budgetMax,
         budgetMin: budgetResult.budgetMax * 0.77,
-        mien: type == BettingTableTypeEnum.tatca ? 'Tất cả' : type.displayName,
-        targetNumber: result.targetNumber,
-        cycleResult: result,
-        allResults: _allResults,
-        bettingService: _bettingService,
         maxMienCount: type == BettingTableTypeEnum.tatca
             ? endDate.difference(startDate).inDays
             : 0,
-      );
+      ));
 
-      if (optimalResult != null) {
-        startDate = optimalResult.date;
-        startMienIndex = optimalResult.mienIndex;
-
-        // Bước 3: Tính loi1So bằng preview bảng
-        try {
-          final preview = await type.generateTable(
-            service: _bettingService,
-            result: result,
-            start: startDate,
-            end: endDate,
-            endMien: endMien,
-            startIdx: startMienIndex,
-            min: budgetResult.budgetMax * 0.77,
-            max: budgetResult.budgetMax,
-            results: _allResults,
-            maxCount: type == BettingTableTypeEnum.tatca
-                ? endDate.difference(startDate).inDays
-                : 0,
-            durationLimit: endDate.difference(startDate).inDays,
-          );
-          if (preview.isNotEmpty) {
-            loi1So = preview.last.loi1So;
-            print('💰 [$mienName] Lời 1 số: ${loi1So.toStringAsFixed(0)}');
-          }
-        } catch (e) {
-          print('⚠️ Không tính được loi1So cho $mienName: $e');
-        }
+      if (isolateResult.startDate != null) {
+        startDate = isolateResult.startDate!;
+        startMienIndex = isolateResult.startMienIndex;
+        loi1So = isolateResult.loi1So;
+        print('💰 [$mienName] Lời 1 số: ${loi1So?.toStringAsFixed(0)}');
       } else {
         budgetError = "⚠️ Thiếu vốn";
       }
