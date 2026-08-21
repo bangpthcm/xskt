@@ -29,4 +29,21 @@ class AppConstants {
   // Time thresholds
   static const int timeThreshold1 = 1030; // 17:10
   static const int timeThreshold2 = 1090; // 18:10
+
+  // ✅ Ngưỡng "Ngày nuôi" cố định theo miền — dùng để xem đã đủ điều kiện
+  // tạo bảng cược hay chưa (Ngày nuôi <= ngưỡng => đã thỏa điều kiện)
+  static const int ganDaysThresholdTatCa = 4;
+  static const int ganDaysThresholdNam = 8;
+  static const int ganDaysThresholdTrung = 12;
+  static const int ganDaysThresholdBac = 20;
+  static const int ganDaysThresholdXien = 60;
+
+  static int getGanDaysThreshold(String mien) {
+    final m = mien.toLowerCase();
+    if (m.contains('nam')) return ganDaysThresholdNam;
+    if (m.contains('trung')) return ganDaysThresholdTrung;
+    if (m.contains('bắc') || m.contains('bac')) return ganDaysThresholdBac;
+    if (m.contains('xien') || m.contains('xiên')) return ganDaysThresholdXien;
+    return ganDaysThresholdTatCa;
+  }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/date_utils.dart' as date_utils;
 import '../../../core/utils/number_utils.dart';
@@ -329,11 +330,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               _buildInfoRow('Lần cuối về:',
                   date_utils.DateUtils.formatDate(cycleResult.lastSeenDate)),
 
-              _buildInfoRow(
-                'Ngày nuôi:',
-                viewModel.daysNeededForSelectedMien != null
-                    ? '${viewModel.daysNeededForSelectedMien} ngày'
-                    : (currentEndDate == null ? 'Đang tính ...' : '—'),
+              _buildGanDaysInfoRow(
+                viewModel.daysNeededForSelectedMien,
+                viewModel.selectedMien,
+                isPending: currentEndDate == null,
               ),
 
               // ✅ Lời 1 số: đọc từ cache, không tính lại
@@ -411,11 +411,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 ),
               _buildInfoRow('Lần cuối về:',
                   date_utils.DateUtils.formatDate(ganInfo.lastSeen)),
-              _buildInfoRow(
-                'Ngày nuôi:',
-                viewModel.cachedPlanXienDaysNeeded != null
-                    ? '${viewModel.cachedPlanXienDaysNeeded} ngày'
-                    : (viewModel.endDateXien == null ? 'Đang tính ...' : '—'),
+              _buildGanDaysInfoRow(
+                viewModel.cachedPlanXienDaysNeeded,
+                'Xiên',
+                isPending: viewModel.endDateXien == null,
               ),
               _buildInfoRow('Số ngày gan:', '${ganInfo.daysGan} ngày'),
             ],
@@ -499,6 +498,23 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildGanDaysInfoRow(
+    int? daysNeeded,
+    String mien, {
+    required bool isPending,
+  }) {
+    if (daysNeeded == null) {
+      return _buildInfoRow('Ngày nuôi:', isPending ? 'Đang tính ...' : '—');
+    }
+    final threshold = AppConstants.getGanDaysThreshold(mien);
+    final isSatisfied = daysNeeded <= threshold;
+    return _buildInfoRow(
+      'Ngày nuôi:',
+      '$daysNeeded ngày/$threshold ngày',
+      textColor: isSatisfied ? ThemeProvider.profit : Colors.grey,
     );
   }
 
