@@ -37,23 +37,22 @@ class BettingTableService {
 
     double tongTien = 0.0;
 
-    // Tính profit step
-    final profitStep =
-        (AppConstants.finalProfit - AppConstants.startingProfit) /
-            (daysRemaining - 1);
+    // ✅ Tính mảng bước nhảy dạng "quả đồi": tăng 2/3 đầu, giảm 1/3 cuối
+    final profitSteps = _calculateXienProfitSteps(daysRemaining);
 
     double tienCuocMien =
         AppConstants.startingProfit / (AppConstants.winMultiplierXien - 1);
-
     if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
       tienCuocMien = 100.0;
     }
 
+    double runningProfitTarget = AppConstants.startingProfit;
+
     // Bước 1: Tính toán thô
     final tempRows = <Map<String, dynamic>>[];
     for (int i = 0; i < daysRemaining; i++) {
-      final currentProfitTarget =
-          AppConstants.startingProfit + (profitStep * i);
+      if (i > 0) runningProfitTarget += profitSteps[i];
+      final currentProfitTarget = runningProfitTarget;
 
       if (i > 0) {
         tienCuocMien = (tongTien + currentProfitTarget) /
@@ -144,6 +143,37 @@ class BettingTableService {
     print(
         '✅ Generated ${rawTable.length} xien rows (budget: ${NumberUtils.formatCurrency(xienBudget)})');
     return rawTable;
+  }
+
+  /// Tính danh sách profitStep theo hình "quả đồi":
+  /// tăng dần trong 2/3 đầu, giảm dần trong 1/3 cuối.
+  /// Trả về mảng có độ dài = daysRemaining, index 0 luôn = 0 (ngày đầu dùng startingProfit gốc).
+  List<double> _calculateXienProfitSteps(int daysRemaining) {
+    final steps = List<double>.filled(daysRemaining, 0.0);
+    if (daysRemaining <= 1) return steps;
+
+    final lastIndex = daysRemaining - 1;
+    final twoThirdIndex = (lastIndex * 3 / 5).round().clamp(1, lastIndex);
+
+    // Pha 1: tăng dần từ stepMin -> stepPeak (index 1..twoThirdIndex)
+    for (int i = 1; i <= twoThirdIndex; i++) {
+      final fraction = twoThirdIndex == 1 ? 1.0 : (i - 1) / (twoThirdIndex - 1);
+      steps[i] = AppConstants.xienProfitStepMin +
+          (AppConstants.xienProfitStepPeak - AppConstants.xienProfitStepMin) *
+              fraction;
+    }
+
+    // Pha 2: giảm dần từ stepPeak -> stepEnd (index twoThirdIndex+1..lastIndex)
+    final remainingSteps = lastIndex - twoThirdIndex;
+    for (int i = twoThirdIndex + 1; i <= lastIndex; i++) {
+      final fraction =
+          remainingSteps == 0 ? 1.0 : (i - twoThirdIndex) / remainingSteps;
+      steps[i] = AppConstants.xienProfitStepPeak -
+          (AppConstants.xienProfitStepPeak - AppConstants.xienProfitStepEnd) *
+              fraction;
+    }
+
+    return steps;
   }
 
   /// Generate Cycle Table

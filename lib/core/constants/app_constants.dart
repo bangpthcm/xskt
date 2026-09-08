@@ -10,6 +10,11 @@ class AppConstants {
   static const double winMultiplierXien = 17.0;
   static const double startingProfit = 2000.0;
   static const double finalProfit = 3000.0;
+  // ✅ THÊM MỚI: 3 mốc bước nhảy cho đường cong "quả đồi"
+  static const double xienProfitStepMin = 100.0; // Bước nhảy ở ngày đầu tiên
+  static const double xienProfitStepPeak =
+      750.0; // Bước nhảy đỉnh (tại mốc 2/3)
+  static const double xienProfitStepEnd = 100.0; // Bước nhảy ở ngày cuối cùng
 
   static const int bacGanWinMultiplier = 99;
   static const int trungGanWinMultiplier = 98;
@@ -36,7 +41,7 @@ class AppConstants {
   static const int ganDaysThresholdNam = 8;
   static const int ganDaysThresholdTrung = 12;
   static const int ganDaysThresholdBac = 20;
-  static const int ganDaysThresholdXien = 60;
+  static const int ganDaysThresholdXien = 55;
 
   static int getGanDaysThreshold(String mien) {
     final m = mien.toLowerCase();
