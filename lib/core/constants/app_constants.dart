@@ -13,7 +13,7 @@ class AppConstants {
   // ✅ THÊM MỚI: 3 mốc bước nhảy cho đường cong "quả đồi"
   static const double xienProfitStepMin = 100.0; // Bước nhảy ở ngày đầu tiên
   static const double xienProfitStepPeak =
-      750.0; // Bước nhảy đỉnh (tại mốc 2/3)
+      2000.0; // Bước nhảy đỉnh (tại mốc 2/3)
   static const double xienProfitStepEnd = 100.0; // Bước nhảy ở ngày cuối cùng
 
   static const int bacGanWinMultiplier = 99;
