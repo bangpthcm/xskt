@@ -37,11 +37,11 @@ class AppConstants {
 
   // ✅ Ngưỡng "Ngày nuôi" cố định theo miền — dùng để xem đã đủ điều kiện
   // tạo bảng cược hay chưa (Ngày nuôi <= ngưỡng => đã thỏa điều kiện)
-  static const int ganDaysThresholdTatCa = 4;
-  static const int ganDaysThresholdNam = 8;
+  static const int ganDaysThresholdTatCa = 5;
+  static const int ganDaysThresholdNam = 10;
   static const int ganDaysThresholdTrung = 12;
-  static const int ganDaysThresholdBac = 20;
-  static const int ganDaysThresholdXien = 55;
+  static const int ganDaysThresholdBac = 18;
+  static const int ganDaysThresholdXien = 80;
 
   static int getGanDaysThreshold(String mien) {
     final m = mien.toLowerCase();

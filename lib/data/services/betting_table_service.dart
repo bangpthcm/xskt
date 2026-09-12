@@ -153,7 +153,7 @@ class BettingTableService {
     if (daysRemaining <= 1) return steps;
 
     final lastIndex = daysRemaining - 1;
-    final twoThirdIndex = (lastIndex * 3 / 5).round().clamp(1, lastIndex);
+    final twoThirdIndex = (lastIndex * 1 / 3).round().clamp(1, lastIndex);
 
     // Pha 1: tăng dần từ stepMin -> stepPeak (index 1..twoThirdIndex)
     for (int i = 1; i <= twoThirdIndex; i++) {

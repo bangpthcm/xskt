@@ -8,11 +8,11 @@ class ProbabilityConfig {
   final double thresholdLnXien;
 
   ProbabilityConfig({
-    this.thresholdLnTatCa = -104.9283934, // P= -15
-    this.thresholdLnNam = -100.895346, // ✅ THÊM (Giá trị mặc định cho Nam)
-    this.thresholdLnTrung = -99.75443008,
-    this.thresholdLnBac = -80.75344009,
-    this.thresholdLnXien = -288.4943358,
+    this.thresholdLnTatCa = -127.9671814, // P= -15
+    this.thresholdLnNam = -114.5930237, // ✅ THÊM (Giá trị mặc định cho Nam)
+    this.thresholdLnTrung = -123.2677849,
+    this.thresholdLnBac = -93.90677643,
+    this.thresholdLnXien = -507.1909674,
   });
 
   bool get isValid {

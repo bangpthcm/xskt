@@ -83,8 +83,6 @@ class AnalysisService {
   final Map<String, CycleAnalysisResult> _cycleCache = {};
 
   // --- HẰNG SỐ CẤU HÌNH ---
-  static const double WINDOW_FREQ_SLOTS = 11816.0;
-
   static const double P_INDIV = 0.01;
   static final double LN_P_INDIV = log(P_INDIV);
   static final double LN_BASE = log(max(1.0 - P_INDIV, 1e-12));
@@ -95,24 +93,24 @@ class AnalysisService {
 
     // 1. Nam
     if (s.contains('nam')) {
-      return (w1: 5.80646361325297, w2: 5.80646361325297, w3: 5.08623455136136);
+      return (w1: 8.395500439, w2: 2.764625906, w3: 2.152982432);
     }
     // 2. Trung
     if (s.contains('trung')) {
-      return (w1: 5.81002772919077, w2: 5.56088462111356, w3: 4.87178400079924);
+      return (w1: 8.126084748, w2: 6.707050752, w3: 0.569790435);
     }
     // 3. Bắc
     if (s.contains('bắc') || s.contains('bac')) {
-      return (w1: 4.94114459330997, w2: 4.85757478183567, w3: 4.56577153602314);
+      return (w1: 7.074092508, w2: 7.028006335, w3: 1.676343621);
     }
 
     // ✅ 4. XIÊN - TRỌNG SỐ RIÊNG
     if (s.contains('xien') || s.contains('xiên')) {
-      return (w1: 4.39447578, w2: 0.62539641, w3: 3.06014183);
+      return (w1: 6.8518100680, w2: 4.1870642199, w3: 1.5595106408);
     }
 
     // 5. Mặc định (Tất cả / Cycle)
-    return (w1: 6.49208774178719, w2: 3.82223753517943, w3: 4.76122384460668);
+    return (w1: 7.46985221, w2: 6.233340708, w3: 5.749617952);
   }
 
   // ---------------------------------------------------------------------------
@@ -268,18 +266,8 @@ class AnalysisService {
 
       if (scopedResults.isEmpty) return null;
 
-      // 3. Trim (Cắt dữ liệu)
-      int accumulated = 0;
-      int cutIndex = 0;
-      for (int i = scopedResults.length - 1; i >= 0; i--) {
-        accumulated += scopedResults[i].numbers.length;
-        if (accumulated >= WINDOW_FREQ_SLOTS.toInt()) {
-          cutIndex = i;
-          break;
-        }
-      }
-
-      final finalSessions = scopedResults.sublist(cutIndex);
+      // ✅ Đã bỏ trim theo window — dùng toàn bộ lịch sử đã merge
+      final finalSessions = scopedResults;
 
       // 4. Build Cumulative List
       List<int> cumList = [];
@@ -356,8 +344,7 @@ class AnalysisService {
       print('\n🔍 [MIN LOG P] Scope: $mienScope');
       print('   ⚖️ Weights Applied: W1=$w1, W2=$w2, W3=$w3');
       print('   🎯 Số: ${minResult.number}');
-      print(
-          '   📊 Tổng Slots: ${minResult.totalSlotsActual} (Target: ${WINDOW_FREQ_SLOTS.toInt()})');
+      print('   📊 Tổng Slots: ${minResult.totalSlotsActual}');
       print(
           '   🔹 P1 (Gan hiện tại): ${minResult.lnP1.toStringAsFixed(4)} | Slots: ${minResult.currentGan}');
       print(
@@ -1279,17 +1266,8 @@ class AnalysisService {
 
       if (scopedResults.isEmpty) return null;
 
-      // 2. Trim
-      int accumulated = 0;
-      int cutIndex = 0;
-      for (int i = scopedResults.length - 1; i >= 0; i--) {
-        accumulated += scopedResults[i].numbers.length;
-        if (accumulated >= WINDOW_FREQ_SLOTS.toInt()) {
-          cutIndex = i;
-          break;
-        }
-      }
-      final finalSessions = scopedResults.sublist(cutIndex);
+      // ✅ Đã bỏ trim theo window — dùng toàn bộ lịch sử đã merge
+      final finalSessions = scopedResults;
 
       // 3. Calc Stats
       List<int> cumList = [];
