@@ -6,9 +6,9 @@ class AppConstants {
   static const double defaultBudgetMax = 1750000.0;
 
   // Xiên betting constants
-  static const double targetBudgetXien = 400000.0;
+  static const double targetBudgetXien = 100000.0;
   static const double winMultiplierXien = 17.0;
-  static const double startingProfit = 2000.0;
+  static const double startingProfit = 500.0;
   static const double finalProfit = 3000.0;
   // ✅ THÊM MỚI: 3 mốc bước nhảy cho đường cong "quả đồi"
   static const double xienProfitStepMin = 100.0; // Bước nhảy ở ngày đầu tiên

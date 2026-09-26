@@ -568,6 +568,7 @@ class AnalysisViewModel extends ChangeNotifier {
               ganInfo: _ganPairInfo!,
               startDate: start,
               xienBudget: budgetRes.budgetMax,
+              budgetMin: budgetRes.budgetMax * 0.77,
               endDate: endDate,
             );
             if (preview.isNotEmpty) {
@@ -751,6 +752,7 @@ class AnalysisViewModel extends ChangeNotifier {
         ganInfo: _ganPairInfo!,
         startDate: _cachedPlanXien!.startDate,
         xienBudget: budgetRes.budgetMax,
+        budgetMin: budgetRes.budgetMax * 0.77,
         endDate: _cachedPlanXien!.endDate,
       );
 

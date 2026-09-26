@@ -12,168 +12,338 @@ import '../models/lottery_result.dart';
 
 class BettingTableService {
   /// Generate Xien Table
-  /// [UPDATED] Cho phép cược nhỏ nhất là 1đ để phù hợp với ngân sách siêu nhỏ
   Future<List<BettingRow>> generateXienTable({
     required GanPairInfo ganInfo,
     required DateTime startDate,
     required DateTime endDate,
-    required double xienBudget,
+    double xienBudget = AppConstants.targetBudgetXien,
+    double? budgetMin,
     bool fitBudgetOnly = false,
   }) async {
-    // 1. Chuẩn hóa ngày
-    DateTime startNorm =
-        DateTime(startDate.year, startDate.month, startDate.day);
-    DateTime endNorm = DateTime(endDate.year, endDate.month, endDate.day);
+    final startNorm = DateTime(startDate.year, startDate.month, startDate.day);
 
-    // 2. Tính số ngày nuôi
-    int daysRemaining = endNorm.difference(startNorm).inDays + 1;
+    final endNorm = DateTime(endDate.year, endDate.month, endDate.day);
+
+    final daysRemaining = endNorm.difference(startNorm).inDays + 1;
 
     if (daysRemaining <= 1) {
       return [];
     }
 
-    final capSoMucTieu = ganInfo.randomPair;
-    final rawTable = <BettingRow>[];
+    final effectiveBudgetMin =
+        budgetMin ?? (fitBudgetOnly ? 0.0 : xienBudget * 0.77);
 
-    double tongTien = 0.0;
+    return _optimizeXienByPeak(
+      ganInfo: ganInfo,
+      startNorm: startNorm,
+      daysRemaining: daysRemaining,
+      budgetMin: effectiveBudgetMin,
+      budgetMax: xienBudget,
+    );
+  }
 
-    // ✅ Tính mảng bước nhảy dạng "quả đồi": tăng 2/3 đầu, giảm 1/3 cuối
-    final profitSteps = _calculateXienProfitSteps(daysRemaining);
+  List<BettingRow> _optimizeXienByPeak({
+    required GanPairInfo ganInfo,
+    required DateTime startNorm,
+    required int daysRemaining,
+    required double budgetMin,
+    required double budgetMax,
+  }) {
+    // Peak không được thấp hơn Min/End,
+    // nếu không sẽ mất hình dạng "quả đồi".
+    final minPeak = max(
+      AppConstants.xienProfitStepMin,
+      AppConstants.xienProfitStepEnd,
+    );
 
-    double tienCuocMien =
-        AppConstants.startingProfit / (AppConstants.winMultiplierXien - 1);
-    if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
-      tienCuocMien = 100.0;
+    // ==========================================
+    // 1. Kiểm tra mức Peak thấp nhất
+    // ==========================================
+    final minTable = _buildXienTable(
+      ganInfo,
+      startNorm,
+      daysRemaining,
+      minPeak,
+    );
+
+    final minTotal = minTable.last.tongTien;
+
+    if (minTotal > budgetMax) {
+      throw Exception(
+        'Không đủ vốn cho Xiên!\n'
+        'Ngân sách tối đa: '
+        '${NumberUtils.formatCurrency(budgetMax)}\n'
+        'Vốn tối thiểu cần: '
+        '${NumberUtils.formatCurrency(minTotal)}',
+      );
     }
 
-    double runningProfitTarget = AppConstants.startingProfit;
+    // ==========================================
+    // 2. Peak mặc định do bạn cấu hình
+    // ==========================================
+    double lowPeak = minPeak;
 
-    // Bước 1: Tính toán thô
-    final tempRows = <Map<String, dynamic>>[];
-    for (int i = 0; i < daysRemaining; i++) {
-      if (i > 0) runningProfitTarget += profitSteps[i];
-      final currentProfitTarget = runningProfitTarget;
+    double highPeak = max(
+      AppConstants.xienProfitStepPeak,
+      minPeak,
+    );
 
-      if (i > 0) {
-        tienCuocMien = (tongTien + currentProfitTarget) /
-            (AppConstants.winMultiplierXien - 1);
-        if (tienCuocMien.isNaN || tienCuocMien.isInfinite) {
-          tienCuocMien = 100.0;
+    List<BettingRow> bestTable = minTable;
+    double bestTotal = minTotal;
+    double bestPeak = minPeak;
+
+    // ==========================================
+    // 3. Nếu Peak mặc định vẫn chưa dùng đủ vốn
+    //    => tăng Peak dần
+    //
+    // Mục tiêu:
+    // tìm highPeak sao cho total > budgetMax.
+    // Sau đó mới binary search ở giữa.
+    // ==========================================
+    for (int i = 0; i < 30; i++) {
+      final table = _buildXienTable(
+        ganInfo,
+        startNorm,
+        daysRemaining,
+        highPeak,
+      );
+
+      final total = table.last.tongTien;
+
+      if (total <= budgetMax) {
+        lowPeak = highPeak;
+
+        // Đây là nghiệm hợp lệ tốt hơn
+        if (total > bestTotal) {
+          bestTable = table;
+          bestTotal = total;
+          bestPeak = highPeak;
         }
-      }
 
-      if (tempRows.isNotEmpty) {
-        final prevCuoc = tempRows.last['cuoc_mien'] as double? ?? 100.0;
-        tienCuocMien = max(prevCuoc, tienCuocMien);
-      }
-
-      tienCuocMien = tienCuocMien.ceilToDouble();
-
-      if (tienCuocMien.isFinite) {
-        tongTien += tienCuocMien;
+        // Còn dư vốn => tăng Peak
+        highPeak *= 2;
       } else {
-        tienCuocMien = 100; // Fallback nhỏ
-        tongTien += tienCuocMien;
+        // Đã vượt vốn => có khoảng để binary search
+        break;
+      }
+    }
+
+    // ==========================================
+    // 4. Binary Search effectivePeak
+    // ==========================================
+    for (int i = 0; i < 60; i++) {
+      if ((highPeak - lowPeak).abs() < 0.01) {
+        break;
       }
 
-      tempRows.add({
-        'ngay': _formatDateWith2Digits(startNorm.add(Duration(days: i))),
-        'cuoc_mien': tienCuocMien,
-        'tong': tongTien,
-      });
-    }
+      final midPeak = (lowPeak + highPeak) / 2;
 
-    // Bước 2: Chuẩn hóa theo ngân sách
-    final rawTotalCost = tempRows.last['tong'] as double? ?? 1.0;
-    double scalingFactor = xienBudget / rawTotalCost;
-    if (fitBudgetOnly && scalingFactor > 1.0) {
-      scalingFactor = 1.0;
-    }
+      final table = _buildXienTable(
+        ganInfo,
+        startNorm,
+        daysRemaining,
+        midPeak,
+      );
 
-    if (rawTotalCost <= 0) scalingFactor = 1.0;
-    if (scalingFactor.isNaN || scalingFactor.isInfinite || scalingFactor <= 0) {
-      scalingFactor = 1.0;
-    }
+      final total = table.last.tongTien;
 
-    // Bước 3: Tạo bảng chi tiết & Đảm bảo lợi nhuận dương
-    for (int i = 0; i < tempRows.length; i++) {
-      final row = tempRows[i];
+      if (total <= budgetMax) {
+        // Không vượt ngân sách.
+        // Có thể tăng Peak tiếp.
+        lowPeak = midPeak;
 
-      // a. Scale theo ngân sách
-      double cuocMien = (row['cuoc_mien'] as double? ?? 100.0) * scalingFactor;
-      cuocMien = cuocMien.ceilToDouble();
-
-      // b. Lấy tổng tiền tích lũy của các ngày trước
-      double prevTotal = i == 0 ? 0 : rawTable[i - 1].tongTien;
-
-      // c. [QUAN TRỌNG] Ép Min Bet là 1đ (thay vì 1000đ)
-      if (cuocMien < 1) cuocMien = 1;
-
-      // d. Kiểm tra điểm hòa vốn (Break-even check)
-      // Cược * (Multiplier - 1) > Vốn cũ
-      double minBetToBreakEven =
-          prevTotal / (AppConstants.winMultiplierXien - 1);
-
-      // Nếu cược hiện tại vẫn lỗ hoặc hòa -> Tăng cược lên
-      if (cuocMien <= minBetToBreakEven) {
-        // Tăng thêm để có lời tối thiểu 1đ
-        double targetProfit = 1.0;
-        cuocMien =
-            (prevTotal + targetProfit) / (AppConstants.winMultiplierXien - 1);
-        cuocMien = cuocMien.ceilToDouble();
-
-        if (cuocMien < 1) cuocMien = 1;
+        if (total > bestTotal) {
+          bestTable = table;
+          bestTotal = total;
+          bestPeak = midPeak;
+        }
+      } else {
+        // Vượt ngân sách => giảm Peak
+        highPeak = midPeak;
       }
-
-      // e. Tính toán lại tổng và lợi nhuận
-      double tongTienRow = prevTotal + cuocMien;
-      double loi = (cuocMien * AppConstants.winMultiplierXien) - tongTienRow;
-
-      rawTable.add(BettingRow.forXien(
-        stt: i + 1,
-        ngay: row['ngay'] as String,
-        mien: 'Bắc',
-        so: capSoMucTieu.display,
-        cuocMien: cuocMien,
-        tongTien: tongTienRow,
-        loi: loi,
-      ));
     }
 
     print(
-        '✅ Generated ${rawTable.length} xien rows (budget: ${NumberUtils.formatCurrency(xienBudget)})');
-    return rawTable;
-  }
+      '✅ XIÊN OPTIMIZED\n'
+      'Peak gốc     : ${AppConstants.xienProfitStepPeak}\n'
+      'Peak thực tế : ${bestPeak.toStringAsFixed(2)}\n'
+      'Budget Min   : ${NumberUtils.formatCurrency(budgetMin)}\n'
+      'Budget Max   : ${NumberUtils.formatCurrency(budgetMax)}\n'
+      'Tổng vốn     : ${NumberUtils.formatCurrency(bestTotal)}',
+    );
 
-  /// Tính danh sách profitStep theo hình "quả đồi":
-  /// tăng dần trong 2/3 đầu, giảm dần trong 1/3 cuối.
-  /// Trả về mảng có độ dài = daysRemaining, index 0 luôn = 0 (ngày đầu dùng startingProfit gốc).
-  List<double> _calculateXienProfitSteps(int daysRemaining) {
-    final steps = List<double>.filled(daysRemaining, 0.0);
-    if (daysRemaining <= 1) return steps;
-
-    final lastIndex = daysRemaining - 1;
-    final twoThirdIndex = (lastIndex * 1 / 8).round().clamp(1, lastIndex);
-
-    // Pha 1: tăng dần từ stepMin -> stepPeak (index 1..twoThirdIndex)
-    for (int i = 1; i <= twoThirdIndex; i++) {
-      final fraction = twoThirdIndex == 1 ? 1.0 : (i - 1) / (twoThirdIndex - 1);
-      steps[i] = AppConstants.xienProfitStepMin +
-          (AppConstants.xienProfitStepPeak - AppConstants.xienProfitStepMin) *
-              fraction;
+    // Nếu tổng cuối vẫn thấp hơn budgetMin,
+    // nghĩa là do bước cược nguyên / ceil khiến không có nghiệm đẹp
+    // trong vùng mong muốn.
+    if (bestTotal < budgetMin) {
+      print(
+        '⚠️ Tổng vốn Xiên '
+        '${NumberUtils.formatCurrency(bestTotal)} '
+        'thấp hơn budgetMin '
+        '${NumberUtils.formatCurrency(budgetMin)}',
+      );
     }
 
-    // Pha 2: giảm dần từ stepPeak -> stepEnd (index twoThirdIndex+1..lastIndex)
-    final remainingSteps = lastIndex - twoThirdIndex;
-    for (int i = twoThirdIndex + 1; i <= lastIndex; i++) {
+    return bestTable;
+  }
+
+  List<double> _calculateXienProfitSteps({
+    required int daysRemaining,
+    required double effectivePeak,
+  }) {
+    final steps = List<double>.filled(daysRemaining, 0.0);
+
+    if (daysRemaining <= 1) {
+      return steps;
+    }
+
+    final lastIndex = daysRemaining - 1;
+
+    // ==========================================
+    // Peak nằm ở 1/8 toàn bộ thời gian
+    // ==========================================
+    final peakIndex = (lastIndex / 8).round().clamp(1, lastIndex);
+
+    // ==========================================
+    // PHA 1:
+    // 1/8 đầu
+    //
+    // Step:
+    // Min -> Peak
+    // ==========================================
+    for (int i = 1; i <= peakIndex; i++) {
+      final fraction = peakIndex == 1 ? 1.0 : (i - 1) / (peakIndex - 1);
+
+      steps[i] = AppConstants.xienProfitStepMin +
+          (effectivePeak - AppConstants.xienProfitStepMin) * fraction;
+    }
+
+    // ==========================================
+    // PHA 2:
+    // 7/8 sau
+    //
+    // Step:
+    // Peak -> End
+    // ==========================================
+    final remainingSteps = lastIndex - peakIndex;
+
+    for (int i = peakIndex + 1; i <= lastIndex; i++) {
       final fraction =
-          remainingSteps == 0 ? 1.0 : (i - twoThirdIndex) / remainingSteps;
-      steps[i] = AppConstants.xienProfitStepPeak -
-          (AppConstants.xienProfitStepPeak - AppConstants.xienProfitStepEnd) *
-              fraction;
+          remainingSteps == 0 ? 1.0 : (i - peakIndex) / remainingSteps;
+
+      steps[i] = effectivePeak -
+          (effectivePeak - AppConstants.xienProfitStepEnd) * fraction;
     }
 
     return steps;
+  }
+
+  List<BettingRow> _buildXienTable(
+    GanPairInfo ganInfo,
+    DateTime startNorm,
+    int daysRemaining,
+    double effectivePeak,
+  ) {
+    final capSo = ganInfo.randomPair;
+
+    final table = <BettingRow>[];
+
+    final profitSteps = _calculateXienProfitSteps(
+      daysRemaining: daysRemaining,
+      effectivePeak: effectivePeak,
+    );
+
+    double tongTien = 0.0;
+    double? prevBet;
+
+    // Ngày đầu tiên dùng startingProfit
+    double runningProfitTarget = AppConstants.startingProfit;
+
+    for (int i = 0; i < daysRemaining; i++) {
+      // Ngày đầu giữ startingProfit.
+      //
+      // Từ ngày thứ 2 trở đi:
+      // target += step của ngày đó.
+      if (i > 0) {
+        runningProfitTarget += profitSteps[i];
+      }
+
+      final target = runningProfitTarget;
+
+      // ==========================================
+      // Tiền cược cần để:
+      //
+      // bet * multiplier
+      // - tongTien cũ
+      // - bet
+      // = target profit
+      //
+      // =>
+      //
+      // bet =
+      // (tongTien + target)
+      // / (multiplier - 1)
+      // ==========================================
+      double bet = (tongTien + target) / (AppConstants.winMultiplierXien - 1);
+
+      if (bet.isNaN || bet.isInfinite) {
+        bet = 1;
+      }
+
+      // Không cho cược ngày sau thấp hơn ngày trước
+      if (prevBet != null) {
+        bet = max(
+          prevBet,
+          bet,
+        );
+      }
+
+      bet = bet.ceilToDouble();
+
+      if (bet < 1) {
+        bet = 1;
+      }
+
+      // ==========================================
+      // Safety check:
+      // luôn đảm bảo ít nhất hòa vốn + 1
+      // ==========================================
+      final minBreakEven = tongTien / (AppConstants.winMultiplierXien - 1);
+
+      if (bet <= minBreakEven) {
+        bet = ((tongTien + 1.0) / (AppConstants.winMultiplierXien - 1))
+            .ceilToDouble();
+
+        if (bet < 1) {
+          bet = 1;
+        }
+      }
+
+      final newTong = tongTien + bet;
+
+      final actualProfit = (bet * AppConstants.winMultiplierXien) - newTong;
+
+      table.add(
+        BettingRow.forXien(
+          stt: i + 1,
+          ngay: _formatDateWith2Digits(
+            startNorm.add(
+              Duration(days: i),
+            ),
+          ),
+          mien: 'Bắc',
+          so: capSo.display,
+          cuocMien: bet,
+          tongTien: newTong,
+          loi: actualProfit,
+        ),
+      );
+
+      tongTien = newTong;
+      prevBet = bet;
+    }
+
+    return table;
   }
 
   /// Generate Cycle Table
