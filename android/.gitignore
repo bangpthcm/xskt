@@ -12,3 +12,8 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Thư mục build / cache do Gradle & Kotlin sinh ra - không commit
+/build/
+/app/build/
+/.kotlin/

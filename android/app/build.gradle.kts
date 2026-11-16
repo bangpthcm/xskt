@@ -1,11 +1,12 @@
+import com.android.build.api.dsl.ApplicationExtension
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // Kotlin được AGP 9 tích hợp sẵn (Built-in Kotlin) -> không apply kotlin-android nữa.
+    // The Flutter Gradle Plugin must be applied after the Android Gradle plugin.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-android {
+extensions.configure<ApplicationExtension> {
     namespace = "com.example.xsktbot"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -13,10 +14,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
@@ -37,14 +34,22 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
 
-    applicationVariants.all {
-        val variant = this
-        variant.outputs.all {
-            // Ép kiểu về BaseVariantOutputImpl để set tên file
-            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output?.outputFileName = "xskt.apk" 
-        }
+// AGP 9 đã bỏ applicationVariants -> copy APK release thành xskt.apk sau khi build
+// (giữ nguyên app-release.apk để Flutter vẫn tìm thấy file output)
+val outputsDir = layout.buildDirectory.dir("outputs")
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    doLast {
+        val dir = outputsDir.get().asFile
+        val src = dir.resolve("apk/release/app-release.apk")
+        if (src.exists()) src.copyTo(dir.resolve("flutter-apk/xskt.apk"), overwrite = true)
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 
