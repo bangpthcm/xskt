@@ -8,11 +8,11 @@ class ProbabilityConfig {
   final double thresholdLnXien;
 
   ProbabilityConfig({
-    this.thresholdLnTatCa = -22.50098234, // P= -15
-    this.thresholdLnNam = -22.78095814, // ✅ THÊM (Giá trị mặc định cho Nam)
-    this.thresholdLnTrung = -25.32803684,
-    this.thresholdLnBac = -22.25203379,
-    this.thresholdLnXien = -507.1909674,
+    this.thresholdLnTatCa = -22.08040323, // P= -15
+    this.thresholdLnNam = -22.35514584, // ✅ THÊM (Giá trị mặc định cho Nam)
+    this.thresholdLnTrung = -24.85461559,
+    this.thresholdLnBac = -21.83610792,
+    this.thresholdLnXien = -502.3605773,
   });
 
   bool get isValid {
@@ -65,15 +65,15 @@ class ProbabilityConfig {
   factory ProbabilityConfig.fromJson(Map<String, dynamic> json) {
     return ProbabilityConfig(
       thresholdLnTatCa:
-          (json['thresholdLnTatCa'] as num?)?.toDouble() ?? -22.50098234,
+          (json['thresholdLnTatCa'] as num?)?.toDouble() ?? -22.08040323,
       thresholdLnNam: (json['thresholdLnNam'] as num?)?.toDouble() ??
-          -22.78095814, // ✅ THÊM
+          -22.35514584, // ✅ THÊM
       thresholdLnTrung:
-          (json['thresholdLnTrung'] as num?)?.toDouble() ?? -25.32803684,
+          (json['thresholdLnTrung'] as num?)?.toDouble() ?? -24.85461559,
       thresholdLnBac:
-          (json['thresholdLnBac'] as num?)?.toDouble() ?? -22.25203379,
+          (json['thresholdLnBac'] as num?)?.toDouble() ?? -21.83610792,
       thresholdLnXien:
-          (json['thresholdLnXien'] as num?)?.toDouble() ?? -507.1909674,
+          (json['thresholdLnXien'] as num?)?.toDouble() ?? -502.3605773,
     );
   }
 
