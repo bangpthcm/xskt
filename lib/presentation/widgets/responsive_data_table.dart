@@ -79,161 +79,73 @@ class ResponsiveDataTable extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Tổng: ${NumberUtils.formatCurrency(row.tongTien)}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                Flexible(
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: isCycleTable ? 'Cược/miền: ' : 'Cược: ',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade400,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        TextSpan(
+                          text: NumberUtils.formatCurrency(row.cuocMien),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.red.shade300,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             trailing: SizedBox(
-              width: 155,
-              child: isCycleTable
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            SizedBox(
-                              width: 100,
-                              child: Text(
-                                'Lời 1 số:',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade400,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                NumberUtils.formatCurrency(row.loi1So),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.green.shade300,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.right,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            SizedBox(
-                              width: 100,
-                              child: Text(
-                                'Cược/miền:',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade400,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                NumberUtils.formatCurrency(row.cuocMien),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.red.shade300,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.right,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            SizedBox(
-                              width: 100,
-                              child: Text(
-                                'Lời 1 cặp:',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade400,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                NumberUtils.formatCurrency(row.loi1So),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.green.shade300,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.right,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            SizedBox(
-                              width: 100,
-                              child: Text(
-                                'Cược/miền:',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade400,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                NumberUtils.formatCurrency(row.cuocMien),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.red.shade300,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.right,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+              width: 80,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isCycleTable ? 'Lời 1 số' : 'Lời 1 cặp',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade400,
+                      fontWeight: FontWeight.w500,
                     ),
+                    maxLines: 1,
+                  ),
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      NumberUtils.formatCurrency(row.loi1So),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.green.shade300,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                ],
+              ),
             ),
             children: [
               if (isCycleTable) ...[
                 _buildDetailRow('Số lô', row.soLo.toString()),
                 _buildDetailRow('Cược/số', NumberUtils.formatCurrency(row.cuocSo)),
                 _buildDetailRow('Cược/miền', NumberUtils.formatCurrency(row.cuocMien)),
+                _buildDetailRow('Tổng tiền', NumberUtils.formatCurrency(row.tongTien)),
                 _buildDetailRow(
                   'Lời (1 số)',
                   NumberUtils.formatCurrency(row.loi1So),
@@ -244,6 +156,7 @@ class ResponsiveDataTable extends StatelessWidget {
                 ),
               ] else ...[
                 _buildDetailRow('Cược', NumberUtils.formatCurrency(row.cuocMien)),
+                _buildDetailRow('Tổng tiền', NumberUtils.formatCurrency(row.tongTien)),
                 _buildDetailRow(
                   'Lời',
                   NumberUtils.formatCurrency(row.loi1So),

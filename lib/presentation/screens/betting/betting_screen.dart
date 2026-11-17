@@ -522,7 +522,7 @@ class _BettingScreenState extends State<BettingScreen> {
             child: const Row(
               children: [
                 Expanded(
-                  flex: 4,
+                  flex: 5,
                   child: Text(
                     'Ngày',
                     style: TextStyle(
@@ -544,7 +544,7 @@ class _BettingScreenState extends State<BettingScreen> {
                   ),
                 ),
                 Expanded(
-                  flex: 4,
+                  flex: 3,
                   child: Text(
                     'Số',
                     style: TextStyle(
@@ -583,12 +583,17 @@ class _BettingScreenState extends State<BettingScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    flex: 4,
-                    child: Text(
-                      row.ngay,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white,
+                    flex: 5,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        row.ngay,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
                       ),
                     ),
                   ),
@@ -603,7 +608,7 @@ class _BettingScreenState extends State<BettingScreen> {
                     ),
                   ),
                   Expanded(
-                    flex: 4,
+                    flex: 3,
                     child: Text(
                       row.so,
                       style: const TextStyle(
