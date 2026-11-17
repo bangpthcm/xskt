@@ -137,7 +137,6 @@ class RegionPlanResult {
       _ => 'Miền Nam',
     };
     String result = "${date_utils.DateUtils.formatDate(startDate)} ($region)";
-    if (daysNeeded > 60) result += " (>60 ngày)";
     return result;
   }
 
