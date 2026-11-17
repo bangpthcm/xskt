@@ -69,19 +69,6 @@ class RegionPlanIsolate {
     return compute(_computeHeavy, params);
   }
 
-  /// Chạy song song nhiều miền cùng lúc, mỗi miền 1 isolate riêng.
-  /// Nhanh hơn nhiều so với chạy tuần tự (await từng cái).
-  static Future<Map<String, RegionPlanIsolateResult>> runMultiple(
-      Map<String, RegionPlanIsolateParams> paramsByMien) async {
-    final entries = paramsByMien.entries.toList();
-    final results = await Future.wait(
-      entries.map((e) => run(e.value)),
-    );
-    return {
-      for (int i = 0; i < entries.length; i++) entries[i].key: results[i],
-    };
-  }
-
   // ⚠️ Hàm này chạy TRÊN ISOLATE KHÁC — không được truy cập bất kỳ state
   // nào của UI/ViewModel, chỉ được dùng dữ liệu có trong `params`.
   static Future<RegionPlanIsolateResult> _computeHeavy(

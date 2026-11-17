@@ -1,6 +1,5 @@
 // lib/data/services/google_sheets_service.dart
 
-import 'dart:async'; // ✅ Import để dùng Future.delayed
 
 import 'package:dio/dio.dart';
 import 'package:googleapis_auth/auth_io.dart';
@@ -17,11 +16,6 @@ class GoogleSheetsService {
   static const List<String> _scopes = [
     'https://www.googleapis.com/auth/spreadsheets'
   ];
-
-  // Cache
-  final Map<String, List<List<String>>> _batchReadCache = {};
-  // ignore: unused_field
-  DateTime? _batchReadCacheTime;
 
   Future<void> initialize(GoogleSheetsConfig config) async {
     _config = config;
@@ -110,44 +104,6 @@ class GoogleSheetsService {
     }
   }
 
-  Future<bool> testConnection() async {
-    return _retryOperation(() async {
-      final token = await _getAccessToken();
-      final url =
-          'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}';
-
-      final response = await _dio.get(
-        url,
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
-      );
-
-      if (response.statusCode == 200) {
-        print(
-            '✅ Connection successful! Sheet: ${response.data['properties']['title']}');
-        return true;
-      }
-      return false;
-    });
-  }
-
-  // ============================================
-  // ✅ BATCH READ (REST API) - Có Retry
-  // ============================================
-  Future<Map<String, List<List<dynamic>>>> batchGetValues(
-      List<String> sheetNames) async {
-    return _retryOperation(() async {
-      // Gọi song song các request
-      final futures = sheetNames.map((name) => getAllValues(name)).toList();
-      final results = await Future.wait(futures);
-
-      final Map<String, List<List<dynamic>>> dataMap = {};
-      for (int i = 0; i < sheetNames.length; i++) {
-        dataMap[sheetNames[i]] = results[i] as List<List<dynamic>>;
-      }
-      return dataMap;
-    });
-  }
-
   // ============================================
   // ✅ BATCH UPDATE (REST API) - Có Retry
   // ============================================
@@ -181,11 +137,6 @@ class GoogleSheetsService {
           type: DioExceptionType.badResponse,
         );
       }
-
-      // Invalidate cache
-      for (final worksheetName in updates.keys) {
-        _batchReadCache.remove(worksheetName);
-      }
     });
   }
 
@@ -215,51 +166,6 @@ class GoogleSheetsService {
     });
   }
 
-  Future<void> updateRange(
-      String worksheetName, String range, List<List<String>> values) async {
-    return _retryOperation(() async {
-      final url =
-          'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!$range';
-
-      final response = await _dio.put(
-        url,
-        queryParameters: {'valueInputOption': 'USER_ENTERED'},
-        data: {"values": values},
-        options: await _getAuthOptions(),
-      );
-
-      if (response.statusCode == 429) {
-        throw DioException(
-          requestOptions: response.requestOptions,
-          response: response,
-          type: DioExceptionType.badResponse,
-        );
-      }
-    });
-  }
-
-  Future<void> appendRows(String worksheetName, List<List<String>> rows) async {
-    return _retryOperation(() async {
-      final url =
-          'https://sheets.googleapis.com/v4/spreadsheets/${_config!.sheetName}/values/$worksheetName!A:AD:append';
-
-      final response = await _dio.post(
-        url,
-        queryParameters: {'valueInputOption': 'USER_ENTERED'},
-        data: {"values": rows},
-        options: await _getAuthOptions(),
-      );
-
-      if (response.statusCode == 429) {
-        throw DioException(
-          requestOptions: response.requestOptions,
-          response: response,
-          type: DioExceptionType.badResponse,
-        );
-      }
-    });
-  }
-
   Future<void> clearSheet(String worksheetName) async {
     return _retryOperation(() async {
       final url =
@@ -274,11 +180,6 @@ class GoogleSheetsService {
         );
       }
     });
-  }
-
-  void clearBatchCache() {
-    _batchReadCache.clear();
-    _batchReadCacheTime = null;
   }
 
   Future<List<List<String>>> getAnalysisCycleData() async {

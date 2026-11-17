@@ -36,7 +36,6 @@ class WinHistoryViewModel extends ChangeNotifier {
   bool _hasMoreBac = true;
 
   bool get isLoading => _isLoading;
-  bool get isLoadingMore => _isLoadingMore;
   String? get errorMessage => _errorMessage;
   List<CycleWinHistory> get cycleHistory => _cycleHistory;
   List<XienWinHistory> get xienHistory => _xienHistory;
@@ -356,11 +355,6 @@ class WinHistoryViewModel extends ChangeNotifier {
   }
 
   // ===================== LOGIC THỐNG KÊ (ĐÃ CẬP NHẬT MAX BET) =====================
-
-  /// Tính tổng thống kê chu kỳ
-  WinStats getCycleStats() {
-    return _calculateStats(_cycleHistory.cast<dynamic>());
-  }
 
   /// Tính tổng thống kê xiên
   WinStats getXienStats() {

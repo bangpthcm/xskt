@@ -42,14 +42,6 @@ class BudgetConfig {
     return (namBudget + trungBudget + bacBudget + xienBudget) <= totalCapital;
   }
 
-  double get remainingCapital {
-    return totalCapital - (namBudget + trungBudget + bacBudget + xienBudget);
-  }
-
-  double get allocatedCapital {
-    return namBudget + trungBudget + bacBudget + xienBudget;
-  }
-
   Map<String, dynamic> toJson() {
     return {
       'totalCapital': totalCapital,
@@ -114,14 +106,6 @@ class TelegramTopicConfig {
     this.bac,
     this.error,
   });
-
-  bool get hasAnyTopic =>
-      cycle != null ||
-      xien != null ||
-      nam != null ||
-      trung != null ||
-      bac != null ||
-      error != null;
 
   Map<String, dynamic> toJson() => {
         if (cycle != null) 'cycle': cycle,
@@ -412,5 +396,4 @@ class TelegramConfig {
 
   static const String _defaultBotToken =
       "7553435508:AAHbCO15riOHBoAFWVtyOSVHQBupZ7Wlvrs";
-  static String get defaultBotToken => _defaultBotToken;
 }

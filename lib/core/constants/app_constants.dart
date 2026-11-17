@@ -1,15 +1,10 @@
 class AppConstants {
   static const List<String> mienOrder = ["Nam", "Trung", "Bắc"];
 
-  // Budget defaults
-  static const double defaultBudgetMin = 330000.0;
-  static const double defaultBudgetMax = 1750000.0;
-
   // Xiên betting constants
   static const double targetBudgetXien = 100000.0;
   static const double winMultiplierXien = 17.0;
   static const double startingProfit = 500.0;
-  static const double finalProfit = 3000.0;
   // ✅ THÊM MỚI: 3 mốc bước nhảy cho đường cong "quả đồi"
   static const double xienProfitStepMin = 100.0; // Bước nhảy ở ngày đầu tiên
   static const double xienProfitStepPeak =
@@ -23,17 +18,6 @@ class AppConstants {
   // Win multipliers
   static const int winMultiplier = 98;
 
-  // WebView URLs
-  static const String homeUrlNam =
-      'https://xoso.com.vn/xo-so-mien-nam/xsmn-p1.html';
-  static const String homeUrlTrung =
-      'https://xoso.com.vn/xo-so-mien-trung/xsmt-p1.html';
-  static const String homeUrlBac =
-      'https://xoso.com.vn/xo-so-mien-bac/xsmb-p1.html';
-
-  // Time thresholds
-  static const int timeThreshold1 = 1030; // 17:10
-  static const int timeThreshold2 = 1090; // 18:10
 
   // ✅ Ngưỡng "Ngày nuôi" cố định theo miền — dùng để xem đã đủ điều kiện
   // tạo bảng cược hay chưa (Ngày nuôi <= ngưỡng => đã thỏa điều kiện)

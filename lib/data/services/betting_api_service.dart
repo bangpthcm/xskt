@@ -154,8 +154,6 @@ class BettingApiService {
     }
   }
 
-  String? getCachedToken() => _cachedToken;
-
   void clearCache() {
     _cachedToken = null;
     _cookieJar.deleteAll();
