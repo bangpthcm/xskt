@@ -542,22 +542,25 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final bettingVm = context.read<BettingViewModel>();
               Navigator.pop(context);
               final config = context.read<SettingsViewModel>().config;
               await viewModel.createCycleBettingTable(number, config);
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
-                  await context.read<BettingViewModel>().loadBettingTables();
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  await bettingVm.loadBettingTables();
+                  messenger.showSnackBar(const SnackBar(
                     content: Text('✅ Tạo bảng cược thành công!'),
                     backgroundColor: ThemeProvider.profit,
                     duration: Duration(seconds: 2),
                   ));
                   await Future.delayed(const Duration(milliseconds: 300));
-                  if (context.mounted)
+                  if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
+                  }
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  messenger.showSnackBar(SnackBar(
                     content: Text('❌ ${viewModel.errorMessage}'),
                     backgroundColor: Colors.red,
                   ));
@@ -585,19 +588,22 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final bettingVm = context.read<BettingViewModel>();
               Navigator.pop(context);
               await viewModel.createXienBettingTable();
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
-                  await context.read<BettingViewModel>().loadBettingTables();
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  await bettingVm.loadBettingTables();
+                  messenger.showSnackBar(const SnackBar(
                     content: Text('Tạo bảng cược thành công!'),
                     backgroundColor: ThemeProvider.profit,
                     duration: Duration(seconds: 2),
                   ));
                   await Future.delayed(const Duration(milliseconds: 300));
-                  if (context.mounted)
+                  if (context.mounted) {
                     mainNavigationKey.currentState?.switchToTab(1);
+                  }
                 }
               }
             },
@@ -745,12 +751,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final bettingVm = context.read<BettingViewModel>();
               Navigator.pop(context);
               await onCreate();
               if (context.mounted) {
                 if (viewModel.errorMessage == null) {
-                  await context.read<BettingViewModel>().loadBettingTables();
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  await bettingVm.loadBettingTables();
+                  messenger.showSnackBar(SnackBar(
                     content: Text(successMsg),
                     backgroundColor: ThemeProvider.profit,
                     duration: const Duration(seconds: 2),
@@ -760,7 +768,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     mainNavigationKey.currentState?.switchToTab(1);
                   }
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  messenger.showSnackBar(SnackBar(
                     content: Text('❌ ${viewModel.errorMessage}'),
                     backgroundColor: Colors.red,
                   ));

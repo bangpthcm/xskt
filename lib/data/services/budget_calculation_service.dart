@@ -187,10 +187,11 @@ class BudgetCalculationService {
     } else if (str.contains(',')) {
       // Nếu chỉ có dấu phẩy, kiểm tra xem là thập phân hay ngăn nghìn
       final parts = str.split(',');
-      if (parts.last.length <= 2)
+      if (parts.last.length <= 2) {
         str = str.replaceAll(',', '.');
-      else
+      } else {
         str = str.replaceAll(',', '');
+      }
     } else if (str.contains('.')) {
       // Nếu chỉ có dấu chấm, kiểm tra xem là ngăn nghìn hay thập phân
       final parts = str.split('.');

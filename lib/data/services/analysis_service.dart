@@ -818,7 +818,9 @@ class AnalysisService {
           final totalCost = table.last.tongTien;
           if (totalCost <= availableBudget) return currentStart;
         }
-      } catch (e) {}
+      } catch (_) {
+        // Bỏ qua ngày lỗi, thử ngày kế tiếp
+      }
       currentStart = currentStart.add(const Duration(days: 1));
       attempt++;
     }

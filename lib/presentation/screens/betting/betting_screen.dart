@@ -112,10 +112,10 @@ class _BettingScreenState extends State<BettingScreen> {
       final apiService = BettingApiService();
       final token = await apiService.authenticateAndGetToken(account, domain);
 
-      if (!mounted) return;
+      if (!context.mounted) return;
 
       if (token != null && token.isNotEmpty) {
-        if (mounted) {
+        if (context.mounted) {
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -128,7 +128,7 @@ class _BettingScreenState extends State<BettingScreen> {
           );
         }
       } else {
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Xác thực thất bại. Vui lòng thử lại.'),
@@ -138,7 +138,7 @@ class _BettingScreenState extends State<BettingScreen> {
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
         );

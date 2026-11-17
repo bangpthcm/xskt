@@ -7,7 +7,6 @@ import '../models/api_account.dart';
 class BettingApiService {
   final Dio _dio = Dio();
   final CookieJar _cookieJar = CookieJar();
-  String? _cachedToken;
 
   BettingApiService() {
     _dio.interceptors.add(CookieManager(_cookieJar));
@@ -97,7 +96,6 @@ class BettingApiService {
                       dataObject['access_token'];
           
           if (token != null) {
-            _cachedToken = token;
             print('✅ TP Token received: $token');
             return token;
           }
@@ -108,7 +106,6 @@ class BettingApiService {
                     responseData['access_token'];
         
         if (token != null) {
-          _cachedToken = token;
           print('✅ TP Token received: $token');
           return token;
         }
@@ -155,7 +152,6 @@ class BettingApiService {
   }
 
   void clearCache() {
-    _cachedToken = null;
     _cookieJar.deleteAll();
     print('🗑️ Cache cleared');
   }

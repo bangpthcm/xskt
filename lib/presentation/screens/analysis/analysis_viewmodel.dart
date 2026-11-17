@@ -323,8 +323,9 @@ class AnalysisViewModel extends ChangeNotifier {
           if (cacheJson != null && cacheJson.trim().isNotEmpty) {
             final cacheData = jsonDecode(cacheJson);
             if (cacheData['date'] != null) _sheetHeaderDate = cacheData['date'];
-            if (cacheData['region'] != null)
+            if (cacheData['region'] != null) {
               _sheetHeaderRegion = cacheData['region'];
+            }
             _applyCacheData(cacheData);
             cacheHit = true;
             print('✅ Cache HIT!');
@@ -777,8 +778,9 @@ class AnalysisViewModel extends ChangeNotifier {
         if (row.isEmpty) continue;
         final mienKey = row[0].trim().toLowerCase();
 
-        if (mienKey.contains('miền xét') || mienKey.contains('mien xet'))
+        if (mienKey.contains('miền xét') || mienKey.contains('mien xet')) {
           continue;
+        }
 
         if (mienKey.contains('xiên') || mienKey.contains('xien')) {
           if (_ganPairInfo == null) _parseXienRowOnly(row);
@@ -805,12 +807,13 @@ class AnalysisViewModel extends ChangeNotifier {
 
       DateTime lastSeen;
       try {
-        if (lastSeenStr.contains('/'))
+        if (lastSeenStr.contains('/')) {
           lastSeen = DateFormat('dd/MM/yyyy').parse(lastSeenStr);
-        else if (lastSeenStr.contains('-'))
+        } else if (lastSeenStr.contains('-')) {
           lastSeen = DateTime.parse(lastSeenStr);
-        else
+        } else {
           lastSeen = DateTime.now();
+        }
       } catch (_) {
         lastSeen = DateTime.now();
       }
@@ -909,8 +912,9 @@ class AnalysisViewModel extends ChangeNotifier {
     final n = mien.toLowerCase();
     if (n.contains('nam')) return config.probability.thresholdLnNam;
     if (n.contains('trung')) return config.probability.thresholdLnTrung;
-    if (n.contains('bắc') || n.contains('bac'))
+    if (n.contains('bắc') || n.contains('bac')) {
       return config.probability.thresholdLnBac;
+    }
     return config.probability.thresholdLnTatCa;
   }
 
@@ -952,14 +956,15 @@ class AnalysisViewModel extends ChangeNotifier {
       }
     } else {
       final n = (mienOrType as String).toLowerCase();
-      if (n.contains('nam'))
+      if (n.contains('nam')) {
         _cachedPlanNam = plan;
-      else if (n.contains('trung'))
+      } else if (n.contains('trung')) {
         _cachedPlanTrung = plan;
-      else if (n.contains('bắc') || n.contains('bac'))
+      } else if (n.contains('bắc') || n.contains('bac')) {
         _cachedPlanBac = plan;
-      else
+      } else {
         _cachedPlanTatCa = plan;
+      }
     }
   }
 

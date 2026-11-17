@@ -346,8 +346,9 @@ class _ProfitChartState extends State<ProfitChart> {
                                         final index = spot.x.toInt();
                                         // Đoạn check index này cậu làm tốt, nó sẽ bỏ qua điểm ảo không hiển thị tooltip bậy
                                         if (index < 0 ||
-                                            index >= widget.data.length)
+                                            index >= widget.data.length) {
                                           return null;
+                                        }
 
                                         final monthData = widget.data[index];
                                         return LineTooltipItem(

@@ -15,9 +15,6 @@ analyzer:
 linter:
   rules:
     # Báo lỗi biến/hàm không dùng
-    unused_import: true
-    unused_local_variable: true
-    unused_catch_clause: true
     avoid_unused_constructor_parameters: true
     # Code style
     prefer_const_constructors: true
