@@ -27,31 +27,6 @@ class ProbabilityConfig {
     return thresholdLn >= -700.0 && thresholdLn <= -2.0;
   }
 
-  double getThresholdLn(String mien) {
-    switch (mien.toLowerCase()) {
-      case 'tatca':
-      case 'tất cả':
-      case 'all':
-        return thresholdLnTatCa;
-      case 'nam': // ✅ THÊM CASE NAM
-      case 'miền nam':
-        return thresholdLnNam;
-      case 'trung':
-      case 'miền trung':
-        return thresholdLnTrung;
-      case 'bac':
-      case 'bắc':
-      case 'miền bắc':
-        return thresholdLnBac;
-      case 'xien':
-      case 'xiên':
-      case 'xiên bắc':
-        return thresholdLnXien;
-      default:
-        return thresholdLnTatCa;
-    }
-  }
-
   Map<String, dynamic> toJson() {
     return {
       'thresholdLnTatCa': thresholdLnTatCa,

@@ -154,47 +154,4 @@ class CachedDataService {
     
     print('🗑️ Cache cleared');
   }
-
-  /// ✅ Get cache status
-  Future<CacheStatus> getCacheStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final timestamp = prefs.getInt(_kqxsTimestampKey);
-    final rowCount = prefs.getInt(_lastRowCountKey);
-    
-    if (timestamp == null) {
-      return CacheStatus(
-        isValid: false,
-        rowCount: 0,
-        age: Duration.zero,
-      );
-    }
-
-    final cacheTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
-    final age = DateTime.now().difference(cacheTime);
-    
-    return CacheStatus(
-      isValid: age < _cacheDuration,
-      rowCount: rowCount ?? 0,
-      age: age,
-    );
-  }
-}
-
-/// Model cho cache status
-class CacheStatus {
-  final bool isValid;
-  final int rowCount;
-  final Duration age;
-
-  CacheStatus({
-    required this.isValid,
-    required this.rowCount,
-    required this.age,
-  });
-
-  @override
-  String toString() {
-    return 'Cache: ${isValid ? "Valid" : "Expired"} - '
-           '$rowCount rows - Age: ${age.inMinutes}min';
-  }
 }

@@ -37,7 +37,6 @@ class CycleWinHistory {
   });
 
   bool get isWin => trangThai == 'WIN';
-  bool get isTracking => trangThai == 'TRACKING';
 
   List<String> toSheetRow() {
     return [

@@ -54,38 +54,6 @@ class TelegramService {
   }
 
   // ─────────────────────────────────────────────────────────
-  // PUBLIC: Test connection
-  // ─────────────────────────────────────────────────────────
-  Future<bool> testConnection() async {
-    if (_config == null || !_config!.isValid) {
-      print('❌ Telegram config invalid');
-      return false;
-    }
-
-    try {
-      final url = 'https://api.telegram.org/bot${_config!.botToken}/getMe';
-      print('🔄 Testing Telegram connection...');
-
-      final response =
-          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['ok'] == true) {
-          final botInfo = data['result'];
-          print('✅ Telegram connected: @${botInfo['username']}');
-          return true;
-        }
-      }
-      print('❌ Telegram connection failed: HTTP ${response.statusCode}');
-      return false;
-    } catch (e) {
-      print('❌ Error testing Telegram connection: $e');
-      return false;
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────
   // PUBLIC: Gửi message (có hoặc không có topic)
   // ─────────────────────────────────────────────────────────
   /// [topic] nếu null → gửi vào general chat (không dùng message_thread_id)
@@ -131,16 +99,6 @@ class TelegramService {
   }
 
   // ─────────────────────────────────────────────────────────
-  // PUBLIC: Gửi thông báo lỗi vào topic error
-  // ─────────────────────────────────────────────────────────
-  Future<void> sendError(String errorMessage) async {
-    await sendMessage(
-      '⚠️ <b>LỖI HỆ THỐNG</b>\n\n$errorMessage',
-      topic: TelegramTopic.error,
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────
   // FORMAT: Bảng Xiên
   // ─────────────────────────────────────────────────────────
   String formatXienTableMessage(
@@ -164,18 +122,6 @@ class TelegramService {
     }
     buffer.writeln('</pre>');
     return buffer.toString();
-  }
-
-  // ─────────────────────────────────────────────────────────
-  // FORMAT: Bảng Chu kỳ (wrapper cũ – giữ tương thích)
-  // ─────────────────────────────────────────────────────────
-  String formatCycleTableMessage(
-    List<BettingRow> table,
-    String nhomGan,
-    String soMucTieu,
-  ) {
-    return formatCycleTableMessageWithType(
-        table, nhomGan, soMucTieu, TelegramTableType.tatCa);
   }
 
   String formatCycleTableMessageWithType(
